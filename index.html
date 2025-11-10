@@ -1,0 +1,551 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Distress Intelligence</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <!-- Tailwind CDN (free) -->
+    <script src="https://cdn.tailwindcss.com"></script>
+  </head>
+  <body class="min-h-screen bg-slate-950 text-slate-100">
+    <!-- Top Nav -->
+    <header class="border-b border-slate-800 bg-slate-950/80 backdrop-blur">
+      <div
+        class="mx-auto flex max-w-6xl items-center justify-between px-4 py-3"
+      >
+        <div class="flex items-center gap-2">
+          <div
+            class="flex h-8 w-8 items-center justify-center rounded-xl bg-gradient-to-br from-emerald-400 to-cyan-400 text-sm font-bold text-slate-900"
+          >
+            DI
+          </div>
+          <div>
+            <div class="text-sm font-semibold">Distress Intelligence</div>
+            <div class="text-xs text-slate-400">
+              Pre-market Duval distress data · MVP
+            </div>
+          </div>
+        </div>
+        <div class="flex items-center gap-2 text-xs">
+          <span class="hidden text-slate-400 sm:inline">Logged in as</span>
+          <span class="font-medium">Investor</span>
+        </div>
+      </div>
+    </header>
+
+    <!-- Main -->
+    <main class="mx-auto max-w-6xl space-y-4 px-4 py-6">
+      <!-- Filters Card -->
+      <section
+        class="rounded-2xl border border-slate-800 bg-slate-900/60 p-4 shadow-lg shadow-slate-950/40"
+      >
+        <div
+          class="flex flex-col gap-3 md:flex-row md:items-end md:justify-between"
+        >
+          <div class="flex-1 space-y-2">
+            <div class="flex flex-col gap-2 sm:flex-row">
+              <div class="flex-1">
+                <label class="text-xs font-medium text-slate-300">
+                  Search owner / address / parcel
+                </label>
+                <input
+                  id="filter-search"
+                  type="text"
+                  class="mt-1 w-full rounded-xl border border-slate-700 bg-slate-900 px-3 py-2 text-sm outline-none focus:border-emerald-400"
+                  placeholder="e.g. Smith, 125 Main, 12345-0000"
+                />
+              </div>
+              <div class="w-full sm:w-32">
+                <label class="text-xs font-medium text-slate-300">Zip</label>
+                <input
+                  id="filter-zip"
+                  type="text"
+                  class="mt-1 w-full rounded-xl border border-slate-700 bg-slate-900 px-3 py-2 text-sm outline-none focus:border-emerald-400"
+                  placeholder="32209"
+                />
+              </div>
+            </div>
+
+            <div class="flex flex-col gap-2 sm:flex-row">
+              <div class="w-full sm:w-40">
+                <label class="text-xs font-medium text-slate-300">
+                  Min amount due
+                </label>
+                <input
+                  id="filter-min-amount"
+                  type="number"
+                  class="mt-1 w-full rounded-xl border border-slate-700 bg-slate-900 px-3 py-2 text-sm outline-none focus:border-emerald-400"
+                  placeholder="10000"
+                />
+              </div>
+              <div class="w-full sm:w-40">
+                <label class="text-xs font-medium text-slate-300">
+                  Max amount due
+                </label>
+                <input
+                  id="filter-max-amount"
+                  type="number"
+                  class="mt-1 w-full rounded-xl border border-slate-700 bg-slate-900 px-3 py-2 text-sm outline-none focus:border-emerald-400"
+                  placeholder="50000"
+                />
+              </div>
+            </div>
+
+            <div class="space-y-1">
+              <div class="text-xs font-medium text-slate-300">
+                Distress sources
+              </div>
+              <div id="distress-buttons" class="flex flex-wrap gap-2">
+                <!-- buttons added by JS -->
+              </div>
+            </div>
+          </div>
+
+          <!-- Actions -->
+          <div class="mt-3 flex flex-col gap-2 md:mt-0 md:w-56">
+            <button
+              id="btn-export"
+              type="button"
+              class="w-full rounded-xl bg-emerald-400 px-4 py-2 text-sm font-semibold text-slate-950 shadow-lg shadow-emerald-500/40 hover:bg-emerald-300"
+            >
+              Export Now (CSV)
+            </button>
+            <button
+              id="btn-schedule"
+              type="button"
+              class="w-full rounded-xl border border-slate-700 bg-slate-900 px-4 py-2 text-xs font-medium text-slate-100 hover:border-emerald-400"
+            >
+              Schedule Automatic Exports
+            </button>
+            <div id="match-count" class="text-[11px] text-slate-400">
+              <!-- filled by JS -->
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Results Table -->
+      <section
+        class="rounded-2xl border border-slate-800 bg-slate-900/60 p-4 shadow-lg shadow-slate-950/40"
+      >
+        <div class="mb-3 flex items-center justify-between text-xs">
+          <div class="font-medium text-slate-200">Distressed Parcels</div>
+          <div id="table-summary" class="text-slate-400"></div>
+        </div>
+
+        <div class="overflow-x-auto rounded-xl border border-slate-800">
+          <table class="min-w-full text-left text-xs">
+            <thead class="bg-slate-900/80 text-slate-400">
+              <tr>
+                <th class="px-3 py-2">Owner</th>
+                <th class="px-3 py-2">Property Address</th>
+                <th class="px-3 py-2">Parcel</th>
+                <th class="px-3 py-2">Zip</th>
+                <th class="px-3 py-2">Distress</th>
+                <th class="px-3 py-2 text-right">Amount Due</th>
+                <th class="px-3 py-2">Updated</th>
+              </tr>
+            </thead>
+            <tbody id="leads-body">
+              <!-- rows inserted by JS -->
+            </tbody>
+          </table>
+        </div>
+      </section>
+    </main>
+
+    <!-- Schedule Modal -->
+    <div
+      id="schedule-modal"
+      class="fixed inset-0 z-40 hidden items-center justify-center bg-black/60"
+    >
+      <div
+        class="w-full max-w-md rounded-2xl border border-slate-800 bg-slate-950 p-4 shadow-xl shadow-black/60"
+      >
+        <div class="mb-3 flex items-start justify-between gap-2">
+          <div>
+            <h2 class="text-sm font-semibold text-slate-100">
+              Schedule Automatic Exports
+            </h2>
+            <p class="text-xs text-slate-400">
+              We’ll send a filtered CSV to your inbox on the schedule you
+              choose.
+            </p>
+          </div>
+        </div>
+
+        <div class="space-y-3 text-xs">
+          <div>
+            <label class="font-medium text-slate-300">Send to email</label>
+            <input
+              id="schedule-email"
+              type="email"
+              placeholder="you@example.com"
+              class="mt-1 w-full rounded-xl border border-slate-700 bg-slate-900 px-3 py-2 text-sm outline-none focus:border-emerald-400"
+            />
+          </div>
+
+          <div>
+            <label class="font-medium text-slate-300">Frequency</label>
+            <select
+              id="schedule-frequency"
+              class="mt-1 w-full rounded-xl border border-slate-700 bg-slate-900 px-3 py-2 text-sm outline-none focus:border-emerald-400"
+            >
+              <option value="daily">Daily</option>
+              <option value="weekly" selected>Weekly</option>
+              <option value="monthly">Monthly</option>
+            </select>
+          </div>
+
+          <div>
+            <label class="font-medium text-slate-300">File format</label>
+            <select
+              id="schedule-format"
+              class="mt-1 w-full rounded-xl border border-slate-700 bg-slate-900 px-3 py-2 text-sm outline-none focus:border-emerald-400"
+            >
+              <option value="csv">CSV</option>
+              <option value="xlsx">Excel (.xlsx)</option>
+            </select>
+          </div>
+
+          <div>
+            <div class="mb-1 font-medium text-slate-300">
+              Include sources
+            </div>
+            <div id="schedule-sources" class="flex flex-wrap gap-2">
+              <!-- buttons added by JS -->
+            </div>
+          </div>
+        </div>
+
+        <div class="mt-4 flex justify-end gap-2 text-xs">
+          <button
+            id="schedule-cancel"
+            type="button"
+            class="rounded-xl border border-slate-700 bg-slate-900 px-4 py-2 font-medium text-slate-100 hover:border-slate-500"
+          >
+            Cancel
+          </button>
+          <button
+            id="schedule-save"
+            type="button"
+            class="rounded-xl bg-emerald-400 px-4 py-2 font-semibold text-slate-950 shadow-lg shadow-emerald-500/40 hover:bg-emerald-300"
+          >
+            Save Schedule
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- JS -->
+    <script>
+      const ALL_DISTRESS = ["TAX", "NUISANCE", "FIRE", "PROBATE", "LIS_PENDENS"];
+
+      const state = {
+        filters: {
+          search: "",
+          zip: "",
+          min_amount: "",
+          max_amount: "",
+          distress: [...ALL_DISTRESS],
+        },
+        leads: [],
+        total: 0,
+      };
+
+      const scheduleState = {
+        includeSources: [...ALL_DISTRESS],
+      };
+
+      function buildDistressButtons() {
+        const container = document.getElementById("distress-buttons");
+        const scheduleSources = document.getElementById("schedule-sources");
+        container.innerHTML = "";
+        scheduleSources.innerHTML = "";
+
+        ALL_DISTRESS.forEach((type) => {
+          const label =
+            type === "TAX"
+              ? "Tax"
+              : type === "NUISANCE"
+              ? "Nuisance / Code"
+              : type === "FIRE"
+              ? "Fire / Unsafe"
+              : type === "PROBATE"
+              ? "Probate"
+              : "Lis Pendens";
+
+          // Filter buttons
+          const btn = document.createElement("button");
+          btn.type = "button";
+          btn.textContent = label;
+          btn.className =
+            "rounded-full border px-3 py-1 text-xs font-medium transition";
+          btn.dataset.type = type;
+          btn.addEventListener("click", () => toggleDistressFilter(type));
+          container.appendChild(btn);
+
+          // Schedule source buttons
+          const sbtn = document.createElement("button");
+          sbtn.type = "button";
+          sbtn.textContent = label;
+          sbtn.className =
+            "rounded-full border px-3 py-1 text-[11px] font-medium transition";
+          sbtn.dataset.type = type;
+          sbtn.addEventListener("click", () => toggleScheduleSource(type));
+          scheduleSources.appendChild(sbtn);
+        });
+
+        updateDistressButtonStyles();
+        updateScheduleSourceStyles();
+      }
+
+      function toggleDistressFilter(type) {
+        const list = state.filters.distress;
+        const idx = list.indexOf(type);
+        if (idx === -1) list.push(type);
+        else list.splice(idx, 1);
+        updateDistressButtonStyles();
+        loadLeads();
+      }
+
+      function updateDistressButtonStyles() {
+        const container = document.getElementById("distress-buttons");
+        Array.from(container.children).forEach((btn) => {
+          const type = btn.dataset.type;
+          const active = state.filters.distress.includes(type);
+          btn.className =
+            "rounded-full border px-3 py-1 text-xs font-medium transition " +
+            (active
+              ? "border-emerald-400 bg-emerald-400/10 text-emerald-100"
+              : "border-slate-700 bg-slate-900 text-slate-300 hover:border-slate-500");
+        });
+      }
+
+      function toggleScheduleSource(type) {
+        const list = scheduleState.includeSources;
+        const idx = list.indexOf(type);
+        if (idx === -1) list.push(type);
+        else list.splice(idx, 1);
+        updateScheduleSourceStyles();
+      }
+
+      function updateScheduleSourceStyles() {
+        const container = document.getElementById("schedule-sources");
+        Array.from(container.children).forEach((btn) => {
+          const type = btn.dataset.type;
+          const active = scheduleState.includeSources.includes(type);
+          btn.className =
+            "rounded-full border px-3 py-1 text-[11px] font-medium transition " +
+            (active
+              ? "border-emerald-400 bg-emerald-400/10 text-emerald-100"
+              : "border-slate-700 bg-slate-900 text-slate-300 hover:border-slate-500");
+        });
+      }
+
+      async function loadLeads() {
+        const params = new URLSearchParams();
+        if (state.filters.search) params.set("search", state.filters.search);
+        if (state.filters.zip) params.set("zip", state.filters.zip);
+        if (state.filters.min_amount)
+          params.set("min_amount", state.filters.min_amount);
+        if (state.filters.max_amount)
+          params.set("max_amount", state.filters.max_amount);
+        if (state.filters.distress.length) {
+          params.set("distress", state.filters.distress.join(","));
+        }
+
+        const res = await fetch("/api/leads?" + params.toString());
+        const data = await res.json();
+        state.leads = data.items || [];
+        state.total = data.total || 0;
+        renderTable();
+      }
+
+      function renderTable() {
+        const body = document.getElementById("leads-body");
+        const summary = document.getElementById("table-summary");
+        const matchCount = document.getElementById("match-count");
+        body.innerHTML = "";
+
+        if (!state.leads.length) {
+          const tr = document.createElement("tr");
+          const td = document.createElement("td");
+          td.colSpan = 7;
+          td.className = "px-3 py-6 text-center text-slate-400";
+          td.textContent =
+            "No matching properties. Try expanding your filters.";
+          tr.appendChild(td);
+          body.appendChild(tr);
+        } else {
+          state.leads.forEach((lead) => {
+            const tr = document.createElement("tr");
+            tr.className =
+              "border-t border-slate-800 bg-slate-950/40 hover:bg-slate-900/80";
+
+            const ownerTd = document.createElement("td");
+            ownerTd.className = "px-3 py-2 align-top";
+            ownerTd.textContent = lead.owner;
+            tr.appendChild(ownerTd);
+
+            const addrTd = document.createElement("td");
+            addrTd.className = "px-3 py-2 align-top";
+            addrTd.innerHTML =
+              '<div class="text-[11px] text-slate-100">' +
+              (lead.siteAddress || "") +
+              '</div><div class="text-[10px] text-slate-500">Mail: ' +
+              (lead.mailingAddress || "") +
+              "</div>";
+            tr.appendChild(addrTd);
+
+            const parcelTd = document.createElement("td");
+            parcelTd.className = "px-3 py-2 align-top text-[11px]";
+            parcelTd.textContent = lead.parcel || "";
+            tr.appendChild(parcelTd);
+
+            const zipTd = document.createElement("td");
+            zipTd.className = "px-3 py-2 align-top text-[11px]";
+            zipTd.textContent = lead.zip || "";
+            tr.appendChild(zipTd);
+
+            const distressTd = document.createElement("td");
+            distressTd.className = "px-3 py-2 align-top";
+            const wrap = document.createElement("div");
+            wrap.className = "flex flex-wrap gap-1";
+            (lead.distressTypes || []).forEach((t) => {
+              const span = document.createElement("span");
+              span.className =
+                "rounded-full bg-slate-800 px-2 py-0.5 text-[10px] text-slate-200";
+              span.textContent =
+                t === "TAX"
+                  ? "Tax"
+                  : t === "NUISANCE"
+                  ? "Nuisance"
+                  : t === "FIRE"
+                  ? "Fire"
+                  : t === "PROBATE"
+                  ? "Probate"
+                  : "Lis Pendens";
+              wrap.appendChild(span);
+            });
+            distressTd.appendChild(wrap);
+            tr.appendChild(distressTd);
+
+            const amtTd = document.createElement("td");
+            amtTd.className = "px-3 py-2 align-top text-right text-[11px]";
+            const amt = lead.amountDue || 0;
+            amtTd.textContent =
+              "$" +
+              Number(amt).toLocaleString(undefined, {
+                maximumFractionDigits: 0,
+              });
+            tr.appendChild(amtTd);
+
+            const updatedTd = document.createElement("td");
+            updatedTd.className =
+              "px-3 py-2 align-top text-[11px] text-slate-400";
+            if (lead.lastUpdated) {
+              updatedTd.textContent = new Date(
+                lead.lastUpdated
+              ).toLocaleDateString();
+            } else {
+              updatedTd.textContent = "";
+            }
+            tr.appendChild(updatedTd);
+
+            body.appendChild(tr);
+          });
+        }
+
+        summary.textContent =
+          "Showing " + state.leads.length + " of " + state.total + " total";
+        matchCount.textContent = state.leads.length + " matching properties";
+      }
+
+      async function exportCsv() {
+        const payload = {
+          search: state.filters.search,
+          zip: state.filters.zip,
+          min_amount: state.filters.min_amount,
+          max_amount: state.filters.max_amount,
+          distress: state.filters.distress.join(","),
+        };
+
+        const res = await fetch("/api/export", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        });
+
+        if (!res.ok) {
+          alert("Export failed.");
+          return;
+        }
+
+        const blob = await res.blob();
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = "distress_export.csv";
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        window.URL.revokeObjectURL(url);
+      }
+
+      async function saveSchedule() {
+        const email = document.getElementById("schedule-email").value.trim();
+        const frequency = document.getElementById("schedule-frequency").value;
+        const format = document.getElementById("schedule-format").value;
+
+        if (!email) {
+          alert("Please enter an email address.");
+          return;
+        }
+
+        const payload = {
+          email,
+          frequency,
+          format,
+          includeSources: scheduleState.includeSources,
+          filters: { ...state.filters },
+        };
+
+        const res = await fetch("/api/schedules", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        });
+
+        const data = await res.json();
+
+        if (!res.ok || !data.ok) {
+          alert("Error saving schedule: " + (data.error || "Unknown error."));
+          return;
+        }
+
+        alert(
+          "Schedule saved. For MVP you can manually honor these once a week until automation is wired."
+        );
+        hideScheduleModal();
+      }
+
+      function showScheduleModal() {
+        document.getElementById("schedule-modal").classList.remove("hidden");
+        document.getElementById("schedule-modal").classList.add("flex");
+      }
+
+      function hideScheduleModal() {
+        document.getElementById("schedule-modal").classList.add("hidden");
+        document.getElementById("schedule-modal").classList.remove("flex");
+      }
+
+      function initFilters() {
+        document
+          .getElementById("filter-search")
+          .addEventListener("input", (e) => {
+            state.filters.search = e.target.value;
+            loadLeads();
+          });
+
+        document.getElementById("fi
