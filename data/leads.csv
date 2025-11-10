@@ -1,0 +1,4 @@
+id,parcel,owner,mailingAddress,siteAddress,zip,distressTypes,amountDue,lastUpdated
+1,12345-0000,"Smith, John","123 Main St, Jacksonville, FL","125 Main St, Jacksonville, FL",32209,"TAX|NUISANCE",12475,2025-11-01
+2,67890-1111,"Doe, Mary","45 Oak Ave, Jacksonville, FL","47 Oak Ave, Jacksonville, FL",32218,"FIRE",32000,2025-10-28
+3,22222-3333,"Williams Trust","PO Box 789, Jacksonville, FL","900 Pine St, Jacksonville, FL",32209,"TAX",10500,2025-10-15
