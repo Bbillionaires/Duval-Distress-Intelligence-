@@ -548,4 +548,49 @@
             loadLeads();
           });
 
-        document.getElementById("fi
+        document.getElementById("filter-zip").addEventListener("input", (e) => {
+          state.filters.zip = e.target.value;
+          loadLeads();
+        });
+
+        document
+          .getElementById("filter-min-amount")
+          .addEventListener("input", (e) => {
+            state.filters.min_amount = e.target.value;
+            loadLeads();
+          });
+
+        document
+          .getElementById("filter-max-amount")
+          .addEventListener("input", (e) => {
+            state.filters.max_amount = e.target.value;
+            loadLeads();
+          });
+      }
+
+      function initActions() {
+        document
+          .getElementById("btn-export")
+          .addEventListener("click", exportCsv);
+
+        document
+          .getElementById("btn-schedule")
+          .addEventListener("click", showScheduleModal);
+
+        document
+          .getElementById("schedule-cancel")
+          .addEventListener("click", hideScheduleModal);
+        document
+          .getElementById("schedule-save")
+          .addEventListener("click", saveSchedule);
+      }
+
+      // Init
+      buildDistressButtons();
+      initFilters();
+      initActions();
+      loadLeads();
+    </script>
+  </body>
+</html>
+
