@@ -1,14 +1,33 @@
-# Distress Intelligence
+# 🦉 Distress Intelligence
 
-**Distress Intelligence** is a lightweight, free-to-run property distress dashboard.  
-It aggregates **tax delinquency, nuisance/code violations, fire damage**, and other pre-market property indicators into one searchable table.
+**Distress Intelligence** is a pre-market property distress dashboard built for investors, wholesalers, and acquisition pros who want *off-market leads before everyone else*.
 
-### 🔧 Features
-- Filter by owner, address, ZIP, amount due, and distress type  
-- Export filtered leads to CSV  
-- Schedule automatic weekly exports  
-- Runs on free Flask + HTML stack (Render, Replit, or local)
+> 📍 Focused on **Duval County, FL** – combining **tax delinquency**, **nuisance/code violations**, and **fire-damage properties** into one searchable, exportable dashboard.
 
-### 🖥️ Demo
-After deployment, visit:# Duval-Distress-Intelligence-
-Lead Extractor 
+---
+
+### ⚡ Features
+- 🔍 **Smart filters** – search by owner, address, ZIP, or amount due  
+- 💾 **CSV export** – download filtered leads instantly  
+- 📅 **Auto-schedule exports** – weekly or monthly CSV delivery  
+- 🧩 **Multi-source data** – Tax | Nuisance | Fire | Probate | Lis Pendens  
+- 💸 **Runs 100% free** – Flask + Tailwind + CSV data backend
+
+---
+
+### 🛠️ Stack
+| Layer | Tech |
+|-------|------|
+| **Frontend** | HTML + TailwindCSS (CDN) |
+| **Backend** | Python Flask (with Flask-CORS) |
+| **Storage** | Local CSV or free SQLite |
+| **Deployment** | Render (free web service tier) |
+
+---
+
+### 🚀 Quick Start
+
+#### 1. Clone the repo
+```bash
+git clone https://github.com/YOUR_USERNAME/distress-intelligence.git
+cd distress-intelligence
