@@ -1,9 +1,9 @@
 name: Run Duval Tax Scraper
 
 on:
+  workflow_dispatch:       # lets you run it manually
   schedule:
-    - cron: '0 8 * * 1'   # every Monday at 8:00 UTC
-  workflow_dispatch:       # allows manual run from the Actions tab
+    - cron: '0 8 * * 1'    # every Monday at 8:00 UTC
 
 jobs:
   build:
