@@ -1,9 +1,9 @@
 name: Run Duval Tax Scraper
 
 on:
-  workflow_dispatch:       # lets you run it manually
+  workflow_dispatch:        # allow manual run from the Actions tab
   schedule:
-    - cron: '0 8 * * 1'    # every Monday at 8:00 UTC
+    - cron: '0 8 * * 1'     # run every Monday at 8 AM UTC
 
 jobs:
   build:
@@ -26,10 +26,10 @@ jobs:
         run: |
           python scrape_duval_tax_to_leads.py
 
-      - name: Commit updated leads.csv
+      - name: Commit updated data files
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add data/leads.csv
-          git commit -m "Automated update of leads.csv" || echo "No changes to commit"
+          git add data/leads.csv data/scrape_cache.csv
+          git commit -m "Automated update of scraped data" || echo "No changes to commit"
           git push
