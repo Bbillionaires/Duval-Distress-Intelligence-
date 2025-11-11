@@ -50,7 +50,7 @@
         </button>
       </div>
 
-      <p id="statusText" class="mt-3 text-xs text-slate-400 min-h-[1rem]"></p>
+      <p id="statusText" class="mt-3 text-xs text-slate-400 min-h-[1.2rem]"></p>
 
       <p class="mt-4 text-[11px] text-slate-500 text-center">
         By continuing you agree not to scrape, resell, or abuse this data source.
@@ -64,6 +64,9 @@
 
   <!-- 2) Initialize Firebase (PUT YOUR REAL CONFIG HERE) -->
   <script>
+    console.log("Loading Firebase config for login page...");
+
+    // 🔴 REPLACE THIS with your real config from Firebase console
     const firebaseConfig = {
       apiKey: "AIzaSyDTMTNQceT5sbzJVnZknWOWF27G0KzYgPE",
       authDomain: "duval-distress-intelligence.firebaseapp.com",
@@ -72,65 +75,122 @@
       messagingSenderId: "374769856603",
       appId: "1:374769856603:web:342062e92ef5d1c289cf7e"
     };
-    firebase.initializeApp(firebaseConfig);
+
+    try {
+      firebase.initializeApp(firebaseConfig);
+      console.log("Firebase initialized on login page:", firebase.apps.length);
+    } catch (e) {
+      console.error("Error initializing Firebase:", e);
+    }
   </script>
 
   <!-- 3) Page-specific login logic -->
   <script>
-    document.addEventListener("DOMContentLoaded", () => {
-      const emailInput = document.getElementById("emailInput");
-      const passwordInput = document.getElementById("passwordInput");
-      const loginBtn = document.getElementById("loginBtn");
-      const signupBtn = document.getElementById("signupBtn");
-      const statusText = document.getElementById("statusText");
+    console.log("Login script starting...");
 
-      // If already logged in, skip to dashboard
-      firebase.auth().onAuthStateChanged((user) => {
-        if (user) {
-          window.location.href = "/";
-        }
-      });
+    const emailInput = document.getElementById("emailInput");
+    const passwordInput = document.getElementById("passwordInput");
+    const loginBtn = document.getElementById("loginBtn");
+    const signupBtn = document.getElementById("signupBtn");
+    const statusText = document.getElementById("statusText");
 
-      async function handleLogin() {
-        const email = emailInput.value.trim();
-        const pass = passwordInput.value;
-        if (!email || !pass) {
-          statusText.textContent = "Enter email and password.";
-          return;
-        }
-        statusText.textContent = "Signing in...";
-        try {
-          await firebase.auth().signInWithEmailAndPassword(email, pass);
-          statusText.textContent = "Success. Redirecting…";
-          window.location.href = "/";
-        } catch (err) {
-          statusText.textContent = err.message || "Login failed.";
-        }
+    if (!emailInput || !passwordInput || !loginBtn || !signupBtn) {
+      console.error("Login page elements not found.");
+    }
+
+    function setStatus(msg) {
+      console.log("STATUS:", msg);
+      if (statusText) statusText.textContent = msg;
+    }
+
+    // Make sure Firebase is there before we use it
+    function requireFirebaseAuth() {
+      if (typeof firebase === "undefined") {
+        setStatus("Firebase SDK not loaded.");
+        console.error("firebase is undefined on login page.");
+        return null;
       }
-
-      async function handleSignup() {
-        const email = emailInput.value.trim();
-        const pass = passwordInput.value;
-        if (!email || !pass) {
-          statusText.textContent = "Enter email and password.";
-          return;
-        }
-        statusText.textContent = "Creating account...";
-        try {
-          await firebase.auth().createUserWithEmailAndPassword(email, pass);
-          statusText.textContent = "Account created. Redirecting…";
-          window.location.href = "/";
-        } catch (err) {
-          statusText.textContent = err.message || "Signup failed.";
-        }
+      if (!firebase.auth) {
+        setStatus("Firebase auth not available.");
+        console.error("firebase.auth is missing on login page.");
+        return null;
       }
+      return firebase.auth();
+    }
 
+    // If already logged in, bounce to dashboard
+    try {
+      const auth = requireFirebaseAuth();
+      if (auth) {
+        auth.onAuthStateChanged((user) => {
+          if (user) {
+            console.log("User already logged in, redirecting to /");
+            window.location.href = "/";
+          }
+        });
+      }
+    } catch (e) {
+      console.error("Error in onAuthStateChanged setup:", e);
+    }
+
+    async function handleLogin(event) {
+      if (event) event.preventDefault();
+      const auth = requireFirebaseAuth();
+      if (!auth) return;
+
+      const email = emailInput.value.trim();
+      const pass = passwordInput.value;
+      if (!email || !pass) {
+        setStatus("Enter email and password.");
+        return;
+      }
+      setStatus("Signing in...");
+      try {
+        await auth.signInWithEmailAndPassword(email, pass);
+        setStatus("Success. Redirecting…");
+        window.location.href = "/";
+      } catch (err) {
+        console.error("Login error:", err);
+        setStatus(err.message || "Login failed.");
+      }
+    }
+
+    async function handleSignup(event) {
+      if (event) event.preventDefault();
+      const auth = requireFirebaseAuth();
+      if (!auth) return;
+
+      const email = emailInput.value.trim();
+      const pass = passwordInput.value;
+      if (!email || !pass) {
+        setStatus("Enter email and password.");
+        return;
+      }
+      setStatus("Creating account...");
+      try {
+        await auth.createUserWithEmailAndPassword(email, pass);
+        setStatus("Account created. Redirecting…");
+        window.location.href = "/";
+      } catch (err) {
+        console.error("Signup error:", err);
+        setStatus(err.message || "Signup failed.");
+      }
+    }
+
+    // Attach click handlers
+    if (loginBtn) {
       loginBtn.addEventListener("click", handleLogin);
+    }
+    if (signupBtn) {
       signupBtn.addEventListener("click", handleSignup);
+    }
+    if (passwordInput) {
       passwordInput.addEventListener("keydown", (e) => {
-        if (e.key === "Enter") handleLogin();
+        if (e.key === "Enter") handleLogin(e);
       });
-    });
+    }
+
+    console.log("Login script finished binding events.");
   </script>
 </body>
 </html>
