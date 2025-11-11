@@ -2,17 +2,24 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>Distress Intelligence · Duval</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Distress Intelligence · Duval</title>
 
   <!-- Tailwind CSS -->
   <script src="https://cdn.tailwindcss.com"></script>
+
+  <style>
+    body {
+      background-color: #020617; /* slate-950 */
+      color: #f8fafc;            /* slate-100 */
+      font-family: 'Inter', sans-serif;
+    }
+  </style>
 </head>
-<body class="bg-slate-950 text-slate-100 min-h-screen">
 
-  <!-- Wrapper -->
+<body class="min-h-screen">
+
   <div class="max-w-5xl mx-auto px-4 py-6">
-
     <!-- Header -->
     <header class="flex items-center justify-between mb-6">
       <div class="flex items-center gap-3">
@@ -24,10 +31,14 @@
           <p class="text-xs text-slate-400">Pre-market Duval distress data · MVP</p>
         </div>
       </div>
-      <div id="authArea" class="text-xs text-slate-400">
+      <div class="flex items-center gap-2 text-xs text-slate-300">
+        <span id="roleBadge"
+              class="hidden px-2 py-0.5 rounded-full border border-amber-400 bg-amber-500/10 text-amber-200 text-[10px]">
+          Admin
+        </span>
         <span id="userStatus" class="text-slate-300"></span>
         <button id="logoutBtn"
-                class="hidden bg-slate-800 border border-slate-600 rounded-full px-3 py-1 text-[11px] ml-2">
+                class="hidden bg-slate-800 border border-slate-600 rounded-full px-3 py-1 text-[11px]">
           Logout
         </button>
       </div>
@@ -138,11 +149,11 @@
        class="hidden fixed bottom-4 left-1/2 -translate-x-1/2 bg-slate-900 border border-slate-700 text-xs px-3 py-2 rounded-full shadow-lg">
   </div>
 
-  <!-- 1) Firebase SDKs -->
-  <script src="https://www.gstatic.com/firebasejs/11.0.1/firebase-app.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/11.0.1/firebase-auth.js"></script>
+  <!-- Firebase SDKs (compat) -->
+  <script src="https://www.gstatic.com/firebasejs/11.0.1/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/11.0.1/firebase-auth-compat.js"></script>
 
-  <!-- 2) Initialize Firebase (PUT SAME CONFIG HERE) -->
+  <!-- Firebase Config -->
   <script>
     const firebaseConfig = {
       apiKey: "AIzaSyDTMTNQceT5sbzJVnZknWOWF27G0KzYgPE",
@@ -152,204 +163,206 @@
       messagingSenderId: "374769856603",
       appId: "1:374769856603:web:342062e92ef5d1c289cf7e"
     };
-    firebase.initializeApp(firebaseConfig);
+
+    if (!firebase.apps.length) {
+      firebase.initializeApp(firebaseConfig);
+    }
+
+    const ADMIN_EMAILS = [
+      "you@example.com"  // 👈 put YOUR admin email here
+    ];
   </script>
 
-  <!-- 3) Auth guard + header UI -->
+  <!-- Auth + App Logic -->
   <script>
     document.addEventListener("DOMContentLoaded", () => {
       const userStatus = document.getElementById("userStatus");
       const logoutBtn = document.getElementById("logoutBtn");
+      const roleBadge = document.getElementById("roleBadge");
 
       firebase.auth().onAuthStateChanged((user) => {
         if (!user) {
-          // Not logged in → send to login
+          // not logged in → send to login
           window.location.href = "/login";
           return;
         }
-        // Logged in
-        if (userStatus) userStatus.textContent = user.email || "Signed in";
-        if (logoutBtn) {
-          logoutBtn.classList.remove("hidden");
-          logoutBtn.onclick = async () => {
-            await firebase.auth().signOut();
-            window.location.href = "/login";
-          };
-        }
-      });
-    });
 
-    function getCurrentUserEmailSafe() {
-      try {
-        const user = firebase.auth().currentUser;
-        return (user && user.email) || "unknown";
-      } catch (e) {
-        return "unknown";
-      }
-    }
-  </script>
+        const email = user.email || "";
+        userStatus.textContent = email;
 
-  <!-- 4) Distress Intelligence core script -->
-  <script>
-    const API_BASE = "";
-    let currentLeads = [];
-    let activeSources = new Set(["tax"]);
-
-    const searchInput = document.getElementById("searchInput");
-    const zipInput = document.getElementById("zipInput");
-    const minAmountInput = document.getElementById("minAmountInput");
-    const maxAmountInput = document.getElementById("maxAmountInput");
-    const exportBtn = document.getElementById("exportBtn");
-    const refreshBtn = document.getElementById("refreshBtn");
-    const summaryText = document.getElementById("summaryText");
-    const tableMeta = document.getElementById("tableMeta");
-    const leadsBody = document.getElementById("leadsBody");
-    const toast = document.getElementById("toast");
-
-    function showToast(message) {
-      toast.textContent = message;
-      toast.classList.remove("hidden");
-      setTimeout(() => toast.classList.add("hidden"), 2200);
-    }
-
-    function getFilters() {
-      const q = searchInput.value.trim();
-      const zip = zipInput.value.trim();
-      const minAmt = minAmountInput.value.trim();
-      const maxAmt = maxAmountInput.value.trim();
-      const sources = Array.from(activeSources).join(",");
-      return { q, zip, minAmt, maxAmt, sources };
-    }
-
-    async function loadLeads() {
-      const { q, zip, minAmt, maxAmt, sources } = getFilters();
-      const params = new URLSearchParams();
-      if (q) params.append("q", q);
-      if (zip) params.append("zip", zip);
-      if (minAmt) params.append("min_amount", minAmt);
-      if (maxAmt) params.append("max_amount", maxAmt);
-      if (sources) params.append("sources", sources);
-
-      const res = await fetch(`/api/leads?${params.toString()}`);
-      const data = await res.json();
-      currentLeads = data.leads || [];
-
-      summaryText.textContent = `${data.count} matching properties`;
-      tableMeta.textContent = `Showing ${data.count} of ${data.total} total`;
-      renderTable();
-    }
-
-    function renderTable() {
-      leadsBody.innerHTML = "";
-      if (!currentLeads.length) {
-        leadsBody.innerHTML =
-          `<tr><td colspan="7" class="py-4 text-center text-slate-500">No leads match your filters yet.</td></tr>`;
-        return;
-      }
-
-      for (const lead of currentLeads) {
-        const tr = document.createElement("tr");
-        const tags = (lead.distressTypes || "").split("|").filter(Boolean);
-
-        tr.innerHTML = `
-          <td class="py-2 pr-4 align-top">
-            <div class="font-medium text-slate-100">${lead.owner || "-"}</div>
-            <div class="text-[11px] text-slate-500">Mail: ${lead.mailingAddress || "-"}</div>
-          </td>
-          <td class="py-2 pr-4 align-top">${lead.siteAddress || "-"}</td>
-          <td class="py-2 pr-4 align-top text-slate-300">${lead.parcel || "-"}</td>
-          <td class="py-2 pr-4 align-top text-slate-300">${lead.zip || "-"}</td>
-          <td class="py-2 pr-4 align-top">
-            <div class="flex flex-wrap gap-1">
-              ${tags.map(t =>
-                `<span class="px-2 py-0.5 rounded-full bg-slate-800 text-[10px] border border-slate-600">${t}</span>`
-              ).join("")}
-            </div>
-          </td>
-          <td class="py-2 pr-4 align-top text-right font-medium text-emerald-300">
-            ${lead.amountDue ? "$" + Number(lead.amountDue).toLocaleString() : "-"}
-          </td>
-          <td class="py-2 pl-4 align-top text-right">
-            <button class="px-3 py-1 text-[11px] rounded-full bg-sky-500 text-slate-900 font-medium hover:bg-sky-400"
-                    data-id="${lead.id}">
-              Skiptrace
-            </button>
-          </td>
-        `;
-
-        const btn = tr.querySelector("button");
-        btn.addEventListener("click", () => sendToSkiptrace(lead, btn));
-        leadsBody.appendChild(tr);
-      }
-    }
-
-    async function sendToSkiptrace(lead, buttonEl) {
-      buttonEl.disabled = true;
-      buttonEl.textContent = "Sending…";
-
-      const userEmail = getCurrentUserEmailSafe();
-
-      try {
-        const res = await fetch("/api/skiptrace_order", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ lead, user: userEmail })
-        });
-        const data = await res.json();
-        if (!data.ok) throw new Error(data.error || "Error");
-
-        buttonEl.textContent = `Queued (${data.queue})`;
-        buttonEl.classList.remove("bg-sky-500", "hover:bg-sky-400");
-        buttonEl.classList.add("bg-emerald-500");
-        showToast(`Sent to ${data.queue} queue`);
-      } catch (e) {
-        showToast("Skiptrace failed: " + e.message);
-        buttonEl.disabled = false;
-        buttonEl.textContent = "Skiptrace";
-      }
-    }
-
-    async function exportCsv() {
-      const { q, zip, minAmt, maxAmt, sources } = getFilters();
-      const params = new URLSearchParams();
-      if (q) params.append("q", q);
-      if (zip) params.append("zip", zip);
-      if (minAmt) params.append("min_amount", minAmt);
-      if (maxAmt) params.append("max_amount", maxAmt);
-      if (sources) params.append("sources", sources);
-      window.location.href = `/export?${params.toString()}`;
-    }
-
-    let filterTimeout = null;
-    function scheduleReload() {
-      if (filterTimeout) clearTimeout(filterTimeout);
-      filterTimeout = setTimeout(loadLeads, 400);
-    }
-
-    document.querySelectorAll(".distress-pill").forEach(btn => {
-      btn.addEventListener("click", () => {
-        const s = btn.getAttribute("data-source");
-        if (activeSources.has(s)) {
-          activeSources.delete(s);
-          btn.classList.remove("border-emerald-400", "bg-emerald-500/10");
-          btn.classList.add("border-slate-600", "bg-slate-800");
+        if (ADMIN_EMAILS.includes(email.toLowerCase())) {
+          roleBadge.classList.remove("hidden");
         } else {
-          activeSources.add(s);
-          btn.classList.add("border-emerald-400", "bg-emerald-500/10");
-          btn.classList.remove("border-slate-600", "bg-slate-800");
+          roleBadge.classList.add("hidden");
         }
-        scheduleReload();
+
+        logoutBtn.classList.remove("hidden");
+        logoutBtn.onclick = async () => {
+          await firebase.auth().signOut();
+          window.location.href = "/login";
+        };
+
+        // once we know user is logged in, start the lead UI
+        initDistressApp(email);
       });
     });
 
-    searchInput.addEventListener("input", scheduleReload);
-    zipInput.addEventListener("input", scheduleReload);
-    minAmountInput.addEventListener("input", scheduleReload);
-    maxAmountInput.addEventListener("input", scheduleReload);
-    exportBtn.addEventListener("click", exportCsv);
-    refreshBtn.addEventListener("click", loadLeads);
+    function initDistressApp(userEmail) {
+      const API_BASE = "";
+      let currentLeads = [];
+      let activeSources = new Set(["tax"]);
 
-    loadLeads();
+      const searchInput = document.getElementById("searchInput");
+      const zipInput = document.getElementById("zipInput");
+      const minAmountInput = document.getElementById("minAmountInput");
+      const maxAmountInput = document.getElementById("maxAmountInput");
+      const exportBtn = document.getElementById("exportBtn");
+      const refreshBtn = document.getElementById("refreshBtn");
+      const summaryText = document.getElementById("summaryText");
+      const tableMeta = document.getElementById("tableMeta");
+      const leadsBody = document.getElementById("leadsBody");
+      const toast = document.getElementById("toast");
+
+      function showToast(message) {
+        toast.textContent = message;
+        toast.classList.remove("hidden");
+        setTimeout(() => toast.classList.add("hidden"), 2000);
+      }
+
+      function getFilters() {
+        const q = searchInput.value.trim();
+        const zip = zipInput.value.trim();
+        const minAmt = minAmountInput.value.trim();
+        const maxAmt = maxAmountInput.value.trim();
+        const sources = Array.from(activeSources).join(",");
+        return { q, zip, minAmt, maxAmt, sources };
+      }
+
+      async function loadLeads() {
+        const { q, zip, minAmt, maxAmt, sources } = getFilters();
+        const params = new URLSearchParams();
+        if (q) params.append("q", q);
+        if (zip) params.append("zip", zip);
+        if (minAmt) params.append("min_amount", minAmt);
+        if (maxAmt) params.append("max_amount", maxAmt);
+        if (sources) params.append("sources", sources);
+
+        showToast("Loading leads…");
+        const res = await fetch(`/api/leads?${params.toString()}`);
+        const data = await res.json();
+        currentLeads = data.leads || [];
+        summaryText.textContent = `${data.count} matching properties`;
+        tableMeta.textContent = `Showing ${data.count} of ${data.total} total`;
+        renderTable();
+      }
+
+      function renderTable() {
+        leadsBody.innerHTML = "";
+        if (!currentLeads.length) {
+          leadsBody.innerHTML =
+            `<tr><td colspan="7" class="py-4 text-center text-slate-500">No leads match your filters yet.</td></tr>`;
+          return;
+        }
+        for (const lead of currentLeads) {
+          const tr = document.createElement("tr");
+          const tags = (lead.distressTypes || "").split("|").filter(Boolean);
+
+          tr.innerHTML = `
+            <td class="py-2 pr-4 align-top">
+              <div class="font-medium text-slate-100">${lead.owner || "-"}</div>
+              <div class="text-[11px] text-slate-500">Mail: ${lead.mailingAddress || "-"}</div>
+            </td>
+            <td class="py-2 pr-4 align-top">${lead.siteAddress || "-"}</td>
+            <td class="py-2 pr-4 align-top text-slate-300">${lead.parcel || "-"}</td>
+            <td class="py-2 pr-4 align-top text-slate-300">${lead.zip || "-"}</td>
+            <td class="py-2 pr-4 align-top">
+              <div class="flex flex-wrap gap-1">
+                ${tags.map(t =>
+                  `<span class="px-2 py-0.5 rounded-full bg-slate-800 text-[10px] border border-slate-600">${t}</span>`
+                ).join("")}
+              </div>
+            </td>
+            <td class="py-2 pr-4 align-top text-right font-medium text-emerald-300">
+              ${lead.amountDue ? "$" + Number(lead.amountDue).toLocaleString() : "-"}
+            </td>
+            <td class="py-2 pl-4 align-top text-right">
+              <button class="px-3 py-1 text-[11px] rounded-full bg-sky-500 text-slate-900 font-medium hover:bg-sky-400">
+                Skiptrace
+              </button>
+            </td>
+          `;
+
+          const btn = tr.querySelector("button");
+          btn.addEventListener("click", () => sendToSkiptrace(lead, btn, userEmail));
+          leadsBody.appendChild(tr);
+        }
+      }
+
+      async function sendToSkiptrace(lead, buttonEl, userEmail) {
+        buttonEl.disabled = true;
+        buttonEl.textContent = "Sending…";
+        try {
+          const res = await fetch("/api/skiptrace_order", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ lead, user: userEmail || "unknown" })
+          });
+          const data = await res.json();
+          if (!data.ok) throw new Error(data.error || "Error");
+          buttonEl.textContent = `Queued (${data.queue})`;
+          buttonEl.classList.remove("bg-sky-500", "hover:bg-sky-400");
+          buttonEl.classList.add("bg-emerald-500");
+          showToast(`Sent to ${data.queue} queue`);
+        } catch (e) {
+          buttonEl.disabled = false;
+          buttonEl.textContent = "Skiptrace";
+          showToast("Skiptrace failed: " + e.message);
+        }
+      }
+
+      async function exportCsv() {
+        const { q, zip, minAmt, maxAmt, sources } = getFilters();
+        const params = new URLSearchParams();
+        if (q) params.append("q", q);
+        if (zip) params.append("zip", zip);
+        if (minAmt) params.append("min_amount", minAmt);
+        if (maxAmt) params.append("max_amount", maxAmt);
+        if (sources) params.append("sources", sources);
+        window.location.href = `/export?${params.toString()}`;
+      }
+
+      let filterTimeout = null;
+      function scheduleReload() {
+        if (filterTimeout) clearTimeout(filterTimeout);
+        filterTimeout = setTimeout(loadLeads, 400);
+      }
+
+      document.querySelectorAll(".distress-pill").forEach(btn => {
+        btn.addEventListener("click", () => {
+          const s = btn.getAttribute("data-source");
+          if (activeSources.has(s)) {
+            activeSources.delete(s);
+            btn.classList.remove("border-emerald-400", "bg-emerald-500/10");
+            btn.classList.add("border-slate-600", "bg-slate-800");
+          } else {
+            activeSources.add(s);
+            btn.classList.add("border-emerald-400", "bg-emerald-500/10");
+            btn.classList.remove("border-slate-600", "bg-slate-800");
+          }
+          scheduleReload();
+        });
+      });
+
+      searchInput.addEventListener("input", scheduleReload);
+      zipInput.addEventListener("input", scheduleReload);
+      minAmountInput.addEventListener("input", scheduleReload);
+      maxAmountInput.addEventListener("input", scheduleReload);
+      exportBtn.addEventListener("click", exportCsv);
+      refreshBtn.addEventListener("click", loadLeads);
+
+      // initial load
+      loadLeads();
+    }
   </script>
 </body>
 </html>
