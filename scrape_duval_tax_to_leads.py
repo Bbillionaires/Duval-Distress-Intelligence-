@@ -11,7 +11,7 @@ from bs4 import BeautifulSoup
 # Base URL template – account number will be inserted
 BASE_URL = "https://county-taxes.net/fl-duval/property-tax/{}"
 
-# Input list of accounts
+# Input list of accounts (must have columns: account, source_zip)
 INPUT_ACCOUNTS = "input_accounts.csv"
 
 # Output files used by Distress Intelligence
@@ -25,8 +25,8 @@ HEADERS = {
 REQUEST_DELAY_SECONDS = 1.5  # be polite
 
 
-def parse_amount(text):
-    """Convert '$1,234.56' → 1234.56"""
+def parse_amount(text: str) -> float:
+    """Convert '$1,234.56' → 1234.56."""
     if not text:
         return 0.0
     cleaned = re.sub(r"[^0-9.\-]", "", text)
@@ -36,19 +36,21 @@ def parse_amount(text):
         return 0.0
 
 
-def scrape_one_account(account):
+def scrape_one_account(account: str, source_zip: str | None = None) -> dict | None:
     """
     Fetch and parse a single property-tax page.
 
-    Returns:
+    Returns dict:
       {
         "account": ...,
         "owner": ...,
         "siteAddress": ...,
         "mailingAddress": ...,
         "zip": ...,
+        "source_zip": ...,
         "years_behind": int,
         "total_due": float,
+        "last_checked": iso-datetime,
       }
     or None if error / not found.
     """
@@ -69,7 +71,7 @@ def scrape_one_account(account):
 
     soup = BeautifulSoup(resp.text, "html.parser")
 
-    # ---------- OWNER / ADDRESS (UPDATE SELECTORS) ----------
+    # ---------- OWNER / ADDRESS (UPDATE SELECTORS!) ----------
     owner = ""
     owner_el = soup.select_one(".owner-name")  # <<< CHANGE THIS
     if owner_el:
@@ -85,17 +87,21 @@ def scrape_one_account(account):
     if mail_el:
         mailing_address = mail_el.get_text(" ", strip=True)
 
-    # ZIP: try to pull 5-digit ZIP from site_address
+    # Try to auto-detect ZIP from site address
     zip_code = ""
     zip_match = re.search(r"\b(\d{5})(?:-\d{4})?\b", site_address)
     if zip_match:
         zip_code = zip_match.group(1)
 
-    # ---------- TAX YEAR TABLE (UPDATE SELECTORS + INDEXES) ----------
+    # If we couldn't parse a ZIP, fall back to the source_zip from CSV
+    if not zip_code and source_zip:
+        zip_code = source_zip
+
+    # ---------- TAX YEAR TABLE (UPDATE SELECTORS + INDEXES!) ----------
     delinquent_years = set()
     total_due = 0.0
 
-    # Example selector; adjust to real page:
+    # Example selector; inspect page to find the real one.
     year_rows = soup.select("table.tax-years tbody tr")  # <<< CHANGE THIS
 
     for tr in year_rows:
@@ -103,10 +109,10 @@ def scrape_one_account(account):
         if not cols:
             continue
 
-        # Adjust indexes based on the real table columns
+        # Adjust indexes based on real table structure
         try:
             year_text = cols[0]    # <<< CHANGE INDEX
-            status_text = cols[1]  # <<< CHANGE INDEX (if there is a status)
+            status_text = cols[1]  # <<< CHANGE INDEX
             amount_text = cols[2]  # <<< CHANGE INDEX
         except IndexError:
             continue
@@ -135,7 +141,8 @@ def scrape_one_account(account):
         "owner": owner,
         "siteAddress": site_address,
         "mailingAddress": mailing_address,
-        "zip": zip_code,
+        "zip": zip_code or "",
+        "source_zip": source_zip or "",
         "years_behind": years_behind,
         "total_due": round(total_due, 2),
         "last_checked": datetime.utcnow().isoformat(),
@@ -144,12 +151,9 @@ def scrape_one_account(account):
 
 # ---------- CACHE HELPERS ----------
 
-def load_cache():
-    """
-    Load previous scrape results from CACHE_CSV if it exists.
-    Returns dict: account -> info dict.
-    """
-    cache = {}
+def load_cache() -> dict:
+    """Load previous scrape results from CACHE_CSV into dict[account] = info."""
+    cache: dict[str, dict] = {}
     if not os.path.exists(CACHE_CSV):
         return cache
 
@@ -165,6 +169,7 @@ def load_cache():
                 "siteAddress": row.get("siteAddress", ""),
                 "mailingAddress": row.get("mailingAddress", ""),
                 "zip": row.get("zip", ""),
+                "source_zip": row.get("source_zip", ""),
                 "years_behind": int(row.get("years_behind") or 0),
                 "total_due": float(row.get("total_due") or 0.0),
                 "last_checked": row.get("last_checked", ""),
@@ -173,7 +178,7 @@ def load_cache():
     return cache
 
 
-def save_cache(cache):
+def save_cache(cache: dict):
     """Write the full cache dict back to CACHE_CSV."""
     os.makedirs(os.path.dirname(CACHE_CSV), exist_ok=True)
 
@@ -183,6 +188,7 @@ def save_cache(cache):
         "siteAddress",
         "mailingAddress",
         "zip",
+        "source_zip",
         "years_behind",
         "total_due",
         "last_checked",
@@ -199,17 +205,19 @@ def save_cache(cache):
 
 # ---------- MAIN PIPELINE ----------
 
-def build_leads_from_accounts(input_csv, out_csv):
+def build_leads_from_accounts(input_csv: str, out_csv: str):
     os.makedirs(os.path.dirname(out_csv), exist_ok=True)
 
-    # Load account list
-    accounts = []
+    # Load account list + source_zip
+    accounts: list[tuple[str, str]] = []
     with open(input_csv, newline="", encoding="utf-8") as f:
         reader = csv.DictReader(f)
         for row in reader:
-            acc = row.get("account") or row.get("Account") or row.get("acct")
-            if acc:
-                accounts.append(acc.strip())
+            acc = (row.get("account") or row.get("Account") or row.get("acct") or "").strip()
+            if not acc:
+                continue
+            szip = (row.get("source_zip") or "").strip()
+            accounts.append((acc, szip))
 
     print(f"[INFO] Loaded {len(accounts)} accounts from {input_csv}")
 
@@ -217,12 +225,12 @@ def build_leads_from_accounts(input_csv, out_csv):
     cache = load_cache()
 
     # Scrape only accounts not in cache yet
-    for i, account in enumerate(accounts, start=1):
+    for i, (account, source_zip) in enumerate(accounts, start=1):
         if account in cache:
             print(f"[INFO] Skipping {account} (already in cache)")
             continue
 
-        info = scrape_one_account(account)
+        info = scrape_one_account(account, source_zip=source_zip)
         if info:
             cache[account] = info
 
@@ -241,6 +249,8 @@ def build_leads_from_accounts(input_csv, out_csv):
     leads = []
     for info in cache.values():
         if info["years_behind"] >= 2 or info["total_due"] >= 10000:
+            # Fallback ZIP priority: parsed zip -> source_zip
+            final_zip = info["zip"] or info["source_zip"]
             leads.append(
                 {
                     "id": str(uuid.uuid4()),
@@ -248,7 +258,7 @@ def build_leads_from_accounts(input_csv, out_csv):
                     "owner": info["owner"],
                     "mailingAddress": info["mailingAddress"],
                     "siteAddress": info["siteAddress"],
-                    "zip": info["zip"],
+                    "zip": final_zip,
                     "distressTypes": "TAX",
                     "amountDue": info["total_due"],
                     "lastUpdated": datetime.utcnow().date().isoformat(),
@@ -287,4 +297,4 @@ def main():
 
 
 if __name__ == "__main__":
-    main()              
+    main()
