@@ -13,9 +13,8 @@ from bs4 import BeautifulSoup
 INPUT_ACCOUNTS_CSV = "input_accounts.csv"
 OUTPUT_LEADS_CSV = os.path.join("data", "leads.csv")
 
-# ✅ You MUST update this template to match the real Duval site URL pattern.
-# Example pattern – adjust to the real one:
-PROPERTY_URL_TEMPLATE = "https://county-taxes.net/fl-duval/property-tax/search?account={account}"
+# ✅ Duval County tax site pattern
+PROPERTY_URL_TEMPLATE = "https://county-taxes.net/fl-duval/property-tax/{account}"
 
 # polite delay between requests (seconds)
 MIN_DELAY = 1.5
