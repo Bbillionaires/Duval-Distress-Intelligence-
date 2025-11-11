@@ -142,10 +142,54 @@
   <script src="https://www.gstatic.com/firebasejs/11.0.1/firebase-app.js"></script>
   <script src="https://www.gstatic.com/firebasejs/11.0.1/firebase-auth.js"></script>
 
-  <!-- 2) Shared Firebase config + auth guard -->
-  <script src="firebase.js"></script>
+  <!-- 2) Initialize Firebase (PUT SAME CONFIG HERE) -->
+  <script>
+    const firebaseConfig = {
+      apiKey: "AIzaSyDTMTNQceT5sbzJVnZknWOWF27G0KzYgPE",
+      authDomain: "duval-distress-intelligence.firebaseapp.com",
+      projectId: "duval-distress-intelligence",
+      storageBucket: "duval-distress-intelligence.firebasestorage.app",
+      messagingSenderId: "374769856603",
+      appId: "1:374769856603:web:342062e92ef5d1c289cf7e"
+    };
+    firebase.initializeApp(firebaseConfig);
+  </script>
 
-  <!-- 3) Distress Intelligence core script -->
+  <!-- 3) Auth guard + header UI -->
+  <script>
+    document.addEventListener("DOMContentLoaded", () => {
+      const userStatus = document.getElementById("userStatus");
+      const logoutBtn = document.getElementById("logoutBtn");
+
+      firebase.auth().onAuthStateChanged((user) => {
+        if (!user) {
+          // Not logged in → send to login
+          window.location.href = "/login";
+          return;
+        }
+        // Logged in
+        if (userStatus) userStatus.textContent = user.email || "Signed in";
+        if (logoutBtn) {
+          logoutBtn.classList.remove("hidden");
+          logoutBtn.onclick = async () => {
+            await firebase.auth().signOut();
+            window.location.href = "/login";
+          };
+        }
+      });
+    });
+
+    function getCurrentUserEmailSafe() {
+      try {
+        const user = firebase.auth().currentUser;
+        return (user && user.email) || "unknown";
+      } catch (e) {
+        return "unknown";
+      }
+    }
+  </script>
+
+  <!-- 4) Distress Intelligence core script -->
   <script>
     const API_BASE = "";
     let currentLeads = [];
