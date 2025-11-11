@@ -5,22 +5,6 @@
   <title>Distress Intelligence · Duval</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 
-  <!-- ✅ Firebase SDKs -->
-  <script src="https://www.gstatic.com/firebasejs/11.0.1/firebase-app.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/11.0.1/firebase-auth.js"></script>
-  <script>
-    // Replace with your actual Firebase config
-    const firebaseConfig = {
-      apiKey: "AIzaSyDTMTNQceT5sbzJVnZknWOWF27G0KzYgPE",
-      authDomain: "duval-distress-intelligence.firebaseapp.com",
-      projectId: "duval-distress-intelligence",
-      storageBucket: "duval-distress-intelligence.firebasestorage.app",
-      messagingSenderId: "374769856603",
-      appId: "1:374769856603:web:342062e92ef5d1c289cf7e"
-    };
-    firebase.initializeApp(firebaseConfig);
-  </script>
-
   <!-- Tailwind CSS -->
   <script src="https://cdn.tailwindcss.com"></script>
 </head>
@@ -41,9 +25,11 @@
         </div>
       </div>
       <div id="authArea" class="text-xs text-slate-400">
-        <!-- Firebase login status will go here -->
         <span id="userStatus" class="text-slate-300"></span>
-        <button id="logoutBtn" class="hidden bg-slate-800 border border-slate-600 rounded-full px-3 py-1 text-[11px] ml-2">Logout</button>
+        <button id="logoutBtn"
+                class="hidden bg-slate-800 border border-slate-600 rounded-full px-3 py-1 text-[11px] ml-2">
+          Logout
+        </button>
       </div>
     </header>
 
@@ -152,7 +138,14 @@
        class="hidden fixed bottom-4 left-1/2 -translate-x-1/2 bg-slate-900 border border-slate-700 text-xs px-3 py-2 rounded-full shadow-lg">
   </div>
 
-  <!-- Distress Intelligence Core Script -->
+  <!-- 1) Firebase SDKs -->
+  <script src="https://www.gstatic.com/firebasejs/11.0.1/firebase-app.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/11.0.1/firebase-auth.js"></script>
+
+  <!-- 2) Shared Firebase config + auth guard -->
+  <script src="firebase.js"></script>
+
+  <!-- 3) Distress Intelligence core script -->
   <script>
     const API_BASE = "";
     let currentLeads = [];
@@ -205,7 +198,8 @@
     function renderTable() {
       leadsBody.innerHTML = "";
       if (!currentLeads.length) {
-        leadsBody.innerHTML = `<tr><td colspan="7" class="py-4 text-center text-slate-500">No leads match your filters yet.</td></tr>`;
+        leadsBody.innerHTML =
+          `<tr><td colspan="7" class="py-4 text-center text-slate-500">No leads match your filters yet.</td></tr>`;
         return;
       }
 
@@ -223,15 +217,22 @@
           <td class="py-2 pr-4 align-top text-slate-300">${lead.zip || "-"}</td>
           <td class="py-2 pr-4 align-top">
             <div class="flex flex-wrap gap-1">
-              ${tags.map(t => `<span class="px-2 py-0.5 rounded-full bg-slate-800 text-[10px] border border-slate-600">${t}</span>`).join("")}
+              ${tags.map(t =>
+                `<span class="px-2 py-0.5 rounded-full bg-slate-800 text-[10px] border border-slate-600">${t}</span>`
+              ).join("")}
             </div>
           </td>
           <td class="py-2 pr-4 align-top text-right font-medium text-emerald-300">
             ${lead.amountDue ? "$" + Number(lead.amountDue).toLocaleString() : "-"}
           </td>
           <td class="py-2 pl-4 align-top text-right">
-            <button class="px-3 py-1 text-[11px] rounded-full bg-sky-500 text-slate-900 font-medium hover:bg-sky-400" data-id="${lead.id}">Skiptrace</button>
-          </td>`;
+            <button class="px-3 py-1 text-[11px] rounded-full bg-sky-500 text-slate-900 font-medium hover:bg-sky-400"
+                    data-id="${lead.id}">
+              Skiptrace
+            </button>
+          </td>
+        `;
+
         const btn = tr.querySelector("button");
         btn.addEventListener("click", () => sendToSkiptrace(lead, btn));
         leadsBody.appendChild(tr);
@@ -241,14 +242,18 @@
     async function sendToSkiptrace(lead, buttonEl) {
       buttonEl.disabled = true;
       buttonEl.textContent = "Sending…";
+
+      const userEmail = getCurrentUserEmailSafe();
+
       try {
         const res = await fetch("/api/skiptrace_order", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ lead, user: "web-client" })
+          body: JSON.stringify({ lead, user: userEmail })
         });
         const data = await res.json();
         if (!data.ok) throw new Error(data.error || "Error");
+
         buttonEl.textContent = `Queued (${data.queue})`;
         buttonEl.classList.remove("bg-sky-500", "hover:bg-sky-400");
         buttonEl.classList.add("bg-emerald-500");
@@ -268,8 +273,7 @@
       if (minAmt) params.append("min_amount", minAmt);
       if (maxAmt) params.append("max_amount", maxAmt);
       if (sources) params.append("sources", sources);
-      const url = `/export?${params.toString()}`;
-      window.location.href = url;
+      window.location.href = `/export?${params.toString()}`;
     }
 
     let filterTimeout = null;
