@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Distress Intelligence · Login</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+  <!-- Firebase SDKs -->
+  <script src="https://www.gstatic.com/firebasejs/11.0.1/firebase-app.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/11.0.1/firebase-auth.js"></script>
+  <script>
+    // ✅ Replace with your real Firebase config (same as in index.html)
+    const firebaseConfig = {
+      apiKey: "YOUR_API_KEY",
+      authDomain: "YOUR_PROJECT.firebaseapp.com",
+      projectId: "YOUR_PROJECT",
+      storageBucket: "YOUR_PROJECT.appspot.com",
+      messagingSenderId: "YOUR_SENDER_ID",
+      appId: "YOUR_APP_ID"
+    };
+    firebase.initializeApp(firebaseConfig);
+  </script>
+
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-slate-950 text-slate-100 min-h-screen flex items-center justify-center">
+
+  <div class="w-full max-w-md mx-auto px-4">
+    <div class="bg-slate-900/80 border border-slate-800 rounded-2xl p-6 shadow-xl">
+      <div class="flex items-center gap-3 mb-4">
+        <div class="h-10 w-10 rounded-full bg-emerald-400 flex items-center justify-center font-bold text-slate-900">
+          DI
+        </div>
+        <div>
+          <h1 class="text-lg font-semibold">Distress Intelligence</h1>
+          <p class="text-xs text-slate-400">Sign in to access Duval distress data</p>
+        </div>
+      </div>
+
+      <div class="space-y-3">
+        <div>
+          <label class="text-xs text-slate-400 block mb-1">Email</label>
+          <input id="emailInput"
+                 type="email"
+                 placeholder="you@example.com"
+                 class="w-full rounded-xl bg-slate-950 border border-slate-700 px-3 py-2 text-sm outline-none focus:border-emerald-400">
+        </div>
+        <div>
+          <label class="text-xs text-slate-400 block mb-1">Password</label>
+          <input id="passwordInput"
+                 type="password"
+                 placeholder="••••••••"
+                 class="w-full rounded-xl bg-slate-950 border border-slate-700 px-3 py-2 text-sm outline-none focus:border-emerald-400">
+        </div>
+      </div>
+
+      <div class="mt-4 space-y-2">
+        <button id="loginBtn"
+                class="w-full rounded-full bg-emerald-400 text-slate-900 text-sm font-medium py-2 hover:bg-emerald-300">
+          Log In
+        </button>
+        <button id="signupBtn"
+                class="w-full rounded-full bg-slate-800 text-slate-100 text-sm py-2 border border-slate-600 hover:bg-slate-700">
+          Create New Account
+        </button>
+      </div>
+
+      <p id="statusText" class="mt-3 text-xs text-slate-400 h-4"></p>
+
+      <p class="mt-4 text-[11px] text-slate-500 text-center">
+        By continuing you agree not to scrape, resell, or abuse this data source.
+      </p>
+    </div>
+  </div>
+
+  <!-- Shared auth logic -->
+  <script src="firebase.js"></script>
+
+  <!-- Page-specific login logic -->
+  <script>
+    document.addEventListener("DOMContentLoaded", () => {
+      const emailInput = document.getElementById("emailInput");
+      const passwordInput = document.getElementById("passwordInput");
+      const loginBtn = document.getElementById("loginBtn");
+      const signupBtn = document.getElementById("signupBtn");
+      const statusText = document.getElementById("statusText");
+
+      async function handleLogin() {
+        const email = emailInput.value.trim();
+        const pass = passwordInput.value;
+        if (!email || !pass) {
+          statusText.textContent = "Enter email and password.";
+          return;
+        }
+        statusText.textContent = "Signing in...";
+        try {
+          await firebase.auth().signInWithEmailAndPassword(email, pass);
+          statusText.textContent = "Success. Redirecting…";
+          window.location.href = "/";
+        } catch (err) {
+          statusText.textContent = err.message || "Login failed.";
+        }
+      }
+
+      async function handleSignup() {
+        const email = emailInput.value.trim();
+        const pass = passwordInput.value;
+        if (!email || !pass) {
+          statusText.textContent = "Enter email and password.";
+          return;
+        }
+        statusText.textContent = "Creating account...";
+        try {
+          await firebase.auth().createUserWithEmailAndPassword(email, pass);
+          statusText.textContent = "Account created. Redirecting…";
+          window.location.href = "/";
+        } catch (err) {
+          statusText.textContent = err.message || "Signup failed.";
+        }
+      }
+
+      loginBtn.addEventListener("click", handleLogin);
+      signupBtn.addEventListener("click", handleSignup);
+
+      // Optional: allow Enter key to submit
+      passwordInput.addEventListener("keydown", (e) => {
+        if (e.key === "Enter") handleLogin();
+      });
+    });
+  </script>
+</body>
+</html>
