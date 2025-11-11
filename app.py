@@ -1,152 +1,97 @@
-import os
-import csv
-import random
-from datetime import datetime
-from flask import Flask, jsonify, request, send_file
+from flask import Flask, jsonify, request
 from flask_cors import CORS
+import csv, os, datetime
 import requests
 
-# === Flask Setup ===
-app = Flask(__name__, static_folder=".", static_url_path="")
+app = Flask(__name__)
 CORS(app)
 
-# === Config ===
-DATA_FILE = os.path.join("data", "leads.csv")
-SKIPTRACE_WEBHOOK_URL = os.environ.get("SKIPTRACE_WEBHOOK_URL", "")
+# File paths
+DATA_FILE = "data/leads.csv"
 
-# === Load Leads ===
+# ---------- UTILITIES ---------- #
 def load_leads():
+    """Load leads from CSV into list of dicts."""
     leads = []
-    if not os.path.exists(DATA_FILE):
-        return []
-    with open(DATA_FILE, newline='', encoding='utf-8') as f:
-        reader = csv.DictReader(f)
-        for row in reader:
-            leads.append({
-                "id": row.get("id") or str(random.randint(1000, 999999)),
-                "owner": row.get("owner", "").strip(),
-                "siteAddress": row.get("siteAddress", "").strip(),
-                "mailingAddress": row.get("mailingAddress", "").strip(),
-                "parcel": row.get("parcel", "").strip(),
-                "zip": row.get("zip", "").strip(),
-                "distressTypes": row.get("distressTypes", "").strip(),
-                "amountDue": float(row.get("amountDue", 0) or 0)
-            })
+    if os.path.exists(DATA_FILE):
+        with open(DATA_FILE, newline='', encoding='utf-8') as f:
+            reader = csv.DictReader(f)
+            for row in reader:
+                leads.append(row)
     return leads
 
-# === Queue Assignment ===
-def assign_queue(lead_id: str):
-    queues = ["Alpha", "Bravo", "Charlie", "Delta"]
-    # Deterministic based on id so same lead always goes to same queue
-    return queues[hash(lead_id) % len(queues)]
 
-# === ROUTES ===
-
-# Serve homepage
+# ---------- ROUTES ---------- #
 @app.route("/")
 def index():
     return app.send_static_file("index.html")
 
-# Serve clean login path
-@app.route("/login")
-def login():
-    return app.send_static_file("login.html")
 
-# API: Get leads with filters
 @app.route("/api/leads", methods=["GET"])
-def api_leads():
+def get_leads():
     leads = load_leads()
-    q = request.args.get("q", "").lower().strip()
-    zip_filter = request.args.get("zip", "").strip()
-    min_amt = float(request.args.get("min_amount", 0) or 0)
-    max_amt = float(request.args.get("max_amount", 0) or 999999999)
-    sources = [s.strip().lower() for s in request.args.get("sources", "").split(",") if s.strip()]
+    return jsonify(leads)
 
-    filtered = []
-    for lead in leads:
-        if q and q not in (lead["owner"].lower() + lead["siteAddress"].lower() + lead["parcel"].lower()):
-            continue
-        if zip_filter and not lead["zip"].startswith(zip_filter):
-            continue
-        if not (min_amt <= lead["amountDue"] <= max_amt):
-            continue
-        if sources:
-            match = any(src in lead["distressTypes"].lower() for src in sources)
-            if not match:
-                continue
-        filtered.append(lead)
 
-    return jsonify({
-        "count": len(filtered),
-        "total": len(leads),
-        "leads": filtered
-    })
+@app.route("/api/refresh", methods=["POST"])
+def refresh_data():
+    """Trigger re-fetch from GitHub raw CSV (latest scraped dataset)."""
+    gh_raw = "https://raw.githubusercontent.com/Bbillionaires/Duval-Distress-Intelligence-/Azoth-made-1st/data/leads.csv"
+    try:
+        res = requests.get(gh_raw)
+        res.raise_for_status()
+        os.makedirs("data", exist_ok=True)
+        with open(DATA_FILE, "wb") as f:
+            f.write(res.content)
+        return jsonify({"status": "success", "message": "Data refreshed from GitHub."})
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
 
-# API: Export CSV
-@app.route("/export")
-def export_csv():
-    leads = load_leads()
-    q = request.args.get("q", "").lower().strip()
-    zip_filter = request.args.get("zip", "").strip()
-    min_amt = float(request.args.get("min_amount", 0) or 0)
-    max_amt = float(request.args.get("max_amount", 0) or 999999999)
-    sources = [s.strip().lower() for s in request.args.get("sources", "").split(",") if s.strip()]
 
-    filtered = []
-    for lead in leads:
-        if q and q not in (lead["owner"].lower() + lead["siteAddress"].lower() + lead["parcel"].lower()):
-            continue
-        if zip_filter and not lead["zip"].startswith(zip_filter):
-            continue
-        if not (min_amt <= lead["amountDue"] <= max_amt):
-            continue
-        if sources:
-            match = any(src in lead["distressTypes"].lower() for src in sources)
-            if not match:
-                continue
-        filtered.append(lead)
-
-    output_path = os.path.join("data", "export_filtered.csv")
-    with open(output_path, "w", newline='', encoding='utf-8') as f:
-        writer = csv.DictWriter(f, fieldnames=filtered[0].keys() if filtered else ["id"])
-        writer.writeheader()
-        writer.writerows(filtered)
-    return send_file(output_path, as_attachment=True, download_name="distress_export.csv")
-
-# API: Skiptrace webhook
 @app.route("/api/skiptrace_order", methods=["POST"])
 def skiptrace_order():
-    if not SKIPTRACE_WEBHOOK_URL:
-        return jsonify({"ok": False, "error": "SKIPTRACE_WEBHOOK_URL not configured"}), 500
-
-    data = request.get_json(force=True) or {}
-    lead = data.get("lead") or {}
-    user = data.get("user") or "unknown"
-    lead_id = lead.get("id") or str(random.randint(1000, 999999))
-    queue = assign_queue(lead_id)
-
-    payload = {
-        "id": lead_id,
-        "owner": lead.get("owner", ""),
-        "siteAddress": lead.get("siteAddress", ""),
-        "mailingAddress": lead.get("mailingAddress", ""),
-        "zip": str(lead.get("zip") or ""),
-        "distressTypes": lead.get("distressTypes", ""),
-        "amountDue": lead.get("amountDue", 0),
-        "requestedBy": user,
-        "queue": queue
-    }
-
+    """Handles user skiptrace requests and sends to Google Sheets/App Script."""
+    data = request.json
     try:
-        r = requests.post(SKIPTRACE_WEBHOOK_URL, json=payload, timeout=15)
-        if r.status_code != 200:
-            return jsonify({"ok": False, "error": "Webhook failed", "status": r.status_code, "body": r.text}), 500
+        # Replace this with your deployed App Script URL
+        appscript_url = "https://script.google.com/macros/s/YOUR_SCRIPT_ID/exec"
+        payload = {
+            "owner": data.get("ownerName"),
+            "address": data.get("mailAddress"),
+            "amount_due": data.get("amountDue"),
+            "user_email": data.get("userEmail"),
+        }
+        r = requests.post(appscript_url, data=payload)
+        if r.status_code == 200:
+            return jsonify({"status": "ok", "message": "Skiptrace queued."})
+        else:
+            return jsonify({"status": "fail", "message": f"Script error {r.text}"}), 400
     except Exception as e:
-        return jsonify({"ok": False, "error": str(e)}), 500
+        return jsonify({"status": "error", "message": str(e)}), 500
 
-    return jsonify({"ok": True, "queue": queue})
 
-# === MAIN ENTRY ===
+# ---------- STRIPE PLACEHOLDER (for Step 5) ---------- #
+@app.route("/api/create_checkout_session", methods=["POST"])
+def create_checkout_session():
+    """Will handle 3-day free trial subscription (to be filled in later)."""
+    return jsonify({"url": "https://example.com"})
+
+
+# ---------- ADMIN SUMMARY ---------- #
+@app.route("/api/admin/summary", methods=["GET"])
+def admin_summary():
+    leads = load_leads()
+    last_updated = None
+    if os.path.exists(DATA_FILE):
+        mtime = os.path.getmtime(DATA_FILE)
+        last_updated = datetime.datetime.fromtimestamp(mtime).isoformat()
+    return jsonify({
+        "total_leads": len(leads),
+        "last_updated": last_updated
+    })
+
+
+# ---------- MAIN ---------- #
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
     app.run(host="0.0.0.0", port=port)
