@@ -5,22 +5,6 @@
   <title>Distress Intelligence · Login</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 
-  <!-- Firebase SDKs -->
-  <script src="https://www.gstatic.com/firebasejs/11.0.1/firebase-app.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/11.0.1/firebase-auth.js"></script>
-  <script>
-    // ✅ Replace with your real Firebase config (same as in index.html)
-    const firebaseConfig = {
-      apiKey: "AIzaSyDTMTNQceT5sbzJVnZknWOWF27G0KzYgPE",
-      authDomain: "duval-distress-intelligence.firebaseapp.com",
-      projectId: "duval-distress-intelligence",
-      storageBucket: "duval-distress-intelligence.firebasestorage.app",
-      messagingSenderId: "374769856603",
-      appId: "1:374769856603:web:342062e92ef5d1c289cf7e"
-    };
-    firebase.initializeApp(firebaseConfig);
-  </script>
-
   <!-- Tailwind CSS -->
   <script src="https://cdn.tailwindcss.com"></script>
 </head>
@@ -66,7 +50,7 @@
         </button>
       </div>
 
-      <p id="statusText" class="mt-3 text-xs text-slate-400 h-4"></p>
+      <p id="statusText" class="mt-3 text-xs text-slate-400 min-h-[1rem]"></p>
 
       <p class="mt-4 text-[11px] text-slate-500 text-center">
         By continuing you agree not to scrape, resell, or abuse this data source.
@@ -74,10 +58,14 @@
     </div>
   </div>
 
-  <!-- Shared auth logic -->
+  <!-- 1) Firebase SDKs -->
+  <script src="https://www.gstatic.com/firebasejs/11.0.1/firebase-app.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/11.0.1/firebase-auth.js"></script>
+
+  <!-- 2) Shared Firebase config + auth guard -->
   <script src="firebase.js"></script>
 
-  <!-- Page-specific login logic -->
+  <!-- 3) Page-specific login logic -->
   <script>
     document.addEventListener("DOMContentLoaded", () => {
       const emailInput = document.getElementById("emailInput");
@@ -95,6 +83,11 @@
         }
         statusText.textContent = "Signing in...";
         try {
+          const app = ensureFirebaseApp();
+          if (!app || !firebase.auth) {
+            statusText.textContent = "Firebase not available.";
+            return;
+          }
           await firebase.auth().signInWithEmailAndPassword(email, pass);
           statusText.textContent = "Success. Redirecting…";
           window.location.href = "/";
@@ -112,6 +105,11 @@
         }
         statusText.textContent = "Creating account...";
         try {
+          const app = ensureFirebaseApp();
+          if (!app || !firebase.auth) {
+            statusText.textContent = "Firebase not available.";
+            return;
+          }
           await firebase.auth().createUserWithEmailAndPassword(email, pass);
           statusText.textContent = "Account created. Redirecting…";
           window.location.href = "/";
@@ -122,8 +120,6 @@
 
       loginBtn.addEventListener("click", handleLogin);
       signupBtn.addEventListener("click", handleSignup);
-
-      // Optional: allow Enter key to submit
       passwordInput.addEventListener("keydown", (e) => {
         if (e.key === "Enter") handleLogin();
       });
