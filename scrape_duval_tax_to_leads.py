@@ -3,29 +3,44 @@ import os
 import time
 import random
 from dataclasses import dataclass, asdict
-from typing import List
+from typing import List, Optional
 
 import requests
-from bs4 import BeautifulSoup
 
 # ------------- CONFIG ------------- #
 
 INPUT_ACCOUNTS_CSV = "input_accounts.csv"
 OUTPUT_LEADS_CSV = os.path.join("data", "leads.csv")
 
-# ✅ Duval County tax site pattern
-PROPERTY_URL_TEMPLATE = "https://county-taxes.net/fl-duval/property-tax/{account}"
-
-# polite delay between requests (seconds)
-MIN_DELAY = 1.5
-MAX_DELAY = 3.5
-
-# filter rules
+# Distress filters
 MIN_YEARS_BEHIND = 2
 MIN_AMOUNT_DUE = 10000.0
 
+# Duval / Algolia (from Chrome DevTools > Network)
+ALGOLIA_APP_ID = "0LWZO52LS2"
+ALGOLIA_API_KEY = "c0745578b56854a1b90ed57b63fbf0ba"  # public search key observed from site
+ALGOLIA_SEARCH_URL = "https://0lwzo52ls2-dsn.algolia.net/1/indexes/*/queries"
 
-# ------------- MODELS ------------- #
+# From your payload
+ALGOLIA_INDEX_NAME = "fl-duval.property_tax"
+ALGOLIA_PARAMS_SUFFIX = (
+    "&hitsPerPage=15"
+    "&clickAnalytics=true"
+    "&facets=[]"
+    "&highlightPreTag=__ais-highlight__"
+    "&highlightPostTag=__/ais-highlight__"
+    "&tagFilters="
+)
+
+# Polite delays
+MIN_DELAY = 0.5
+MAX_DELAY = 1.5
+
+# Print the first hit once so you can confirm field names in logs
+DEBUG_SHOW_FIRST_HIT = True
+
+
+# ------------- DATA MODEL ------------- #
 
 @dataclass
 class Lead:
@@ -39,18 +54,13 @@ class Lead:
     amountDue: float
 
 
-# ------------- CORE SCRAPER ------------- #
+# ------------- HELPERS ------------- #
 
 def read_input_accounts(path: str) -> List[dict]:
-    """
-    Expect a CSV with at least a column 'account' and optional 'parcel', 'zip'.
-    Example:
-        account,parcel,zip
-        1234567890,12345-0000,32209
-    """
-    rows = []
+    """Read input_accounts.csv with at least an 'account' column."""
     if not os.path.exists(path):
         raise FileNotFoundError(f"{path} not found. Create it with an 'account' column.")
+    rows = []
     with open(path, newline="", encoding="utf-8") as f:
         reader = csv.DictReader(f)
         for row in reader:
@@ -59,80 +69,130 @@ def read_input_accounts(path: str) -> List[dict]:
     return rows
 
 
-def fetch_property_html(account: str) -> str:
-    """Fetch raw HTML for a single account."""
-    url = PROPERTY_URL_TEMPLATE.format(account=account)
-    print(f"[+] Fetching {url}")
-    resp = requests.get(url, timeout=20)
-    resp.raise_for_status()
-    return resp.text
-
-
-def parse_property_page(html: str, account_row: dict) -> Lead | None:
+def algolia_search_account(account: str) -> Optional[dict]:
     """
-    Parse Duval property tax page HTML and return a Lead object
-    IF it meets our distress criteria (2+ years or $10k+ due).
-
-    ⚠️ YOU MUST UPDATE THE SELECTORS BELOW to match the live site.
-    Use browser dev tools (Inspect Element) to find the right IDs/classes.
+    Call Algolia index for a single account and return the first hit (dict) or None.
+    Recreates the site's request: params="query=<acct>&<suffix>"
     """
-    soup = BeautifulSoup(html, "lxml")
+    params_str = f"query={account}{ALGOLIA_PARAMS_SUFFIX}"
+    payload = {"requests": [{"indexName": ALGOLIA_INDEX_NAME, "params": params_str}]}
+    headers = {
+        "Content-Type": "application/json",
+        "X-Algolia-API-Key": ALGOLIA_API_KEY,
+        "X-Algolia-Application-Id": ALGOLIA_APP_ID,
+    }
+    r = requests.post(ALGOLIA_SEARCH_URL, json=payload, headers=headers, timeout=20)
+    r.raise_for_status()
+    data = r.json()
+    results = data.get("results", [])
+    if not results:
+        return None
+    hits = results[0].get("hits", [])
+    if not hits:
+        return None
+    hit = hits[0]
 
-    # --------- EXAMPLE SELECTORS (PLACEHOLDER!) ---------
-    # Owner name
-    owner_el = soup.select_one(".owner-name")  # update selector
-    owner = owner_el.get_text(strip=True) if owner_el else ""
+    global DEBUG_SHOW_FIRST_HIT
+    if DEBUG_SHOW_FIRST_HIT:
+        print("DEBUG FIRST HIT KEYS:", list(hit.keys()))
+        # print a trimmed sample to avoid huge logs
+        preview = {k: hit[k] for k in list(hit.keys())[:20]}
+        print("DEBUG FIRST HIT SAMPLE (trimmed):", preview)
+        DEBUG_SHOW_FIRST_HIT = False
 
-    # Site / property address
-    site_el = soup.select_one(".property-address")  # update selector
-    site_address = site_el.get_text(strip=True) if site_el else ""
+    return hit
 
-    # Mailing address
-    mail_el = soup.select_one(".mailing-address")  # update selector
-    mailing_address = mail_el.get_text(" ", strip=True) if mail_el else ""
 
-    # Zip – either from the page or from the CSV input
-    zip_code = account_row.get("zip", "").strip()
-    if not zip_code and site_address:
-        # crude zip guess from last 5 digits in line
-        parts = site_address.split()
-        if parts and parts[-1].isdigit() and len(parts[-1]) == 5:
-            zip_code = parts[-1]
+def _first_nonempty(*vals) -> str:
+    for v in vals:
+        if isinstance(v, str) and v.strip():
+            return v.strip()
+    return ""
 
-    # Amount due – you’ll likely need to adjust the selector / parsing
-    amount_el = soup.select_one(".amount-due")  # update selector
-    amount_due = 0.0
-    if amount_el:
-        text = amount_el.get_text(strip=True).replace("$", "").replace(",", "")
+
+def _to_float(v) -> float:
+    try:
+        if isinstance(v, str):
+            v = v.replace("$", "").replace(",", "").strip()
+        return float(v)
+    except Exception:
+        return 0.0
+
+
+def _to_int(v) -> int:
+    try:
+        return int(v)
+    except Exception:
         try:
-            amount_due = float(text)
-        except ValueError:
-            amount_due = 0.0
+            return int(float(v))
+        except Exception:
+            return 0
 
-    # Years behind – maybe a table of years; this is just an example
-    years_behind = 0
-    year_rows = soup.select(".delinquent-year-row")  # update selector
-    years_behind = len(year_rows)
 
-    # CHECK DISTRESS RULES
+def parse_hit_to_lead(hit: dict, row: dict) -> Optional[Lead]:
+    """
+    Map an Algolia hit into our Lead model.
+    Keys below include common variants; tweak after seeing the debug output.
+    """
+    owner = _first_nonempty(
+        hit.get("owner"),
+        hit.get("owner_name"),
+        hit.get("primary_owner"),
+        hit.get("name"),
+    )
+
+    site_address = _first_nonempty(
+        hit.get("site_address"),
+        hit.get("situs_address"),
+        hit.get("property_address"),
+        hit.get("address"),
+    )
+
+    mailing_address = _first_nonempty(
+        hit.get("mailing_address"),
+        hit.get("mail_address"),
+        hit.get("mailingAddress"),
+    )
+
+    # zip from hit or fallback to input row
+    zip_code = _first_nonempty(
+        str(hit.get("zip", "")),
+        str(hit.get("situs_zip", "")),
+        str(hit.get("property_zip", "")),
+        str(row.get("zip", "")),
+    )
+
+    amount_due = _to_float(
+        hit.get("amount_due") or hit.get("total_due") or hit.get("balance_due") or 0
+    )
+
+    years_behind = _to_int(
+        hit.get("years_behind")
+        or hit.get("delinquent_years")
+        or hit.get("years_delinquent")
+        or 0
+    )
+
+    # Distress filter
     if years_behind < MIN_YEARS_BEHIND and amount_due < MIN_AMOUNT_DUE:
-        # doesn’t meet our filter – skip
         return None
 
-    # Distress tags (you can expand this later with other data sources)
-    distress_tags = []
+    tags = []
     if years_behind >= MIN_YEARS_BEHIND:
-        distress_tags.append("Tax 2+ yrs")
+        tags.append(f"Tax {MIN_YEARS_BEHIND}+ yrs")
     if amount_due >= MIN_AMOUNT_DUE:
-        distress_tags.append(f"Tax ${MIN_AMOUNT_DUE:,.0f}+")
+        tags.append(f"Tax ${int(MIN_AMOUNT_DUE):,}+")
+    distress_types = "|".join(tags)
 
-    distress_str = "|".join(distress_tags)
+    parcel = _first_nonempty(
+        str(row.get("parcel", "")),
+        str(hit.get("parcel", "")),
+        str(hit.get("parcel_id", "")),
+        str(hit.get("re_account", "")),
+        str(row.get("account", "")),
+    )
 
-    parcel = account_row.get("parcel", "").strip()
-    if not parcel:
-        parcel = account_row.get("account", "").strip()
-
-    lead_id = f"duval_tax_{parcel or account_row.get('account','')}"
+    lead_id = f"duval_tax_{parcel or row.get('account','')}"
 
     return Lead(
         id=lead_id,
@@ -141,34 +201,34 @@ def parse_property_page(html: str, account_row: dict) -> Lead | None:
         mailingAddress=mailing_address,
         parcel=parcel,
         zip=zip_code,
-        distressTypes=distress_str,
+        distressTypes=distress_types,
         amountDue=amount_due,
     )
 
 
 def scrape_all_accounts(input_csv: str) -> List[Lead]:
-    accounts = read_input_accounts(input_csv)
-    print(f"[+] Loaded {len(accounts)} accounts from {input_csv}")
-
+    rows = read_input_accounts(input_csv)
+    print(f"[+] Loaded {len(rows)} accounts from {input_csv}")
     leads: List[Lead] = []
 
-    for i, row in enumerate(accounts, start=1):
-        account = row.get("account")
+    for i, row in enumerate(rows, start=1):
+        account = row.get("account", "").strip()
         if not account:
             continue
-
+        print(f"[{i}/{len(rows)}] Searching account {account} via Algolia...")
         try:
-            html = fetch_property_html(account)
-            lead = parse_property_page(html, row)
-            if lead:
-                leads.append(lead)
-                print(f"    -> ADDED lead for {account}: {lead.owner} | ${lead.amountDue:,.2f}")
+            hit = algolia_search_account(account)
+            if not hit:
+                print("   -> No results")
             else:
-                print(f"    -> SKIP {account}: not distressed enough")
+                lead = parse_hit_to_lead(hit, row)
+                if lead:
+                    leads.append(lead)
+                    print(f"   -> ADDED {lead.owner} | ${lead.amountDue:,.2f}")
+                else:
+                    print("   -> Not distressed enough (filtered)")
         except Exception as e:
-            print(f"    !! ERROR for account {account}: {e}")
-
-        # polite random delay
+            print(f"   !! ERROR for account {account}: {e}")
         time.sleep(random.uniform(MIN_DELAY, MAX_DELAY))
 
     print(f"[+] Finished. Collected {len(leads)} distressed leads.")
@@ -196,8 +256,6 @@ def write_leads_csv(leads: List[Lead], output_path: str):
             writer.writerow(asdict(lead))
     print(f"[+] Wrote {len(leads)} leads to {output_path}")
 
-
-# ------------- CLI ENTRY ------------- #
 
 def main():
     leads = scrape_all_accounts(INPUT_ACCOUNTS_CSV)
