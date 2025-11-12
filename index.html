@@ -2,111 +2,222 @@
 <html lang="en">
 <head>
   <meta charset="utf-8" />
+  <title>Distress Intelligence</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Distress Intelligence • MVP</title>
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <style>
     :root { color-scheme: dark; }
-    body { margin: 0; font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; background: #0b1220; color: #e6edf3; }
-    .wrap { max-width: 1100px; margin: 32px auto; padding: 0 16px; }
-    .row { display: grid; gap: 12px; grid-template-columns: repeat(4, 1fr); }
-    .row > * { background: #0f172a; border: 1px solid #1e293b; border-radius: 12px; padding: 12px; }
-    input, button { width: 100%; padding: 10px 12px; border-radius: 10px; border: 1px solid #334155; background: #0b1220; color: #e6edf3; }
-    button { background: #10b981; border: none; font-weight: 600; cursor: pointer; }
-    button.secondary { background: #1f2937; }
-    table { width: 100%; border-collapse: collapse; margin-top: 16px; }
-    th, td { border-bottom: 1px solid #1f2937; padding: 10px 8px; font-size: 14px; }
-    th { text-align: left; color: #9ca3af; font-weight: 600;}
-    .header h1 { margin: 0; font-size: 28px; }
-    .muted { color: #9ca3af; }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: #020617;
+      color: #e5e7eb;
+    }
+    .wrap {
+      max-width: 1100px;
+      margin: 24px auto;
+      padding: 0 16px 32px;
+    }
+    h1 {
+      margin: 0;
+      font-size: 28px;
+    }
+    .muted {
+      color: #9ca3af;
+      font-size: 14px;
+      margin-top: 4px;
+    }
+    .card {
+      background: #0b1120;
+      border-radius: 16px;
+      border: 1px solid #1f2937;
+      padding: 16px;
+      margin-top: 18px;
+    }
+    .row {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0,1fr));
+      gap: 10px;
+    }
+    @media (max-width: 768px) {
+      .row { grid-template-columns: repeat(2, minmax(0,1fr)); }
+    }
+    input, button {
+      width: 100%;
+      padding: 10px 12px;
+      border-radius: 12px;
+      border: 1px solid #374151;
+      background: #020617;
+      color: #e5e7eb;
+      font-size: 14px;
+    }
+    input::placeholder { color: #6b7280; }
+    button {
+      background: #10b981;
+      border: none;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    button.secondary { background: #111827; }
+    button:disabled { opacity: .6; cursor: default; }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 12px;
+      font-size: 13px;
+    }
+    th, td {
+      padding: 8px 6px;
+      border-bottom: 1px solid #1f2937;
+      text-align: left;
+    }
+    th {
+      color: #9ca3af;
+      font-weight: 600;
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: .04em;
+    }
+    tr:nth-child(even) td { background: rgba(15,23,42,0.4); }
+    .pill {
+      display: inline-flex;
+      align-items: center;
+      padding: 2px 8px;
+      border-radius: 999px;
+      background: rgba(16,185,129,0.1);
+      color: #6ee7b7;
+      font-size: 11px;
+    }
+    #status { margin-top: 10px; font-size: 13px; color: #9ca3af; }
   </style>
 </head>
 <body>
   <div class="wrap">
-    <div class="header">
-      <h1>Distress <span style="color:#10b981">Intelligence</span></h1>
-      <div class="muted">Pre-market Duval distress data • MVP</div>
+    <div>
+      <h1>Distress <span style="color:#10b981;">Intelligence</span></h1>
+      <div class="muted">Live Duval tax distress search • MVP</div>
     </div>
 
-    <div class="row" style="margin-top:16px">
-      <div><input id="q" placeholder="owner / address / parcel (e.g. 030147-0432)" /></div>
-      <div><input id="zip" placeholder="ZIP (e.g. 32209)" /></div>
-      <div><input id="min" placeholder="Min amount due" type="number" /></div>
-      <div><input id="max" placeholder="Max amount due" type="number" /></div>
+    <div class="card">
+      <div class="row">
+        <div>
+          <label style="font-size:12px;color:#9ca3af;">Search</label>
+          <input id="q" placeholder="Parcel / Owner / Address (e.g. 030147-0432)" />
+        </div>
+        <div>
+          <label style="font-size:12px;color:#9ca3af;">Zip</label>
+          <input id="zip" placeholder="e.g. 32209" />
+        </div>
+        <div>
+          <label style="font-size:12px;color:#9ca3af;">Min Amount Due</label>
+          <input id="min" type="number" placeholder="0" />
+        </div>
+        <div>
+          <label style="font-size:12px;color:#9ca3af;">Max Amount Due</label>
+          <input id="max" type="number" placeholder="" />
+        </div>
+      </div>
+
+      <div class="row" style="margin-top:12px;">
+        <div>
+          <button id="btnSearch">Search Distress</button>
+        </div>
+        <div>
+          <button id="btnClear" class="secondary">Clear Filters</button>
+        </div>
+        <div style="grid-column: span 2 / span 2; align-self:center; text-align:right;">
+          <span id="status"></span>
+        </div>
+      </div>
+
+      <table id="tbl">
+        <thead>
+          <tr>
+            <th>Owner</th>
+            <th>Property Address</th>
+            <th>Parcel</th>
+            <th>Zip</th>
+            <th>Distress</th>
+            <th>Amount Due</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
     </div>
-
-    <div class="row" style="grid-template-columns: 1fr 1fr; margin-top:12px">
-      <button id="btnRefresh" class="secondary">Refresh Leads (Algolia → CSV)</button>
-      <a id="btnExport" href="/export.csv"><button>Export Now (CSV)</button></a>
-    </div>
-
-    <div id="status" class="muted" style="margin-top:12px"></div>
-
-    <table id="tbl" style="margin-top:14px">
-      <thead>
-        <tr>
-          <th>Owner</th><th>Property Address</th><th>Parcel</th><th>Zip</th><th>Distress</th><th>Amount Due</th>
-        </tr>
-      </thead>
-      <tbody></tbody>
-    </table>
   </div>
 
   <script>
     const $ = (sel) => document.querySelector(sel);
 
     async function fetchLeads() {
-      const q = encodeURIComponent($('#q').value.trim());
+      const q   = encodeURIComponent($('#q').value.trim());
       const zip = encodeURIComponent($('#zip').value.trim());
       const min = encodeURIComponent($('#min').value.trim());
       const max = encodeURIComponent($('#max').value.trim());
 
       const params = [];
-      if (q) params.push('q=' + q);
+      if (q)   params.push('q=' + q);
       if (zip) params.push('zip=' + zip);
       if (min) params.push('min=' + min);
       if (max) params.push('max=' + max);
 
       const url = '/api/leads' + (params.length ? ('?' + params.join('&')) : '');
-      const r = await fetch(url);
-      const j = await r.json();
+      $('#status').textContent = 'Searching…';
+      $('#btnSearch').disabled = true;
 
-      $('#status').textContent = `Showing ${j.count} result(s).`;
+      try {
+        const res = await fetch(url);
+        const data = await res.json();
+        if (data.status !== 'success') {
+          $('#status').textContent = 'Error: ' + (data.message || 'Unknown');
+          $('#btnSearch').disabled = false;
+          return;
+        }
+        const rows = data.rows || [];
+        $('#status').textContent = `Found ${rows.length} result(s).`;
+        const tb = $('#tbl tbody');
+        tb.innerHTML = '';
+        rows.forEach(r => {
+          const tr = document.createElement('tr');
+          tr.innerHTML = `
+            <td>${r.owner || ''}</td>
+            <td>${r.address || ''}</td>
+            <td>${r.parcel || ''}</td>
+            <td>${r.zip || ''}</td>
+            <td><span class="pill">${r.distress || 'Tax'}</span></td>
+            <td>$${r.amountDue || '0.00'}</td>
+          `;
+          tb.appendChild(tr);
+        });
+      } catch (err) {
+        $('#status').textContent = 'Error calling API.';
+      } finally {
+        $('#btnSearch').disabled = false;
+      }
+    }
 
-      const tb = $('#tbl tbody');
-      tb.innerHTML = '';
-      j.rows.forEach(r => {
-        const tr = document.createElement('tr');
-        tr.innerHTML = `
-          <td>${r.owner || ''}</td>
-          <td>${r.address || ''}</td>
-          <td>${r.parcel || ''}</td>
-          <td>${r.zip || ''}</td>
-          <td>${r.distress || ''}</td>
-          <td>${r.amountDue || ''}</td>
-        `;
-        tb.appendChild(tr);
+    function clearFilters() {
+      $('#q').value   = '';
+      $('#zip').value = '';
+      $('#min').value = '';
+      $('#max').value = '';
+      $('#status').textContent = '';
+      $('#tbl tbody').innerHTML = '';
+    }
+
+    $('#btnSearch').addEventListener('click', fetchLeads);
+    $('#btnClear').addEventListener('click', clearFilters);
+
+    // Press Enter in any box to search
+    ['q','zip','min','max'].forEach(id => {
+      const el = $('#' + id);
+      el.addEventListener('keypress', (e) => {
+        if (e.key === 'Enter') fetchLeads();
       });
-    }
+    });
 
-    async function refreshFromAlgolia() {
-      $('#status').textContent = 'Refreshing from Algolia…';
-      const q = encodeURIComponent($('#q').value.trim());
-      const terms = q ? `?terms=${q}` : '';
-      const r = await fetch('/api/refresh' + terms);
-      const j = await r.json();
-      $('#status').textContent = `Refresh: ${j.status} • ${j.rows || 0} row(s) • ${j.source || ''}`;
-      await fetchLeads();
-    }
-
-    $('#q').addEventListener('change', fetchLeads);
-    $('#zip').addEventListener('change', fetchLeads);
-    $('#min').addEventListener('change', fetchLeads);
-    $('#max').addEventListener('change', fetchLeads);
-    $('#btnRefresh').addEventListener('click', refreshFromAlgolia);
-
-    // Initial load
-    fetchLeads();
+    // Optional: do a default search on load
+    // fetchLeads();
   </script>
 </body>
 </html>
