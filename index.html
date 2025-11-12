@@ -1,268 +1,112 @@
 <!doctype html>
 <html lang="en">
 <head>
-  <meta charset="utf-8"/>
-  <meta name="viewport" content="width=device-width,initial-scale=1"/>
-  <title>Distress Intelligence · Duval</title>
-  <script src="https://cdn.tailwindcss.com"></script>
-  <meta name="color-scheme" content="dark light"/>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Distress Intelligence • MVP</title>
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <style>
-    html,body{height:100%}
-    .chip{transition:all .12s ease}
-    .chip[data-on="true"]{background:#10b981;color:#0b1220}
-    .chip[data-on="false"]{background:#1f2937;color:#e5e7eb}
+    :root { color-scheme: dark; }
+    body { margin: 0; font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; background: #0b1220; color: #e6edf3; }
+    .wrap { max-width: 1100px; margin: 32px auto; padding: 0 16px; }
+    .row { display: grid; gap: 12px; grid-template-columns: repeat(4, 1fr); }
+    .row > * { background: #0f172a; border: 1px solid #1e293b; border-radius: 12px; padding: 12px; }
+    input, button { width: 100%; padding: 10px 12px; border-radius: 10px; border: 1px solid #334155; background: #0b1220; color: #e6edf3; }
+    button { background: #10b981; border: none; font-weight: 600; cursor: pointer; }
+    button.secondary { background: #1f2937; }
+    table { width: 100%; border-collapse: collapse; margin-top: 16px; }
+    th, td { border-bottom: 1px solid #1f2937; padding: 10px 8px; font-size: 14px; }
+    th { text-align: left; color: #9ca3af; font-weight: 600;}
+    .header h1 { margin: 0; font-size: 28px; }
+    .muted { color: #9ca3af; }
   </style>
 </head>
-<body class="bg-slate-900 text-slate-100 antialiased">
-  <div class="max-w-6xl mx-auto px-4 py-6">
-    <!-- Header -->
-    <div class="flex items-center justify-between gap-4 mb-6">
-      <div>
-        <div class="text-3xl font-black tracking-tight">
-          Distress <span class="text-emerald-400">Intelligence</span>
-        </div>
-        <div class="text-sm text-slate-400">Pre-market Duval distress data · MVP</div>
-      </div>
-      <div class="flex items-center gap-2">
-        <a href="/login" class="rounded-lg bg-slate-800 px-3 py-1.5 text-sm hover:bg-slate-700">Login</a>
-        <a href="/logout" class="rounded-lg bg-slate-800 px-3 py-1.5 text-sm hover:bg-slate-700">Logout</a>
-      </div>
+<body>
+  <div class="wrap">
+    <div class="header">
+      <h1>Distress <span style="color:#10b981">Intelligence</span></h1>
+      <div class="muted">Pre-market Duval distress data • MVP</div>
     </div>
 
-    <!-- Filters -->
-    <div class="rounded-2xl border border-slate-800 bg-slate-950/50 p-4 md:p-6 mb-6">
-      <div class="grid md:grid-cols-4 gap-3">
-        <div class="md:col-span-4">
-          <label class="block text-xs uppercase tracking-wide text-slate-400 mb-1">Search owner / address / parcel</label>
-          <input id="q" placeholder="e.g. Smith, 125 Main, 12345-0000"
-                 class="w-full rounded-xl bg-slate-800/60 border border-slate-700/60 px-3 py-2 outline-none focus:border-emerald-400"/>
-        </div>
-        <div>
-          <label class="block text-xs uppercase tracking-wide text-slate-400 mb-1">Zip</label>
-          <input id="zip" inputmode="numeric" placeholder="32209"
-                 class="w-full rounded-xl bg-slate-800/60 border border-slate-700/60 px-3 py-2 outline-none focus:border-emerald-400"/>
-        </div>
-        <div>
-          <label class="block text-xs uppercase tracking-wide text-slate-400 mb-1">Min amount due</label>
-          <input id="min_amount" inputmode="numeric" placeholder="(none)"
-                 class="w-full rounded-xl bg-slate-800/60 border border-slate-700/60 px-3 py-2 outline-none focus:border-emerald-400"/>
-        </div>
-        <div>
-          <label class="block text-xs uppercase tracking-wide text-slate-400 mb-1">Max amount due</label>
-          <input id="max_amount" inputmode="numeric" placeholder="(none)"
-                 class="w-full rounded-xl bg-slate-800/60 border border-slate-700/60 px-3 py-2 outline-none focus:border-emerald-400"/>
-        </div>
-      </div>
-
-      <!-- Sources -->
-      <div class="mt-4">
-        <div class="text-xs uppercase tracking-wide text-slate-400 mb-2">Distress sources</div>
-        <div class="flex flex-wrap gap-2">
-          <button class="chip rounded-full px-3 py-1 text-sm" data-key="tax"     data-on="true">Tax</button>
-          <button class="chip rounded-full px-3 py-1 text-sm" data-key="code"    data-on="false">Nuisance / Code</button>
-          <button class="chip rounded-full px-3 py-1 text-sm" data-key="fire"    data-on="false">Fire / Unsafe</button>
-          <button class="chip rounded-full px-3 py-1 text-sm" data-key="probate" data-on="false">Probate</button>
-          <button class="chip rounded-full px-3 py-1 text-sm" data-key="lis"     data-on="false">Lis Pendens</button>
-        </div>
-      </div>
-
-      <!-- Actions -->
-      <div class="mt-6 flex flex-col sm:flex-row gap-3">
-        <button id="exportBtn" class="rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-900 font-medium px-4 py-2">
-          Export Now (CSV)
-        </button>
-        <button id="refreshBtn" class="rounded-xl bg-slate-800 hover:bg-slate-700 px-4 py-2">
-          Refresh Leads
-        </button>
-        <button id="resetBtn" class="rounded-xl bg-slate-800 hover:bg-slate-700 px-4 py-2">
-          Reset Filters
-        </button>
-        <span id="countSpan" class="sm:ml-auto text-sm text-slate-400 self-center"></span>
-      </div>
+    <div class="row" style="margin-top:16px">
+      <div><input id="q" placeholder="owner / address / parcel (e.g. 030147-0432)" /></div>
+      <div><input id="zip" placeholder="ZIP (e.g. 32209)" /></div>
+      <div><input id="min" placeholder="Min amount due" type="number" /></div>
+      <div><input id="max" placeholder="Max amount due" type="number" /></div>
     </div>
 
-    <!-- Table -->
-    <div class="rounded-2xl border border-slate-800 overflow-hidden">
-      <div class="overflow-x-auto">
-        <table class="min-w-full text-sm">
-          <thead class="bg-slate-900/70 border-b border-slate-800">
-            <tr class="text-left">
-              <th class="px-4 py-3 font-semibold">Owner</th>
-              <th class="px-4 py-3 font-semibold">Property Address</th>
-              <th class="px-4 py-3 font-semibold">Parcel</th>
-              <th class="px-4 py-3 font-semibold">Zip</th>
-              <th class="px-4 py-3 font-semibold">Distress</th>
-              <th class="px-4 py-3 font-semibold text-right">Amount Due</th>
-              <th class="px-4 py-3 font-semibold">Action</th>
-            </tr>
-          </thead>
-          <tbody id="leadsBody" class="divide-y divide-slate-800 bg-slate-950/40">
-            <tr><td colspan="7" class="px-4 py-8 text-center text-slate-400">Loading…</td></tr>
-          </tbody>
-        </table>
-      </div>
+    <div class="row" style="grid-template-columns: 1fr 1fr; margin-top:12px">
+      <button id="btnRefresh" class="secondary">Refresh Leads (Algolia → CSV)</button>
+      <a id="btnExport" href="/export.csv"><button>Export Now (CSV)</button></a>
     </div>
 
-    <!-- Footer -->
-    <div class="mt-6 flex items-center justify-between text-xs text-slate-500">
-      <div>Runs 100% free · Flask + Tailwind + CSV backend</div>
-      <button id="forceBtn" class="rounded-lg border border-slate-700 px-3 py-1 hover:bg-slate-800">Force Re-scrape</button>
-    </div>
+    <div id="status" class="muted" style="margin-top:12px"></div>
+
+    <table id="tbl" style="margin-top:14px">
+      <thead>
+        <tr>
+          <th>Owner</th><th>Property Address</th><th>Parcel</th><th>Zip</th><th>Distress</th><th>Amount Due</th>
+        </tr>
+      </thead>
+      <tbody></tbody>
+    </table>
   </div>
 
   <script>
-    (function () {
-      const $ = s => document.querySelector(s);
-      const $$ = s => Array.from(document.querySelectorAll(s));
+    const $ = (sel) => document.querySelector(sel);
 
-      const inputQ   = $('#q');
-      const inputZip = $('#zip');
-      const inputMin = $('#min_amount');
-      const inputMax = $('#max_amount');
-      const chips    = $$('.chip');
-      const tbody    = $('#leadsBody');
-      const btnRefresh = $('#refreshBtn');
-      const btnExport  = $('#exportBtn');
-      const btnForce   = $('#forceBtn');
-      const btnReset   = $('#resetBtn');
-      const countSpan  = $('#countSpan');
+    async function fetchLeads() {
+      const q = encodeURIComponent($('#q').value.trim());
+      const zip = encodeURIComponent($('#zip').value.trim());
+      const min = encodeURIComponent($('#min').value.trim());
+      const max = encodeURIComponent($('#max').value.trim());
 
-      // init chips
-      chips.forEach(c => setChipOn(c, c.dataset.on === 'true'));
-      chips.forEach(c => c.addEventListener('click', () => {
-        setChipOn(c, !(c.dataset.on === 'true'));
-        refresh();
-      }));
-      function setChipOn(el, on) {
-        el.dataset.on = on ? 'true' : 'false';
-        el.setAttribute('data-on', el.dataset.on);
-      }
-      function selectedSources() {
-        const s = chips.filter(c => c.dataset.on === 'true').map(c => c.dataset.key).join(',');
-        return s || 'tax';
-      }
+      const params = [];
+      if (q) params.push('q=' + q);
+      if (zip) params.push('zip=' + zip);
+      if (min) params.push('min=' + min);
+      if (max) params.push('max=' + max);
 
-      function toQuery(obj) {
-        const p = new URLSearchParams();
-        for (const [k,v] of Object.entries(obj)) {
-          const vs = String(v ?? '').trim();
-          if (vs !== '') p.append(k, vs);
-        }
-        return p.toString();
-      }
+      const url = '/api/leads' + (params.length ? ('?' + params.join('&')) : '');
+      const r = await fetch(url);
+      const j = await r.json();
 
-      // tolerant getter for various header names
-      function getField(row, keys) {
-        for (const k of keys) {
-          if (row[k] !== undefined && row[k] !== null && String(row[k]).trim() !== '') return row[k];
-        }
-        return '';
-      }
-      function normMoney(v) {
-        if (v === '' || v === null || v === undefined) return 0;
-        return Number(String(v).replace(/[^0-9.-]/g,'')) || 0;
-      }
-      function fmtMoney(n){ n = Number(n||0); return n.toLocaleString(undefined,{maximumFractionDigits:0}); }
+      $('#status').textContent = `Showing ${j.count} result(s).`;
 
-      async function getLeads() {
-        const params = {
-          q: inputQ.value,
-          zip: inputZip.value,
-          min_amount: inputMin.value,
-          max_amount: inputMax.value,
-          sources: selectedSources()
-        };
-        const qs = toQuery(params);
-        const res = await fetch(`/api/leads?${qs}`);
-        if (!res.ok) throw new Error('Failed to fetch leads');
-        return res.json(); // array of rows
-      }
-
-      function render(rows) {
-        tbody.innerHTML = '';
-        if (!rows || !rows.length) {
-          tbody.innerHTML = `<tr><td colspan="7" class="px-4 py-10 text-center text-slate-400">No leads match your filters yet.</td></tr>`;
-          countSpan.textContent = '';
-          return;
-        }
-        for (const row of rows) {
-          const owner   = getField(row, ['owner','owner_name','payer','name']);
-          const address = getField(row, ['address','situs_address','site_address','property_address']);
-          const parcel  = getField(row, ['parcel','parcel_id','strap','folio']);
-          const zip     = getField(row, ['zip','zipcode','zip_code']);
-          const distress= getField(row, ['distress','source','type']);
-          const amt     = normMoney(getField(row, ['amountDue','amount_due','amount','amount_due_$']));
-
-          const tr = document.createElement('tr');
-          tr.innerHTML = `
-            <td class="px-4 py-3">${owner}</td>
-            <td class="px-4 py-3">${address}</td>
-            <td class="px-4 py-3">${parcel}</td>
-            <td class="px-4 py-3">${zip}</td>
-            <td class="px-4 py-3">${distress}</td>
-            <td class="px-4 py-3 text-right">$${fmtMoney(amt)}</td>
-            <td class="px-4 py-3">
-              <button class="rounded-lg bg-slate-800 hover:bg-slate-700 text-xs px-3 py-1">Skiptrace</button>
-            </td>`;
-          tbody.appendChild(tr);
-        }
-        countSpan.textContent = `Showing ${rows.length} result${rows.length===1?'':'s'}`;
-      }
-
-      async function refresh() {
-        btnRefresh.disabled = true;
-        btnRefresh.textContent = 'Loading…';
-        try {
-          const rows = await getLeads();
-          render(rows);
-        } catch (e) {
-          console.error(e);
-          render([]);
-        } finally {
-          btnRefresh.disabled = false;
-          btnRefresh.textContent = 'Refresh Leads';
-        }
-      }
-
-      // Export current CSV (server writes to /data/leads.csv)
-      btnExport.addEventListener('click', () => {
-        window.location.href = '/data/leads.csv';
+      const tb = $('#tbl tbody');
+      tb.innerHTML = '';
+      j.rows.forEach(r => {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td>${r.owner || ''}</td>
+          <td>${r.address || ''}</td>
+          <td>${r.parcel || ''}</td>
+          <td>${r.zip || ''}</td>
+          <td>${r.distress || ''}</td>
+          <td>${r.amountDue || ''}</td>
+        `;
+        tb.appendChild(tr);
       });
+    }
 
-      // Force re-scrape then reload table
-      btnForce.addEventListener('click', async () => {
-        btnForce.disabled = true;
-        btnForce.textContent = 'Scraping…';
-        try {
-          await fetch('/api/refresh', { method: 'GET' });
-          await refresh();
-        } catch (e) {
-          console.error(e);
-        } finally {
-          btnForce.disabled = false;
-          btnForce.textContent = 'Force Re-scrape';
-        }
-      });
+    async function refreshFromAlgolia() {
+      $('#status').textContent = 'Refreshing from Algolia…';
+      const q = encodeURIComponent($('#q').value.trim());
+      const terms = q ? `?terms=${q}` : '';
+      const r = await fetch('/api/refresh' + terms);
+      const j = await r.json();
+      $('#status').textContent = `Refresh: ${j.status} • ${j.rows || 0} row(s) • ${j.source || ''}`;
+      await fetchLeads();
+    }
 
-      // Reset filters
-      btnReset.addEventListener('click', () => {
-        inputQ.value = '';
-        inputZip.value = '';
-        inputMin.value = '';
-        inputMax.value = '';
-        chips.forEach(c => setChipOn(c, c.dataset.key === 'tax')); // default Tax only
-        refresh();
-      });
+    $('#q').addEventListener('change', fetchLeads);
+    $('#zip').addEventListener('change', fetchLeads);
+    $('#min').addEventListener('change', fetchLeads);
+    $('#max').addEventListener('change', fetchLeads);
+    $('#btnRefresh').addEventListener('click', refreshFromAlgolia);
 
-      // Enter key triggers refresh
-      [inputQ, inputZip, inputMin, inputMax].forEach(inp => {
-        inp.addEventListener('keydown', (ev) => { if (ev.key === 'Enter') refresh(); });
-        inp.addEventListener('change', refresh);
-      });
-
-      // Initial load: no filters → show all server-visible rows
-      refresh();
-    })();
+    // Initial load
+    fetchLeads();
   </script>
 </body>
 </html>
