@@ -1,309 +1,395 @@
-import os, re, csv, json, pathlib, logging
-from flask import Flask, request, jsonify, send_from_directory
+import csv
+import io
+import json
+import os
+import pathlib
+from datetime import datetime
+from typing import Dict, List, Tuple
+
 import requests
+from flask import Flask, jsonify, request, send_file, Response
 
-logging.basicConfig(level=logging.INFO)
-log = logging.getLogger("distress")
+# --------------------------
+# Config & constants
+# --------------------------
+ROOT = pathlib.Path(__file__).parent.resolve()
+DATA_DIR = ROOT / "data"
+DATA_DIR.mkdir(exist_ok=True)
+CSV_PATH = DATA_DIR / "leads.csv"
 
-APP_ROOT = pathlib.Path(__file__).parent.resolve()
-DATA_DIR  = (APP_ROOT / "data"); DATA_DIR.mkdir(exist_ok=True)
-LEADS_CSV = DATA_DIR / "leads.csv"
+# You can set these in Render → Environment; we also default to the values you captured
+ALG_APP_ID = os.getenv("ALG_APP_ID", "0LWZO52LS2")
+ALG_API_KEY = os.getenv("ALG_API_KEY", "c0745578b56854a1b90ed57b63fbf0ba")
+ALG_INDEX = os.getenv("ALG_INDEX", "fl-duval.property_tax")
 
-GH_RAW_URL = (os.getenv("GH_RAW_URL","").strip())
+# Optional GitHub raw CSV fallback (must point to a CSV; used if Algolia fails)
+GH_RAW_URL = os.getenv("GH_RAW_URL", "").strip()
 
-# ---- Algolia (public search key) ----
-ALG_APP_ID = "0LWZO52LS2"
-ALG_API_KEY = "c0745578b56854a1b90ed57b63fbf0ba"
-ALG_INDEX  = "fl-duval.property_tax"
-ALG_ENDPOINT = f"https://{ALG_APP_ID.lower()}-dsn.algolia.net/1/indexes/*/queries"
+# Default headers/shape we keep on disk and return to the UI
+CSV_HEADERS = ["owner", "address", "parcel", "zip", "distress", "amountDue"]
 
-HEADERS = ["address","zip","parcel","distress","amountDue","owner"]
+# Flask app
+app = Flask(__name__)
 
-app = Flask(__name__, static_folder=str(APP_ROOT), static_url_path="")
-
-# ============== helpers ==============
-def ensure_headers():
-    if not LEADS_CSV.exists() or LEADS_CSV.stat().st_size == 0:
-        with LEADS_CSV.open("w", newline="", encoding="utf-8") as f:
-            csv.writer(f).writerow(HEADERS)
-
-def csv_rows_count():
-    if not LEADS_CSV.exists() or LEADS_CSV.stat().st_size == 0:
-        return 0
-    with LEADS_CSV.open("r", encoding="utf-8", newline="") as f:
-        return max(0, sum(1 for _ in f) - 1)
-
-def clean_amount(x):
-    if x is None: return 0.0
-    try:
-        return float(re.sub(r"[^0-9.\-]", "", str(x)) or 0)
-    except Exception:
-        return 0.0
-
-def first_nonempty(*vals):
-    for v in vals:
-        if isinstance(v, str) and v.strip():
-            return v.strip()
-        if v not in (None, "", [], {}):
-            return v
-    return ""
-
-def join_addr(*parts):
-    parts = [str(p).strip() for p in parts if p and str(p).strip()]
-    return ", ".join(dict.fromkeys(parts))
-
-ZIP_RE    = re.compile(r"\b(\d{5})(?:-\d{4})?\b")
-PARCEL_RE = re.compile(r"\b\d{6,}\b")
-ADDR_RE   = re.compile(r"\b\d+\s+[A-Za-z0-9][^\n,]{2,}")
-
-def pick_by_keys(d, *candidates):
-    for k in candidates:
-        if k in d and str(d[k]).strip():
-            return d[k]
-    return None
-
-def any_key_contains(d, substrs):
-    for k,v in d.items():
-        if any(s in k.lower() for s in substrs) and str(v).strip():
-            return v
-    return None
-
-def find_zip(d):
-    # exact keys first
-    z = pick_by_keys(d, "zip","zipcode","zip_code","postal_code","situs_zip","mailing_zip")
-    if not z:
-        # try to extract from any string field
-        for v in d.values():
-            if isinstance(v, str):
-                m = ZIP_RE.search(v)
-                if m: return m.group(1)
-    return str(z or "")
-
-def find_parcel(d):
-    p = pick_by_keys(d, "parcel","parcel_id","account","account_number","folio")
-    if p: return str(p)
-    # look through any keys mentioning parcel/folio/account
-    v = any_key_contains(d, ["parcel","folio","account"])
-    if v: return str(v)
-    # fallback: longest 6+ digit group in any field
-    best = ""
-    for v in d.values():
-        if isinstance(v, (str,int)):
-            for m in PARCEL_RE.findall(str(v)):
-                if len(m) > len(best): best = m
-    return best
-
-def find_owner(d):
-    v = pick_by_keys(d, "owner","owner_name","owner1","owner2","name","mailing_name","mail_name","owner_name1")
-    if v: return str(v)
-    # any field including 'owner' or 'name'
-    v = any_key_contains(d, ["owner","name"])
-    return str(v or "")
-
-def find_amount(d):
-    v = pick_by_keys(
-        d, "amount_due","total_due","balance_due","balance","tax_due",
-        "amount","unpaid_balance","current_due","delinquent_amount","totalDue","amountDue"
-    )
-    if v is None:
-        # try any key that looks like an amount/due/balance
-        for k,val in d.items():
-            lk = k.lower()
-            if any(s in lk for s in ["due","balance","amount"]):
-                amt = clean_amount(val)
-                if amt > 0:
-                    v = amt
-                    break
-    return f"{clean_amount(v):.2f}"
-
-def find_address(d):
-    v = pick_by_keys(
-        d, "property_address","situs_address","situs_addr1","address","address_line",
-        "situs_addr2","situs_city","situs_state","mailing_address","mail_addr1","mail_addr2",
-    )
-    if isinstance(v, str) and v.strip():
-        return v.strip()
-    # combine bits that look like address parts
-    combo = join_addr(
-        d.get("situs_addr1"), d.get("situs_addr2"),
-        d.get("situs_city"), d.get("situs_state"),
-        d.get("address_line"), d.get("mail_addr1"), d.get("mail_addr2"),
-        d.get("street"), d.get("street_name")
-    )
-    if combo:
-        return combo
-    # last resort: first field that looks like "123 Something"
-    for val in d.values():
-        if isinstance(val, str) and ADDR_RE.search(val):
-            return val.strip()
-    return ""
-
-def normalize_hit_smart(hit: dict):
-    addr   = find_address(hit)
-    zipc   = find_zip(hit)
-    parcel = find_parcel(hit)
-    owner  = find_owner(hit)
-    amount = find_amount(hit)
-    return [addr, str(zipc), str(parcel), "Tax", amount, owner]
-
-def write_rows(rows):
-    with LEADS_CSV.open("w", newline="", encoding="utf-8") as f:
-        w = csv.writer(f)
-        w.writerow(HEADERS)
-        w.writerows(rows)
-
-# ============== sources ==============
-def refresh_from_github():
-    if not GH_RAW_URL or GH_RAW_URL.endswith("%0A"):
-        return {"status":"skipped","source":"github","message":"GH_RAW_URL not set/has newline"}
-    try:
-        r = requests.get(GH_RAW_URL, timeout=30)
-        if r.status_code == 404:
-            return {"status":"error","source":"github","message":"GitHub 404"}
-        r.raise_for_status()
-        txt = r.text
-        if not txt.strip():
-            return {"status":"error","source":"github","message":"GitHub CSV empty"}
-        with LEADS_CSV.open("w", encoding="utf-8", newline="") as f:
-            f.write(txt if txt.endswith("\n") else txt + "\n")
-        return {"status":"success","source":"github","bytes":LEADS_CSV.stat().st_size}
-    except Exception as e:
-        return {"status":"error","source":"github","message":str(e)}
-
-def refresh_from_algolia(limit=1000):
-    try:
-        headers = {
-            "x-algolia-application-id": ALG_APP_ID,
-            "x-algolia-api-key": ALG_API_KEY,
-            "Content-Type": "application/json",
-            "x-algolia-agent": "python(custom)"
-        }
-        params = "query=&hitsPerPage={}".format(min(1000, int(limit)))
-        payload = {"requests":[{"indexName": ALG_INDEX, "params": params}]}
-        r = requests.post(ALG_ENDPOINT, headers=headers, json=payload, timeout=30)
-        r.raise_for_status()
-        data = r.json()
-        hits = (data.get("results") or [{}])[0].get("hits") or []
-        if not hits:
-            return {"status":"error","source":"algolia","message":"0 hits"}
-
-        rows = []
-        for h in hits:
-            row = normalize_hit_smart(h)
-            # require at least an address or parcel to keep
-            if any(str(c).strip() for c in (row[0], row[2])):
-                rows.append(row)
-
-        if not rows:
-            return {"status":"error","source":"algolia","message":"normalized rows empty"}
-
-        write_rows(rows)
-        return {"status":"success","source":"algolia","rows":len(rows),"bytes":LEADS_CSV.stat().st_size}
-    except Exception as e:
-        return {"status":"error","source":"algolia","message":str(e)}
-
-# ============== routes ==============
-@app.route("/")
-def serve_index():
-    path = APP_ROOT / "index.html"
+# --------------------------
+# Helpers
+# --------------------------
+def _ensure_csv(path: pathlib.Path = CSV_PATH):
+    """Create CSV with headers if missing."""
     if not path.exists():
-        return ("Not Found", 404)
-    return send_from_directory(str(APP_ROOT), "index.html")
+        with path.open("w", newline="", encoding="utf-8") as f:
+            writer = csv.DictWriter(f, fieldnames=CSV_HEADERS)
+            writer.writeheader()
 
-@app.route("/data/<path:filename>")
-def serve_data(filename):
-    return send_from_directory(str(DATA_DIR), filename)
+def _write_rows(rows: List[Dict], path: pathlib.Path = CSV_PATH) -> Tuple[int, int]:
+    """Write/replace rows into CSV; returns (#rows, #bytes)."""
+    _ensure_csv(path)
+    buf = io.StringIO()
+    writer = csv.DictWriter(buf, fieldnames=CSV_HEADERS)
+    writer.writeheader()
+    for r in rows:
+        writer.writerow({h: r.get(h, "") for h in CSV_HEADERS})
+    data = buf.getvalue()
+    with path.open("w", encoding="utf-8", newline="") as f:
+        f.write(data)
+    return len(rows), len(data.encode("utf-8"))
 
-@app.route("/api/health")
+def _read_csv(path: pathlib.Path = CSV_PATH) -> List[Dict]:
+    if not path.exists():
+        return []
+    with path.open("r", encoding="utf-8", newline="") as f:
+        reader = csv.DictReader(f)
+        return list(reader)
+
+def _norm(s):
+    return (s or "").strip()
+
+def _algolia_endpoint() -> str:
+    # Use -dsn subdomain for distributed search
+    return f"https://{ALG_APP_ID.lower()}-dsn.algolia.net/1/indexes/*/queries"
+
+def _algolia_headers() -> Dict[str, str]:
+    return {
+        "Content-Type": "application/json",
+        "X-Algolia-Application-Id": ALG_APP_ID,
+        "X-Algolia-API-Key": ALG_API_KEY,
+    }
+
+def _extract_amount(hit: Dict) -> str:
+    """
+    Algolia documents can use different keys for due amounts.
+    We try several, returning a stringified number (no commas).
+    """
+    for k in ("amount_due", "amountDue", "total_due", "totalDue", "due", "amount"):
+        v = hit.get(k)
+        if v is None:
+            continue
+        if isinstance(v, (int, float)):
+            return str(v)
+        return _norm(str(v).replace(",", "").replace("$", ""))
+    return "0"
+
+def _extract_zip(hit: Dict) -> str:
+    for k in ("situs_zip", "zip", "zipcode", "mailing_zip"):
+        v = _norm(hit.get(k))
+        if v:
+            # normalize ZIP like 32209 or 32209-1234 -> keep first 5
+            v = v.replace(" ", "")
+            return v.split("-")[0][:5]
+    return ""
+
+def _extract_address(hit: Dict) -> str:
+    for k in ("situs_address", "site_address", "address", "property_address", "situs_location"):
+        v = _norm(hit.get(k))
+        if v:
+            return v
+    # Some datasets store components
+    street = _norm(hit.get("situs_street"))
+    city = _norm(hit.get("situs_city"))
+    if street and city:
+        return f"{street}, {city}"
+    return ""
+
+def _extract_owner(hit: Dict) -> str:
+    for k in ("owner_name", "owner", "name", "owner1"):
+        v = _norm(hit.get(k))
+        if v:
+            return v
+    return ""
+
+def _extract_parcel(hit: Dict) -> str:
+    for k in ("account", "account_id", "parcel", "parcel_id", "folio", "alternate_key"):
+        v = _norm(hit.get(k))
+        if v:
+            return v
+    return ""
+
+def _hit_to_row(hit: Dict) -> Dict:
+    return {
+        "owner": _extract_owner(hit),
+        "address": _extract_address(hit),
+        "parcel": _extract_parcel(hit),
+        "zip": _extract_zip(hit),
+        "distress": "Tax",  # this endpoint is specifically tax
+        "amountDue": _extract_amount(hit),
+    }
+
+def _algolia_query(
+    query: str,
+    hits_per_page: int = 100,
+) -> List[Dict]:
+    """
+    Calls Algolia with the same structure you saw in DevTools.
+    We only set the params we actually need; the rest are optional.
+    """
+    params = (
+        "clickAnalytics=true"
+        "&facets=[]"
+        "&highlightPreTag=__ais-highlight__"
+        "&highlightPostTag=__/ais-highlight__"
+        f"&hitsPerPage={hits_per_page}"
+        f"&query={requests.utils.quote(query)}"
+    )
+
+    payload = {
+        "requests": [
+            {
+                "indexName": ALG_INDEX,
+                "params": params,
+            }
+        ]
+    }
+
+    r = requests.post(_algolia_endpoint(), headers=_algolia_headers(), data=json.dumps(payload), timeout=20)
+    r.raise_for_status()
+    body = r.json()
+    results = body.get("results") or []
+    if not results:
+        return []
+    hits = results[0].get("hits") or []
+    return hits
+
+def _algolia_batch_from_terms(terms: List[str]) -> List[Dict]:
+    """
+    Given a list of parcel/account/owner or free text terms,
+    combine unique normalized rows from Algolia.
+    """
+    rows: List[Dict] = []
+    seen = set()
+    for i, term in enumerate(terms, start=1):
+        term = _norm(term)
+        if not term:
+            continue
+        try:
+            hits = _algolia_query(term, hits_per_page=200)
+        except Exception as e:
+            app.logger.error("Algolia query failed for term %s: %s", term, e)
+            continue
+
+        for h in hits:
+            row = _hit_to_row(h)
+            key = (row["parcel"], row["amountDue"])
+            if not row["parcel"]:
+                continue
+            if key in seen:
+                continue
+            seen.add(key)
+            rows.append(row)
+    return rows
+
+def _fallback_download_csv(url: str) -> List[Dict]:
+    """
+    Download a CSV from GitHub raw and map its columns into our schema.
+    Your CSV header can be any of:
+      owner, owner_name
+      address, situs_address, property_address
+      parcel, parcel_id, account, account_id
+      zip, situs_zip, zipcode
+      amountDue, amount_due, total_due, amount
+      distress (optional; default 'Tax')
+    """
+    if not url:
+        return []
+    r = requests.get(url, timeout=20)
+    r.raise_for_status()
+    text = r.text
+    buf = io.StringIO(text)
+    reader = csv.DictReader(buf)
+    rows: List[Dict] = []
+    for raw in reader:
+        row = {
+            "owner": _norm(raw.get("owner") or raw.get("owner_name") or raw.get("name")),
+            "address": _norm(raw.get("address") or raw.get("situs_address") or raw.get("property_address")),
+            "parcel": _norm(raw.get("parcel") or raw.get("parcel_id") or raw.get("account") or raw.get("account_id")),
+            "zip": _norm(raw.get("zip") or raw.get("situs_zip") or raw.get("zipcode")),
+            "distress": _norm(raw.get("distress") or "Tax"),
+            "amountDue": _norm(
+                (raw.get("amountDue") or raw.get("amount_due") or raw.get("total_due") or raw.get("amount") or "0")
+            ).replace("$", "").replace(",", ""),
+        }
+        if any(row.values()):
+            rows.append(row)
+    return rows
+
+# --------------------------
+# API routes
+# --------------------------
+@app.get("/api/health")
 def api_health():
     return jsonify({
-        "status":"ok",
-        "csv_exists": LEADS_CSV.exists(),
-        "csv_bytes": LEADS_CSV.stat().st_size if LEADS_CSV.exists() else 0,
-        "rows": csv_rows_count(),
-        "gh_raw_url_set": bool(GH_RAW_URL)
+        "status": "ok",
+        "time": datetime.utcnow().isoformat() + "Z",
+        "csv_exists": CSV_PATH.exists(),
+        "csv_size": CSV_PATH.stat().st_size if CSV_PATH.exists() else 0,
+        "algolia_index": ALG_INDEX,
     })
 
-@app.route("/api/algolia-debug")
-def algolia_debug():
-    # returns first 3 hits keys so we can see what's actually there
-    try:
-        headers = {
-            "x-algolia-application-id": ALG_APP_ID,
-            "x-algolia-api-key": ALG_API_KEY,
-            "Content-Type": "application/json",
-        }
-        payload = {"requests":[{"indexName": ALG_INDEX, "params": "query=&hitsPerPage=3"}]}
-        r = requests.post(ALG_ENDPOINT, headers=headers, json=payload, timeout=30)
-        r.raise_for_status()
-        data = r.json()
-        hits = (data.get("results") or [{}])[0].get("hits") or []
-        summary = []
-        for h in hits:
-            summary.append(sorted(list(h.keys())))
-        return jsonify({"status":"success","keys_per_hit": summary})
-    except Exception as e:
-        return jsonify({"status":"error","message":str(e)}), 500
+@app.get("/api/debug/file/<path:subpath>")
+def api_debug_file(subpath: str):
+    """Check a file's existence & size on disk."""
+    target = ROOT / subpath
+    return jsonify({
+        "exists": target.exists(),
+        "path": str(target),
+        "size": target.stat().st_size if target.exists() else 0
+    })
 
-@app.route("/api/refresh")
+@app.get("/api/algolia-debug")
+def api_algolia_debug():
+    """Hit Algolia once and show first hit structure to confirm keys."""
+    q = request.args.get("q", "").strip() or "030147-0432"
+    hits = _algolia_query(q, hits_per_page=15)
+    sample = hits[0] if hits else {}
+    first_keys = list(sample.keys())[:25]
+    return jsonify({
+        "query": q,
+        "first_hit_keys": first_keys,
+        "first_hit_sample": sample,
+        "status": "success",
+    })
+
+@app.get("/api/refresh")
 def api_refresh():
-    ensure_headers()
-    source = (request.args.get("source") or "both").lower()
-    results = {}
+    """
+    Refresh data with priority:
+      1) If ?q= or ?terms= provided → query Algolia for those terms.
+      2) Else try Algolia using a few sensible defaults (noisy but useful):
+         - last 4 alg terms common: 'Tax', a sample parcel '030147-0432'
+      3) If Algolia returns nothing or errors → fallback GH_RAW_URL (if set).
+    """
+    terms_param = request.args.get("terms", "").strip()
+    q_param = request.args.get("q", "").strip()
+    use_fallback_only = request.args.get("fallback", "").lower() in ("1", "true", "yes")
 
-    if source in ("github","both"):
-        results["github"] = refresh_from_github()
+    out_rows: List[Dict] = []
 
-    need_algolia = (
-        source in ("algolia","both")
-        or csv_rows_count() < 5
-        or (results.get("github",{}).get("status") != "success")
-    )
-    if need_algolia:
-        results["algolia"] = refresh_from_algolia(1000)
+    try:
+        if not use_fallback_only:
+            if terms_param:
+                terms = [t.strip() for t in terms_param.split(",") if t.strip()]
+            elif q_param:
+                terms = [q_param]
+            else:
+                # sensible defaults: sample parcel + a generic term
+                terms = ["030147-0432", "tax lien", "tax delinquent duval"]
+            out_rows = _algolia_batch_from_terms(terms)
+    except Exception as e:
+        app.logger.error("Algolia batch failed: %s", e)
 
-    results["final"] = {
-        "rows": csv_rows_count(),
-        "bytes": LEADS_CSV.stat().st_size if LEADS_CSV.exists() else 0
-    }
-    return jsonify(results)
+    # Fallback if empty
+    if not out_rows and GH_RAW_URL:
+        try:
+            out_rows = _fallback_download_csv(GH_RAW_URL)
+            source = f"github:{GH_RAW_URL}"
+            rows, bytes_written = _write_rows(out_rows)
+            return jsonify({
+                "status": "success",
+                "message": "Fallback scrape filled CSV",
+                "rows": rows,
+                "bytes": bytes_written,
+                "source": source
+            })
+        except Exception as e:
+            app.logger.error("Fallback GitHub CSV failed: %s", e)
 
-@app.route("/api/leads")
+    # Persist what we got (even if zero → it still writes headers)
+    rows, bytes_written = _write_rows(out_rows)
+    return jsonify({
+        "status": "success",
+        "message": "Leads updated",
+        "rows": rows,
+        "bytes": bytes_written,
+        "source": f"algolia:{ALG_INDEX}"
+    })
+
+@app.get("/api/leads")
 def api_leads():
-    ensure_headers()
-    zip_filter = (request.args.get("zip") or "").strip()
-    min_amount = clean_amount(request.args.get("min_amount"))
-    max_amount = clean_amount(request.args.get("max_amount")) if request.args.get("max_amount") else None
-    sources = [s.strip().lower() for s in (request.args.get("sources") or "tax").split(",") if s.strip()]
+    """
+    Filter & return rows currently on disk.
+    Query params:
+      q       = search owner/address/parcel (substring, case-insensitive)
+      zip     = exact 5-digit zip
+      min     = minimum amountDue (number)
+      max     = maximum amountDue (number)
+      sources = comma list (only 'tax' matters here)
+      limit   = max rows (default 250)
+    """
+    rows = _read_csv()
+    q = (request.args.get("q") or "").strip().lower()
+    zip_code = (request.args.get("zip") or "").strip()
+    min_amt = request.args.get("min") or request.args.get("min_amount") or ""
+    max_amt = request.args.get("max") or request.args.get("max_amount") or ""
+    limit = int(request.args.get("limit") or 250)
+
+    def as_num(s):
+        try:
+            return float(str(s).replace(",", "").replace("$", "").strip())
+        except Exception:
+            return 0.0
 
     out = []
-    with LEADS_CSV.open("r", encoding="utf-8", newline="") as f:
-        r = csv.DictReader(f)
-        for row in r:
-            distress = (row.get("distress") or row.get("source") or "").lower()
-            if sources and ("tax" not in sources) and (distress not in sources):
+    for r in rows:
+        if q:
+            hay = " ".join([r.get("owner",""), r.get("address",""), r.get("parcel","")]).lower()
+            if q not in hay:
                 continue
-            if zip_filter and (str(row.get("zip","")).strip() != zip_filter):
-                continue
-            due = clean_amount(row.get("amountDue") or row.get("amount_due"))
-            if min_amount and due < min_amount:
-                continue
-            if max_amount and max_amount > 0 and due > max_amount:
-                continue
-            out.append({
-                "address": row.get("address",""),
-                "zip": row.get("zip",""),
-                "parcel": row.get("parcel",""),
-                "distress": row.get("distress",""),
-                "amountDue": f"{due:.2f}",
-                "owner": row.get("owner",""),
-            })
-    return jsonify({"status":"success","count":len(out),"rows":out[:1000]})
+        if zip_code and zip_code != (r.get("zip") or "").strip():
+            continue
+        if min_amt and as_num(r.get("amountDue", 0)) < as_num(min_amt):
+            continue
+        if max_amt and as_num(r.get("amountDue", 0)) > as_num(max_amt):
+            continue
+        out.append(r)
+        if len(out) >= limit:
+            break
 
-@app.route("/debug/file/<path:rel>")
-def debug_file(rel):
-    p = (APP_ROOT / rel)
-    return jsonify({"exists": p.exists(), "path": str(p), "size": p.stat().st_size if p.exists() else 0})
+    return jsonify({"status": "success", "count": len(out), "rows": out})
 
+@app.get("/export.csv")
+def export_csv():
+    """Download the on-disk CSV."""
+    _ensure_csv()
+    return send_file(
+        CSV_PATH,
+        mimetype="text/csv",
+        as_attachment=True,
+        download_name="leads.csv"
+    )
+
+# --------------------------
+# Static index (optional)
+# --------------------------
+@app.get("/")
+def index():
+    # Serve the static index file if it exists, else a tiny placeholder.
+    idx = ROOT / "index.html"
+    if idx.exists():
+        return idx.read_text(encoding="utf-8")
+    return Response("<h1>Distress Intelligence API</h1>", mimetype="text/html")
+
+# --------------------------
+# Entrypoint
+# --------------------------
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=int(os.getenv("PORT","10000")))
+    port = int(os.getenv("PORT", "10000"))
+    app.run(host="0.0.0.0", port=port)
