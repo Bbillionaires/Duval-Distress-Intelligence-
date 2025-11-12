@@ -3,11 +3,12 @@ from flask import Flask, jsonify, send_from_directory, request, abort
 from flask_cors import CORS
 import requests
 
-# logging
+# ── Logging Setup ───────────────────────────────────────────────
 logging.basicConfig(level=logging.INFO)
 log = logging.getLogger("distress")
 
-ROOT = os.path.abspath(os.path.dirname(__file__))  # absolute repo root
+# ── Paths & App ─────────────────────────────────────────────────
+ROOT = os.path.abspath(os.path.dirname(__file__))
 app = Flask(__name__, static_folder=ROOT, static_url_path="")
 CORS(app)
 
@@ -17,6 +18,7 @@ GH_RAW_URL = os.environ.get(
     "https://raw.githubusercontent.com/Bbillionaires/Duval-Distress-Intelligence-/Azoth-made-1st/data/leads.csv",
 )
 
+# ── Debug helpers ───────────────────────────────────────────────
 def list_root():
     try:
         return sorted(os.listdir(ROOT))
@@ -36,12 +38,13 @@ def debug_file(fname):
         "path": p
     })
 
+# ── Static & SPA routes ─────────────────────────────────────────
 @app.route("/")
 def root():
     idx = os.path.join(ROOT, "index.html")
     log.info("Serving index. cwd=%s root=%s exists=%s", os.getcwd(), ROOT, os.path.exists(idx))
     if not os.path.exists(idx):
-        log.error("index.html not found at %s. Repo files: %s", idx, list_root())
+        log.error("index.html not found. Files: %s", list_root())
         abort(404)
     return send_from_directory(ROOT, "index.html")
 
@@ -56,10 +59,12 @@ def any_path(path):
         abort(404)
     return send_from_directory(ROOT, "index.html")
 
+# ── Healthcheck ─────────────────────────────────────────────────
 @app.route("/api/health")
 def health():
     return jsonify({"ok": True})
 
+# ── Load leads ──────────────────────────────────────────────────
 def load_leads():
     rows = []
     if os.path.exists(DATA_FILE):
@@ -67,23 +72,34 @@ def load_leads():
             rows = list(csv.DictReader(f))
     return rows
 
+# ── Leads endpoint ──────────────────────────────────────────────
 @app.route("/api/leads", methods=["GET"])
 def api_leads():
     return jsonify(load_leads())
 
-@app.route("/api/refresh", methods=["POST"])
+# ── Step 1: Refresh (GET + POST) ────────────────────────────────
+@app.route("/api/refresh", methods=["GET", "POST"])
 def api_refresh():
+    """
+    Pull latest leads.csv from GitHub Raw and save to /data
+    """
     try:
         r = requests.get(GH_RAW_URL, timeout=30)
         r.raise_for_status()
         os.makedirs(os.path.dirname(DATA_FILE), exist_ok=True)
         with open(DATA_FILE, "wb") as f:
             f.write(r.content)
-        return jsonify({"status": "success", "message": "Leads updated from GitHub."})
+        size = os.path.getsize(DATA_FILE)
+        return jsonify({
+            "status": "success",
+            "message": "Leads updated from GitHub.",
+            "bytes": size
+        })
     except Exception as e:
         log.exception("refresh failed")
-        return jsonify({"status":"error","message":str(e)}), 500
+        return jsonify({"status": "error", "message": str(e)}), 500
 
+# ── Skiptrace proxy (optional) ──────────────────────────────────
 @app.route("/api/skiptrace_order", methods=["POST"])
 def api_skiptrace():
     url = os.environ.get("GAS_URL", "")
@@ -98,6 +114,7 @@ def api_skiptrace():
         log.exception("skiptrace failed")
         return jsonify({"status":"error","message":str(e)}), 500
 
+# ── Admin summary ───────────────────────────────────────────────
 @app.route("/api/admin/summary")
 def admin_summary():
     leads = load_leads()
@@ -106,5 +123,6 @@ def admin_summary():
         last = datetime.datetime.fromtimestamp(os.path.getmtime(DATA_FILE)).isoformat()
     return jsonify({"total_leads": len(leads), "last_updated": last})
 
+# ── Entrypoint ──────────────────────────────────────────────────
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 5000)))
