@@ -1,368 +1,288 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Distress Intelligence · Duval</title>
-
-  <!-- Tailwind CSS -->
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Distress Intelligence</title>
   <script src="https://cdn.tailwindcss.com"></script>
-
   <style>
-    body {
-      background-color: #020617; /* slate-950 */
-      color: #f8fafc;            /* slate-100 */
-      font-family: 'Inter', sans-serif;
-    }
+    :root { color-scheme: dark; }
+    body { background:#0b1320; }
+    .card { background:#0f172a; border:1px solid rgba(148,163,184,.12); }
+    .pill { background:#0b2530; border:1px solid rgba(148,163,184,.12); }
+    .tag { background:#0e1a2b; border:1px solid rgba(148,163,184,.18); }
+    .btn { background:#22c55e; }
+    .btn[disabled] { opacity:.6; cursor:not-allowed; }
+    .btn-ghost { background:#2b3345; }
+    .input { background:#0e1729; border:1px solid rgba(148,163,184,.15); }
   </style>
 </head>
-
-<body class="min-h-screen">
-
-  <div class="max-w-5xl mx-auto px-4 py-6">
+<body class="text-slate-200 antialiased">
+  <div class="max-w-6xl mx-auto px-4 py-8">
     <!-- Header -->
-    <header class="flex items-center justify-between mb-6">
+    <div class="flex items-center justify-between mb-6">
       <div class="flex items-center gap-3">
-        <div class="h-10 w-10 rounded-full bg-emerald-400 flex items-center justify-center font-bold text-slate-900">
-          DI
-        </div>
+        <div class="h-12 w-12 rounded-full flex items-center justify-center font-bold text-slate-900" style="background:#22c55e">DI</div>
         <div>
-          <h1 class="text-xl font-semibold">Distress Intelligence</h1>
-          <p class="text-xs text-slate-400">Pre-market Duval distress data · MVP</p>
+          <div class="text-2xl font-semibold">Distress Intelligence</div>
+          <div class="text-sm text-slate-400">Pre-market Duval distress data · MVP</div>
         </div>
       </div>
-      <div class="flex items-center gap-2 text-xs text-slate-300">
-        <span id="roleBadge"
-              class="hidden px-2 py-0.5 rounded-full border border-amber-400 bg-amber-500/10 text-amber-200 text-[10px]">
-          Admin
-        </span>
-        <span id="userStatus" class="text-slate-300"></span>
-        <button id="logoutBtn"
-                class="hidden bg-slate-800 border border-slate-600 rounded-full px-3 py-1 text-[11px]">
-          Logout
-        </button>
+      <div class="flex items-center gap-3">
+        <span id="userEmail" class="text-sm text-slate-400"></span>
+        <button id="logoutBtn" class="px-4 py-2 rounded-xl btn-ghost">Logout</button>
       </div>
-    </header>
+    </div>
 
-    <!-- Filters Card -->
-    <section class="bg-slate-900/70 border border-slate-800 rounded-2xl p-4 mb-4">
-      <div class="grid gap-3 md:grid-cols-2">
+    <!-- Filters -->
+    <div class="card rounded-2xl p-5 mb-6">
+      <div class="grid md:grid-cols-2 gap-4">
         <div>
-          <label class="text-xs text-slate-400 block mb-1">Search owner / address / parcel</label>
-          <input id="searchInput"
-                 type="text"
-                 placeholder="e.g. Smith, 125 Main, 12345-0000"
-                 class="w-full rounded-xl bg-slate-950 border border-slate-700 px-3 py-2 text-sm outline-none focus:border-emerald-400">
+          <label class="text-sm text-slate-400">Search owner / address / parcel</label>
+          <input id="q" class="mt-1 w-full input rounded-xl px-4 py-3" placeholder="e.g. Smith, 125 Main, 12345-0000">
         </div>
         <div class="grid grid-cols-3 gap-3">
           <div>
-            <label class="text-xs text-slate-400 block mb-1">Zip</label>
-            <input id="zipInput"
-                   type="text"
-                   placeholder="32209"
-                   class="w-full rounded-xl bg-slate-950 border border-slate-700 px-3 py-2 text-sm outline-none focus:border-emerald-400">
+            <label class="text-sm text-slate-400">Zip</label>
+            <input id="zip" class="mt-1 w-full input rounded-xl px-4 py-3" placeholder="32209">
           </div>
           <div>
-            <label class="text-xs text-slate-400 block mb-1">Min amount due</label>
-            <input id="minAmountInput"
-                   type="number"
-                   placeholder="10000"
-                   class="w-full rounded-xl bg-slate-950 border border-slate-700 px-3 py-2 text-sm outline-none focus:border-emerald-400">
+            <label class="text-sm text-slate-400">Min amount due</label>
+            <input id="min_amount" class="mt-1 w-full input rounded-xl px-4 py-3" placeholder="10000" inputmode="numeric">
           </div>
           <div>
-            <label class="text-xs text-slate-400 block mb-1">Max amount due</label>
-            <input id="maxAmountInput"
-                   type="number"
-                   placeholder="50000"
-                   class="w-full rounded-xl bg-slate-950 border border-slate-700 px-3 py-2 text-sm outline-none focus:border-emerald-400">
+            <label class="text-sm text-slate-400">Max amount due</label>
+            <input id="max_amount" class="mt-1 w-full input rounded-xl px-4 py-3" placeholder="50000" inputmode="numeric">
           </div>
         </div>
       </div>
 
       <div class="mt-4">
-        <span class="text-xs text-slate-400 block mb-2">Distress sources</span>
-        <div class="flex flex-wrap gap-2">
-          <button data-source="tax"
-                  class="distress-pill px-3 py-1 rounded-full text-xs border border-emerald-400 bg-emerald-500/10">
-            Tax
-          </button>
-          <button data-source="nuisance"
-                  class="distress-pill px-3 py-1 rounded-full text-xs border border-slate-600 bg-slate-800">
-            Nuisance / Code
-          </button>
-          <button data-source="fire"
-                  class="distress-pill px-3 py-1 rounded-full text-xs border border-slate-600 bg-slate-800">
-            Fire / Unsafe
-          </button>
-          <button data-source="probate"
-                  class="distress-pill px-3 py-1 rounded-full text-xs border border-slate-600 bg-slate-800">
-            Probate
-          </button>
-          <button data-source="lis_pendens"
-                  class="distress-pill px-3 py-1 rounded-full text-xs border border-slate-600 bg-slate-800">
-            Lis Pendens
-          </button>
+        <label class="text-sm text-slate-400">Distress sources</label>
+        <div id="sourcePills" class="flex flex-wrap gap-3 mt-2">
+          <button data-src="tax" class="px-4 py-2 rounded-full pill active">Tax</button>
+          <button data-src="nuisance" class="px-4 py-2 rounded-full pill">Nuisance / Code</button>
+          <button data-src="fire" class="px-4 py-2 rounded-full pill">Fire / Unsafe</button>
+          <button data-src="probate" class="px-4 py-2 rounded-full pill">Probate</button>
+          <button data-src="lis" class="px-4 py-2 rounded-full pill">Lis Pendens</button>
         </div>
       </div>
 
-      <div class="mt-4 flex flex-col md:flex-row items-stretch md:items-center gap-2">
-        <button id="exportBtn"
-                class="flex-1 md:flex-none md:px-6 rounded-full bg-emerald-400 text-slate-950 text-sm font-medium py-2 hover:bg-emerald-300">
-          Export Now (CSV)
-        </button>
-        <button id="refreshBtn"
-                class="flex-1 md:flex-none md:px-6 rounded-full bg-slate-800 text-slate-100 text-sm py-2 border border-slate-600 hover:bg-slate-700">
-          Refresh Leads
-        </button>
-        <span id="summaryText" class="text-xs text-slate-400 md:ml-auto"></span>
+      <div class="mt-6 grid sm:grid-cols-2 gap-3">
+        <button id="exportBtn" class="w-full py-3 rounded-xl btn font-medium">Export Now (CSV)</button>
+        <button id="refreshBtn" class="w-full py-3 rounded-xl btn-ghost font-medium">Refresh Leads</button>
       </div>
-    </section>
 
-    <!-- Table Card -->
-    <section class="bg-slate-900/70 border border-slate-800 rounded-2xl p-4">
-      <div class="flex items-center justify-between mb-2">
-        <h2 class="text-sm font-semibold">Distressed Parcels</h2>
-        <span id="tableMeta" class="text-xs text-slate-400"></span>
+      <div id="matchNote" class="text-sm text-slate-400 mt-3">0 matching properties</div>
+    </div>
+
+    <!-- Table -->
+    <div class="card rounded-2xl p-5">
+      <div class="flex items-center justify-between mb-3">
+        <div class="text-lg font-semibold">Distressed Parcels</div>
+        <div class="text-sm text-slate-400">Showing <span id="shownCount">0</span> of <span id="totalCount">0</span> total</div>
       </div>
 
       <div class="overflow-x-auto">
-        <table class="min-w-full text-xs text-left">
-          <thead class="border-b border-slate-800 text-slate-400">
-            <tr>
+        <table class="min-w-full text-sm">
+          <thead class="text-slate-400">
+            <tr class="text-left">
               <th class="py-2 pr-4">Owner</th>
               <th class="py-2 pr-4">Property Address</th>
               <th class="py-2 pr-4">Parcel</th>
               <th class="py-2 pr-4">Zip</th>
               <th class="py-2 pr-4">Distress</th>
               <th class="py-2 pr-4 text-right">Amount Due</th>
-              <th class="py-2 pl-4 text-right">Actions</th>
+              <th class="py-2 pl-4">Action</th>
             </tr>
           </thead>
-          <tbody id="leadsBody" class="divide-y divide-slate-800"></tbody>
+          <tbody id="leadsBody"></tbody>
         </table>
       </div>
-    </section>
+
+      <div id="emptyState" class="text-center text-slate-400 py-10 hidden">
+        No leads match your filters yet.
+      </div>
+    </div>
   </div>
 
-  <!-- Toast -->
-  <div id="toast"
-       class="hidden fixed bottom-4 left-1/2 -translate-x-1/2 bg-slate-900 border border-slate-700 text-xs px-3 py-2 rounded-full shadow-lg">
-  </div>
-
-  <!-- Firebase SDKs (compat) -->
-  <script src="https://www.gstatic.com/firebasejs/11.0.1/firebase-app-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/11.0.1/firebase-auth-compat.js"></script>
-
-  <!-- Firebase Config -->
   <script>
-    const firebaseConfig = {
-      apiKey: "AIzaSyDTMTNQceT5sbzJVnZknWOWF27G0KzYgPE",
-      authDomain: "duval-distress-intelligence.firebaseapp.com",
-      projectId: "duval-distress-intelligence",
-      storageBucket: "duval-distress-intelligence.firebasestorage.app",
-      messagingSenderId: "374769856603",
-      appId: "1:374769856603:web:342062e92ef5d1c289cf7e"
-    };
+    // ------------------ STATE ------------------
+    let allLeads = [];
+    let currentLeads = [];
 
-    if (!firebase.apps.length) {
-      firebase.initializeApp(firebaseConfig);
+    // which sources are selected
+    const selectedSources = new Set(["tax"]); // default Tax
+
+    // ------------------ UI HELPERS ------------------
+    function money(v) {
+      if (v == null || v === "") return "";
+      const n = Number(String(v).replace(/[^0-9.-]/g,""));
+      if (Number.isNaN(n)) return v;
+      return n.toLocaleString('en-US',{ style:'currency', currency:'USD', maximumFractionDigits:0 });
     }
 
-    const ADMIN_EMAILS = [
-      "you@example.com"  // 👈 put YOUR admin email here
-    ];
-  </script>
+    function pillActive(el, active) {
+      if (active) el.classList.add("ring-2","ring-emerald-400");
+      else el.classList.remove("ring-2","ring-emerald-400");
+    }
 
-  <!-- Auth + App Logic -->
-  <script>
-    document.addEventListener("DOMContentLoaded", () => {
-      const userStatus = document.getElementById("userStatus");
-      const logoutBtn = document.getElementById("logoutBtn");
-      const roleBadge = document.getElementById("roleBadge");
+    function updateCounts() {
+      document.getElementById('totalCount').textContent = allLeads.length;
+      document.getElementById('shownCount').textContent = currentLeads.length;
+      document.getElementById('matchNote').textContent = `${currentLeads.length} matching properties`;
+      document.getElementById('emptyState').classList.toggle('hidden', currentLeads.length > 0);
+    }
 
-      firebase.auth().onAuthStateChanged((user) => {
-        if (!user) {
-          // not logged in → send to login
-          window.location.href = "/login";
-          return;
+    // ------------------ RENDER TABLE ------------------
+    function renderTable() {
+      const tbody = document.getElementById('leadsBody');
+      tbody.innerHTML = "";
+      for (const lead of currentLeads) {
+        const tr = document.createElement('tr');
+        const tags = (lead.distressTypes || "").split(/[|,]/).map(s => s.trim()).filter(Boolean);
+
+        tr.innerHTML = `
+          <td class="py-2 pr-4 align-top">
+            <div class="font-medium text-slate-100">${lead.owner || ""}</div>
+            <div class="text-[11px] text-slate-500">${lead.mail || ""}</div>
+          </td>
+          <td class="py-2 pr-4 align-top">
+            ${lead.propertyAddress || ""}
+          </td>
+          <td class="py-2 pr-4 align-top">${lead.parcel || ""}</td>
+          <td class="py-2 pr-4 align-top">${lead.zip || ""}</td>
+          <td class="py-2 pr-4 align-top">
+            <div class="flex flex-wrap gap-1">
+              ${tags.map(t => `<span class="tag px-2 py-0.5 rounded-full text-[11px]">${t}</span>`).join("")}
+            </div>
+          </td>
+          <td class="py-2 pr-4 align-top text-right">${money(lead.amountDue)}</td>
+          <td class="py-2 pl-4 align-top">
+            <button class="px-3 py-1 rounded-xl text-[11px] btn-ghost">Skiptrace</button>
+          </td>
+        `;
+        tbody.appendChild(tr);
+      }
+      updateCounts();
+    }
+
+    // ------------------ FILTER & LOAD ------------------
+    function applyFilters() {
+      const q = document.getElementById('q').value.trim().toLowerCase();
+      const zip = document.getElementById('zip').value.trim();
+      const minAmt = Number(document.getElementById('min_amount').value || 0);
+      const maxAmt = Number(document.getElementById('max_amount').value || 0);
+      const srcs = new Set([...selectedSources]);
+
+      currentLeads = allLeads.filter(l => {
+        // text search
+        if (q) {
+          const hay = `${l.owner||""}|${l.propertyAddress||""}|${l.parcel||""}`.toLowerCase();
+          if (!hay.includes(q)) return false;
         }
+        // zip
+        if (zip && String(l.zip||"").indexOf(zip) !== 0) return false;
 
-        const email = user.email || "";
-        userStatus.textContent = email;
+        // amount
+        const amt = Number(String(l.amountDue||"").replace(/[^0-9.-]/g,"")) || 0;
+        if (minAmt && amt < minAmt) return false;
+        if (maxAmt && amt > maxAmt) return false;
 
-        if (ADMIN_EMAILS.includes(email.toLowerCase())) {
-          roleBadge.classList.remove("hidden");
-        } else {
-          roleBadge.classList.add("hidden");
+        // sources / tags
+        if (srcs.size) {
+          const tags = (l.distressTypes || "").toLowerCase();
+          let ok = false;
+          for (const s of srcs) if (tags.includes(s)) { ok = true; break; }
+          if (!ok) return false;
         }
+        return true;
+      });
 
-        logoutBtn.classList.remove("hidden");
-        logoutBtn.onclick = async () => {
-          await firebase.auth().signOut();
-          window.location.href = "/login";
-        };
+      renderTable();
+    }
 
-        // once we know user is logged in, start the lead UI
-        initDistressApp(email);
+    async function loadLeads() {
+      const params = new URLSearchParams();
+      if (selectedSources.size) params.set('sources', [...selectedSources].join(','));
+      const url = `/api/leads?${params.toString()}`;
+      const r = await fetch(url);
+      const data = await r.json();
+      if (!Array.isArray(data)) {
+        console.warn('Unexpected /api/leads payload', data);
+        allLeads = [];
+      } else {
+        allLeads = data;
+      }
+      applyFilters();
+    }
+
+    // ------------------ REFRESH BUTTON ------------------
+    async function refreshAndReload() {
+      const btn = document.getElementById('refreshBtn');
+      btn.disabled = true;
+      const old = btn.textContent;
+      btn.textContent = 'Refreshing…';
+      try {
+        const r = await fetch('/api/refresh', { method:'GET' });
+        const j = await r.json();
+        console.log('refresh', j);
+        if (j.status !== 'success') {
+          alert('Refresh failed: ' + (j.message || 'unknown error'));
+        }
+        await loadLeads();
+      } catch (e) {
+        alert('Refresh failed: ' + e);
+      } finally {
+        btn.disabled = false;
+        btn.textContent = old;
+      }
+    }
+
+    // ------------------ EVENTS ------------------
+    document.getElementById('refreshBtn').addEventListener('click', refreshAndReload);
+    document.getElementById('exportBtn').addEventListener('click', () => {
+      // simple CSV export of currentLeads
+      const cols = ["owner","propertyAddress","parcel","zip","distressTypes","amountDue"];
+      const header = cols.join(",");
+      const rows = currentLeads.map(r => cols.map(c => `"${String(r[c]??"").replace(/"/g,'""')}"`).join(","));
+      const csv = [header, ...rows].join("\n");
+      const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = 'distress_leads.csv';
+      a.click();
+    });
+
+    // source pill toggles
+    document.querySelectorAll('#sourcePills [data-src]').forEach(btn => {
+      const src = btn.getAttribute('data-src');
+      pillActive(btn, selectedSources.has(src));
+      btn.addEventListener('click', () => {
+        if (selectedSources.has(src)) selectedSources.delete(src);
+        else selectedSources.add(src);
+        pillActive(btn, selectedSources.has(src));
+        applyFilters();
       });
     });
 
-    function initDistressApp(userEmail) {
-      const API_BASE = "";
-      let currentLeads = [];
-      let activeSources = new Set(["tax"]);
+    // input live filtering
+    ['q','zip','min_amount','max_amount'].forEach(id => {
+      document.getElementById(id).addEventListener('input', () => applyFilters());
+    });
 
-      const searchInput = document.getElementById("searchInput");
-      const zipInput = document.getElementById("zipInput");
-      const minAmountInput = document.getElementById("minAmountInput");
-      const maxAmountInput = document.getElementById("maxAmountInput");
-      const exportBtn = document.getElementById("exportBtn");
-      const refreshBtn = document.getElementById("refreshBtn");
-      const summaryText = document.getElementById("summaryText");
-      const tableMeta = document.getElementById("tableMeta");
-      const leadsBody = document.getElementById("leadsBody");
-      const toast = document.getElementById("toast");
+    // mock auth label (optional – replace with your Firebase hook)
+    (function setUser(){
+      const email = (localStorage.getItem('di_user') || '').trim();
+      if (email) document.getElementById('userEmail').textContent = email;
+      document.getElementById('logoutBtn').onclick = () => {
+        localStorage.removeItem('di_user');
+        location.href = '/login';
+      };
+    })();
 
-      function showToast(message) {
-        toast.textContent = message;
-        toast.classList.remove("hidden");
-        setTimeout(() => toast.classList.add("hidden"), 2000);
-      }
-
-      function getFilters() {
-        const q = searchInput.value.trim();
-        const zip = zipInput.value.trim();
-        const minAmt = minAmountInput.value.trim();
-        const maxAmt = maxAmountInput.value.trim();
-        const sources = Array.from(activeSources).join(",");
-        return { q, zip, minAmt, maxAmt, sources };
-      }
-
-      async function loadLeads() {
-        const { q, zip, minAmt, maxAmt, sources } = getFilters();
-        const params = new URLSearchParams();
-        if (q) params.append("q", q);
-        if (zip) params.append("zip", zip);
-        if (minAmt) params.append("min_amount", minAmt);
-        if (maxAmt) params.append("max_amount", maxAmt);
-        if (sources) params.append("sources", sources);
-
-        showToast("Loading leads…");
-        const res = await fetch(`/api/leads?${params.toString()}`);
-        const data = await res.json();
-        currentLeads = data.leads || [];
-        summaryText.textContent = `${data.count} matching properties`;
-        tableMeta.textContent = `Showing ${data.count} of ${data.total} total`;
-        renderTable();
-      }
-
-      function renderTable() {
-        leadsBody.innerHTML = "";
-        if (!currentLeads.length) {
-          leadsBody.innerHTML =
-            `<tr><td colspan="7" class="py-4 text-center text-slate-500">No leads match your filters yet.</td></tr>`;
-          return;
-        }
-        for (const lead of currentLeads) {
-          const tr = document.createElement("tr");
-          const tags = (lead.distressTypes || "").split("|").filter(Boolean);
-
-          tr.innerHTML = `
-            <td class="py-2 pr-4 align-top">
-              <div class="font-medium text-slate-100">${lead.owner || "-"}</div>
-              <div class="text-[11px] text-slate-500">Mail: ${lead.mailingAddress || "-"}</div>
-            </td>
-            <td class="py-2 pr-4 align-top">${lead.siteAddress || "-"}</td>
-            <td class="py-2 pr-4 align-top text-slate-300">${lead.parcel || "-"}</td>
-            <td class="py-2 pr-4 align-top text-slate-300">${lead.zip || "-"}</td>
-            <td class="py-2 pr-4 align-top">
-              <div class="flex flex-wrap gap-1">
-                ${tags.map(t =>
-                  `<span class="px-2 py-0.5 rounded-full bg-slate-800 text-[10px] border border-slate-600">${t}</span>`
-                ).join("")}
-              </div>
-            </td>
-            <td class="py-2 pr-4 align-top text-right font-medium text-emerald-300">
-              ${lead.amountDue ? "$" + Number(lead.amountDue).toLocaleString() : "-"}
-            </td>
-            <td class="py-2 pl-4 align-top text-right">
-              <button class="px-3 py-1 text-[11px] rounded-full bg-sky-500 text-slate-900 font-medium hover:bg-sky-400">
-                Skiptrace
-              </button>
-            </td>
-          `;
-
-          const btn = tr.querySelector("button");
-          btn.addEventListener("click", () => sendToSkiptrace(lead, btn, userEmail));
-          leadsBody.appendChild(tr);
-        }
-      }
-
-      async function sendToSkiptrace(lead, buttonEl, userEmail) {
-        buttonEl.disabled = true;
-        buttonEl.textContent = "Sending…";
-        try {
-          const res = await fetch("/api/skiptrace_order", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ lead, user: userEmail || "unknown" })
-          });
-          const data = await res.json();
-          if (!data.ok) throw new Error(data.error || "Error");
-          buttonEl.textContent = `Queued (${data.queue})`;
-          buttonEl.classList.remove("bg-sky-500", "hover:bg-sky-400");
-          buttonEl.classList.add("bg-emerald-500");
-          showToast(`Sent to ${data.queue} queue`);
-        } catch (e) {
-          buttonEl.disabled = false;
-          buttonEl.textContent = "Skiptrace";
-          showToast("Skiptrace failed: " + e.message);
-        }
-      }
-
-      async function exportCsv() {
-        const { q, zip, minAmt, maxAmt, sources } = getFilters();
-        const params = new URLSearchParams();
-        if (q) params.append("q", q);
-        if (zip) params.append("zip", zip);
-        if (minAmt) params.append("min_amount", minAmt);
-        if (maxAmt) params.append("max_amount", maxAmt);
-        if (sources) params.append("sources", sources);
-        window.location.href = `/export?${params.toString()}`;
-      }
-
-      let filterTimeout = null;
-      function scheduleReload() {
-        if (filterTimeout) clearTimeout(filterTimeout);
-        filterTimeout = setTimeout(loadLeads, 400);
-      }
-
-      document.querySelectorAll(".distress-pill").forEach(btn => {
-        btn.addEventListener("click", () => {
-          const s = btn.getAttribute("data-source");
-          if (activeSources.has(s)) {
-            activeSources.delete(s);
-            btn.classList.remove("border-emerald-400", "bg-emerald-500/10");
-            btn.classList.add("border-slate-600", "bg-slate-800");
-          } else {
-            activeSources.add(s);
-            btn.classList.add("border-emerald-400", "bg-emerald-500/10");
-            btn.classList.remove("border-slate-600", "bg-slate-800");
-          }
-          scheduleReload();
-        });
-      });
-
-      searchInput.addEventListener("input", scheduleReload);
-      zipInput.addEventListener("input", scheduleReload);
-      minAmountInput.addEventListener("input", scheduleReload);
-      maxAmountInput.addEventListener("input", scheduleReload);
-      exportBtn.addEventListener("click", exportCsv);
-      refreshBtn.addEventListener("click", loadLeads);
-
-      // initial load
-      loadLeads();
-    }
+    // initial load
+    loadLeads();
   </script>
 </body>
 </html>
