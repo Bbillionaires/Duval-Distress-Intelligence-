@@ -9,10 +9,11 @@ APP_ROOT = pathlib.Path(__file__).parent.resolve()
 DATA_DIR  = (APP_ROOT / "data"); DATA_DIR.mkdir(exist_ok=True)
 LEADS_CSV = DATA_DIR / "leads.csv"
 
-# ===== ENV / CONFIG =====
 GH_RAW_URL = (os.getenv("GH_RAW_URL","").strip())
+
+# ---- Algolia (public search key) ----
 ALG_APP_ID = "0LWZO52LS2"
-ALG_API_KEY = "c0745578b56854a1b90ed57b63fbf0ba"   # public search key
+ALG_API_KEY = "c0745578b56854a1b90ed57b63fbf0ba"
 ALG_INDEX  = "fl-duval.property_tax"
 ALG_ENDPOINT = f"https://{ALG_APP_ID.lower()}-dsn.algolia.net/1/indexes/*/queries"
 
@@ -20,7 +21,7 @@ HEADERS = ["address","zip","parcel","distress","amountDue","owner"]
 
 app = Flask(__name__, static_folder=str(APP_ROOT), static_url_path="")
 
-# ---------- helpers ----------
+# ============== helpers ==============
 def ensure_headers():
     if not LEADS_CSV.exists() or LEADS_CSV.stat().st_size == 0:
         with LEADS_CSV.open("w", newline="", encoding="utf-8") as f:
@@ -39,11 +40,11 @@ def clean_amount(x):
     except Exception:
         return 0.0
 
-def first(*vals):
+def first_nonempty(*vals):
     for v in vals:
         if isinstance(v, str) and v.strip():
             return v.strip()
-        if isinstance(v, (int, float)) and v != 0:
+        if v not in (None, "", [], {}):
             return v
     return ""
 
@@ -51,35 +52,98 @@ def join_addr(*parts):
     parts = [str(p).strip() for p in parts if p and str(p).strip()]
     return ", ".join(dict.fromkeys(parts))
 
-def normalize_hit(hit: dict):
-    addr = first(
-        hit.get("property_address"),
-        hit.get("situs_address"),
-        hit.get("situs_addr1"),
-        hit.get("address"),
-        join_addr(hit.get("situs_addr1"), hit.get("situs_city"), hit.get("situs_state")),
-        join_addr(hit.get("address_line"), hit.get("city"), hit.get("state"))
+ZIP_RE    = re.compile(r"\b(\d{5})(?:-\d{4})?\b")
+PARCEL_RE = re.compile(r"\b\d{6,}\b")
+ADDR_RE   = re.compile(r"\b\d+\s+[A-Za-z0-9][^\n,]{2,}")
+
+def pick_by_keys(d, *candidates):
+    for k in candidates:
+        if k in d and str(d[k]).strip():
+            return d[k]
+    return None
+
+def any_key_contains(d, substrs):
+    for k,v in d.items():
+        if any(s in k.lower() for s in substrs) and str(v).strip():
+            return v
+    return None
+
+def find_zip(d):
+    # exact keys first
+    z = pick_by_keys(d, "zip","zipcode","zip_code","postal_code","situs_zip","mailing_zip")
+    if not z:
+        # try to extract from any string field
+        for v in d.values():
+            if isinstance(v, str):
+                m = ZIP_RE.search(v)
+                if m: return m.group(1)
+    return str(z or "")
+
+def find_parcel(d):
+    p = pick_by_keys(d, "parcel","parcel_id","account","account_number","folio")
+    if p: return str(p)
+    # look through any keys mentioning parcel/folio/account
+    v = any_key_contains(d, ["parcel","folio","account"])
+    if v: return str(v)
+    # fallback: longest 6+ digit group in any field
+    best = ""
+    for v in d.values():
+        if isinstance(v, (str,int)):
+            for m in PARCEL_RE.findall(str(v)):
+                if len(m) > len(best): best = m
+    return best
+
+def find_owner(d):
+    v = pick_by_keys(d, "owner","owner_name","owner1","owner2","name","mailing_name","mail_name","owner_name1")
+    if v: return str(v)
+    # any field including 'owner' or 'name'
+    v = any_key_contains(d, ["owner","name"])
+    return str(v or "")
+
+def find_amount(d):
+    v = pick_by_keys(
+        d, "amount_due","total_due","balance_due","balance","tax_due",
+        "amount","unpaid_balance","current_due","delinquent_amount","totalDue","amountDue"
     )
-    zipc = first(
-        hit.get("zip"), hit.get("postal_code"), hit.get("zipcode"),
-        hit.get("zip_code"), hit.get("situs_zip"), hit.get("mailing_zip"),
+    if v is None:
+        # try any key that looks like an amount/due/balance
+        for k,val in d.items():
+            lk = k.lower()
+            if any(s in lk for s in ["due","balance","amount"]):
+                amt = clean_amount(val)
+                if amt > 0:
+                    v = amt
+                    break
+    return f"{clean_amount(v):.2f}"
+
+def find_address(d):
+    v = pick_by_keys(
+        d, "property_address","situs_address","situs_addr1","address","address_line",
+        "situs_addr2","situs_city","situs_state","mailing_address","mail_addr1","mail_addr2",
     )
-    parcel = first(
-        hit.get("parcel"), hit.get("parcel_id"), hit.get("account"),
-        hit.get("account_number"), hit.get("folio"),
+    if isinstance(v, str) and v.strip():
+        return v.strip()
+    # combine bits that look like address parts
+    combo = join_addr(
+        d.get("situs_addr1"), d.get("situs_addr2"),
+        d.get("situs_city"), d.get("situs_state"),
+        d.get("address_line"), d.get("mail_addr1"), d.get("mail_addr2"),
+        d.get("street"), d.get("street_name")
     )
-    owner = first(
-        hit.get("owner"), hit.get("owner_name"), hit.get("name"),
-        hit.get("owner1"), hit.get("owner2"),
-        join_addr(hit.get("owner1"), hit.get("owner2")),
-    )
-    amount = first(
-        hit.get("amount_due"), hit.get("total_due"), hit.get("balance_due"),
-        hit.get("balance"), hit.get("tax_due"), hit.get("amount"),
-        hit.get("unpaid_balance"), hit.get("current_due"),
-        hit.get("delinquent_amount"), hit.get("totalDue"), hit.get("amountDue"),
-    )
-    amount = f"{clean_amount(amount):.2f}"
+    if combo:
+        return combo
+    # last resort: first field that looks like "123 Something"
+    for val in d.values():
+        if isinstance(val, str) and ADDR_RE.search(val):
+            return val.strip()
+    return ""
+
+def normalize_hit_smart(hit: dict):
+    addr   = find_address(hit)
+    zipc   = find_zip(hit)
+    parcel = find_parcel(hit)
+    owner  = find_owner(hit)
+    amount = find_amount(hit)
     return [addr, str(zipc), str(parcel), "Tax", amount, owner]
 
 def write_rows(rows):
@@ -88,20 +152,20 @@ def write_rows(rows):
         w.writerow(HEADERS)
         w.writerows(rows)
 
-# ---------- sources ----------
+# ============== sources ==============
 def refresh_from_github():
     if not GH_RAW_URL or GH_RAW_URL.endswith("%0A"):
-        return {"status":"skipped","source":"github","message":"GH_RAW_URL not set or has newline"}
+        return {"status":"skipped","source":"github","message":"GH_RAW_URL not set/has newline"}
     try:
         r = requests.get(GH_RAW_URL, timeout=30)
         if r.status_code == 404:
             return {"status":"error","source":"github","message":"GitHub 404"}
         r.raise_for_status()
-        text = r.text
-        if not text.strip():
+        txt = r.text
+        if not txt.strip():
             return {"status":"error","source":"github","message":"GitHub CSV empty"}
         with LEADS_CSV.open("w", encoding="utf-8", newline="") as f:
-            f.write(text if text.endswith("\n") else text + "\n")
+            f.write(txt if txt.endswith("\n") else txt + "\n")
         return {"status":"success","source":"github","bytes":LEADS_CSV.stat().st_size}
     except Exception as e:
         return {"status":"error","source":"github","message":str(e)}
@@ -114,7 +178,6 @@ def refresh_from_algolia(limit=1000):
             "Content-Type": "application/json",
             "x-algolia-agent": "python(custom)"
         }
-        # keep the query minimal and robust
         params = "query=&hitsPerPage={}".format(min(1000, int(limit)))
         payload = {"requests":[{"indexName": ALG_INDEX, "params": params}]}
         r = requests.post(ALG_ENDPOINT, headers=headers, json=payload, timeout=30)
@@ -123,19 +186,23 @@ def refresh_from_algolia(limit=1000):
         hits = (data.get("results") or [{}])[0].get("hits") or []
         if not hits:
             return {"status":"error","source":"algolia","message":"0 hits"}
-        rows = [normalize_hit(h) for h in hits]
-        rows = [r for r in rows if any(str(c).strip() for c in r)]
+
+        rows = []
+        for h in hits:
+            row = normalize_hit_smart(h)
+            # require at least an address or parcel to keep
+            if any(str(c).strip() for c in (row[0], row[2])):
+                rows.append(row)
+
         if not rows:
             return {"status":"error","source":"algolia","message":"normalized rows empty"}
+
         write_rows(rows)
-        return {
-            "status":"success","source":"algolia",
-            "rows":len(rows),"bytes":LEADS_CSV.stat().st_size
-        }
+        return {"status":"success","source":"algolia","rows":len(rows),"bytes":LEADS_CSV.stat().st_size}
     except Exception as e:
         return {"status":"error","source":"algolia","message":str(e)}
 
-# ---------- routes ----------
+# ============== routes ==============
 @app.route("/")
 def serve_index():
     path = APP_ROOT / "index.html"
@@ -156,6 +223,27 @@ def api_health():
         "rows": csv_rows_count(),
         "gh_raw_url_set": bool(GH_RAW_URL)
     })
+
+@app.route("/api/algolia-debug")
+def algolia_debug():
+    # returns first 3 hits keys so we can see what's actually there
+    try:
+        headers = {
+            "x-algolia-application-id": ALG_APP_ID,
+            "x-algolia-api-key": ALG_API_KEY,
+            "Content-Type": "application/json",
+        }
+        payload = {"requests":[{"indexName": ALG_INDEX, "params": "query=&hitsPerPage=3"}]}
+        r = requests.post(ALG_ENDPOINT, headers=headers, json=payload, timeout=30)
+        r.raise_for_status()
+        data = r.json()
+        hits = (data.get("results") or [{}])[0].get("hits") or []
+        summary = []
+        for h in hits:
+            summary.append(sorted(list(h.keys())))
+        return jsonify({"status":"success","keys_per_hit": summary})
+    except Exception as e:
+        return jsonify({"status":"error","message":str(e)}), 500
 
 @app.route("/api/refresh")
 def api_refresh():
