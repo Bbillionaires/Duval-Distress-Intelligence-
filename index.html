@@ -3,286 +3,232 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Distress Intelligence</title>
+  <title>Distress Intelligence · Duval</title>
   <script src="https://cdn.tailwindcss.com"></script>
+  <meta name="color-scheme" content="dark light" />
   <style>
-    :root { color-scheme: dark; }
-    body { background:#0b1320; }
-    .card { background:#0f172a; border:1px solid rgba(148,163,184,.12); }
-    .pill { background:#0b2530; border:1px solid rgba(148,163,184,.12); }
-    .tag { background:#0e1a2b; border:1px solid rgba(148,163,184,.18); }
-    .btn { background:#22c55e; }
-    .btn[disabled] { opacity:.6; cursor:not-allowed; }
-    .btn-ghost { background:#2b3345; }
-    .input { background:#0e1729; border:1px solid rgba(148,163,184,.15); }
+    html,body{height:100%}
+    .chip{transition:all .12s ease}
+    .chip[data-on="true"]{background:#10b981;color:#0b1220}
+    .chip[data-on="false"]{background:#1f2937;color:#e5e7eb}
   </style>
 </head>
-<body class="text-slate-200 antialiased">
-  <div class="max-w-6xl mx-auto px-4 py-8">
+<body class="bg-slate-900 text-slate-100 antialiased">
+  <div class="max-w-6xl mx-auto px-4 py-6">
     <!-- Header -->
-    <div class="flex items-center justify-between mb-6">
-      <div class="flex items-center gap-3">
-        <div class="h-12 w-12 rounded-full flex items-center justify-center font-bold text-slate-900" style="background:#22c55e">DI</div>
-        <div>
-          <div class="text-2xl font-semibold">Distress Intelligence</div>
-          <div class="text-sm text-slate-400">Pre-market Duval distress data · MVP</div>
-        </div>
+    <div class="flex items-center justify-between gap-4 mb-6">
+      <div>
+        <div class="text-3xl font-black tracking-tight">Distress <span class="text-emerald-400">Intelligence</span></div>
+        <div class="text-sm text-slate-400">Pre-market Duval distress data · MVP</div>
       </div>
-      <div class="flex items-center gap-3">
-        <span id="userEmail" class="text-sm text-slate-400"></span>
-        <button id="logoutBtn" class="px-4 py-2 rounded-xl btn-ghost">Logout</button>
-      </div>
+      <a href="/login" class="hidden rounded-lg bg-slate-800 px-3 py-1.5 text-sm">Logout</a>
     </div>
 
     <!-- Filters -->
-    <div class="card rounded-2xl p-5 mb-6">
-      <div class="grid md:grid-cols-2 gap-4">
+    <div class="rounded-2xl border border-slate-800 bg-slate-950/50 p-4 md:p-6 mb-6">
+      <div class="grid md:grid-cols-4 gap-3">
+        <div class="md:col-span-4">
+          <label class="block text-xs uppercase tracking-wide text-slate-400 mb-1">Search owner / address / parcel</label>
+          <input id="q" name="q" placeholder="e.g. Smith, 125 Main, 12345-0000"
+                 class="w-full rounded-xl bg-slate-800/60 border border-slate-700/60 px-3 py-2 outline-none focus:border-emerald-400"/>
+        </div>
         <div>
-          <label class="text-sm text-slate-400">Search owner / address / parcel</label>
-          <input id="q" class="mt-1 w-full input rounded-xl px-4 py-3" placeholder="e.g. Smith, 125 Main, 12345-0000">
+          <label class="block text-xs uppercase tracking-wide text-slate-400 mb-1">Zip</label>
+          <input id="zip" name="zip" inputmode="numeric" placeholder="32209"
+                 class="w-full rounded-xl bg-slate-800/60 border border-slate-700/60 px-3 py-2 outline-none focus:border-emerald-400"/>
         </div>
-        <div class="grid grid-cols-3 gap-3">
-          <div>
-            <label class="text-sm text-slate-400">Zip</label>
-            <input id="zip" class="mt-1 w-full input rounded-xl px-4 py-3" placeholder="32209">
-          </div>
-          <div>
-            <label class="text-sm text-slate-400">Min amount due</label>
-            <input id="min_amount" class="mt-1 w-full input rounded-xl px-4 py-3" placeholder="10000" inputmode="numeric">
-          </div>
-          <div>
-            <label class="text-sm text-slate-400">Max amount due</label>
-            <input id="max_amount" class="mt-1 w-full input rounded-xl px-4 py-3" placeholder="50000" inputmode="numeric">
-          </div>
+        <div>
+          <label class="block text-xs uppercase tracking-wide text-slate-400 mb-1">Min amount due</label>
+          <input id="min_amount" name="min_amount" inputmode="numeric" placeholder="2000"
+                 class="w-full rounded-xl bg-slate-800/60 border border-slate-700/60 px-3 py-2 outline-none focus:border-emerald-400"/>
+        </div>
+        <div>
+          <label class="block text-xs uppercase tracking-wide text-slate-400 mb-1">Max amount due</label>
+          <input id="max_amount" name="max_amount" inputmode="numeric" placeholder="20000"
+                 class="w-full rounded-xl bg-slate-800/60 border border-slate-700/60 px-3 py-2 outline-none focus:border-emerald-400"/>
         </div>
       </div>
 
+      <!-- Sources -->
       <div class="mt-4">
-        <label class="text-sm text-slate-400">Distress sources</label>
-        <div id="sourcePills" class="flex flex-wrap gap-3 mt-2">
-          <button data-src="tax" class="px-4 py-2 rounded-full pill active">Tax</button>
-          <button data-src="nuisance" class="px-4 py-2 rounded-full pill">Nuisance / Code</button>
-          <button data-src="fire" class="px-4 py-2 rounded-full pill">Fire / Unsafe</button>
-          <button data-src="probate" class="px-4 py-2 rounded-full pill">Probate</button>
-          <button data-src="lis" class="px-4 py-2 rounded-full pill">Lis Pendens</button>
+        <div class="text-xs uppercase tracking-wide text-slate-400 mb-2">Distress sources</div>
+        <div class="flex flex-wrap gap-2">
+          <button class="chip rounded-full px-3 py-1 text-sm" data-key="tax" data-on="true">Tax</button>
+          <button class="chip rounded-full px-3 py-1 text-sm" data-key="code" data-on="false">Nuisance / Code</button>
+          <button class="chip rounded-full px-3 py-1 text-sm" data-key="fire" data-on="false">Fire / Unsafe</button>
+          <button class="chip rounded-full px-3 py-1 text-sm" data-key="probate" data-on="false">Probate</button>
+          <button class="chip rounded-full px-3 py-1 text-sm" data-key="lis" data-on="false">Lis Pendens</button>
         </div>
       </div>
 
-      <div class="mt-6 grid sm:grid-cols-2 gap-3">
-        <button id="exportBtn" class="w-full py-3 rounded-xl btn font-medium">Export Now (CSV)</button>
-        <button id="refreshBtn" class="w-full py-3 rounded-xl btn-ghost font-medium">Refresh Leads</button>
+      <!-- Actions -->
+      <div class="mt-6 flex flex-col sm:flex-row gap-3">
+        <button id="exportBtn" class="rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-900 font-medium px-4 py-2">
+          Export Now (CSV)
+        </button>
+        <button id="refreshBtn" class="rounded-xl bg-slate-800 hover:bg-slate-700 px-4 py-2">
+          Refresh Leads
+        </button>
+        <span id="countSpan" class="sm:ml-auto text-sm text-slate-400 self-center"></span>
       </div>
-
-      <div id="matchNote" class="text-sm text-slate-400 mt-3">0 matching properties</div>
     </div>
 
     <!-- Table -->
-    <div class="card rounded-2xl p-5">
-      <div class="flex items-center justify-between mb-3">
-        <div class="text-lg font-semibold">Distressed Parcels</div>
-        <div class="text-sm text-slate-400">Showing <span id="shownCount">0</span> of <span id="totalCount">0</span> total</div>
-      </div>
-
+    <div class="rounded-2xl border border-slate-800 overflow-hidden">
       <div class="overflow-x-auto">
         <table class="min-w-full text-sm">
-          <thead class="text-slate-400">
+          <thead class="bg-slate-900/70 border-b border-slate-800">
             <tr class="text-left">
-              <th class="py-2 pr-4">Owner</th>
-              <th class="py-2 pr-4">Property Address</th>
-              <th class="py-2 pr-4">Parcel</th>
-              <th class="py-2 pr-4">Zip</th>
-              <th class="py-2 pr-4">Distress</th>
-              <th class="py-2 pr-4 text-right">Amount Due</th>
-              <th class="py-2 pl-4">Action</th>
+              <th class="px-4 py-3 font-semibold">Owner</th>
+              <th class="px-4 py-3 font-semibold">Property Address</th>
+              <th class="px-4 py-3 font-semibold">Parcel</th>
+              <th class="px-4 py-3 font-semibold">Zip</th>
+              <th class="px-4 py-3 font-semibold">Distress</th>
+              <th class="px-4 py-3 font-semibold text-right">Amount Due</th>
+              <th class="px-4 py-3 font-semibold">Action</th>
             </tr>
           </thead>
-          <tbody id="leadsBody"></tbody>
+          <tbody id="leadsBody" class="divide-y divide-slate-800 bg-slate-950/40">
+            <tr><td colspan="7" class="px-4 py-8 text-center text-slate-400">Loading…</td></tr>
+          </tbody>
         </table>
       </div>
+    </div>
 
-      <div id="emptyState" class="text-center text-slate-400 py-10 hidden">
-        No leads match your filters yet.
-      </div>
+    <!-- Footer -->
+    <div class="mt-6 flex items-center justify-between text-xs text-slate-500">
+      <div>Runs 100% free · Flask + Tailwind + CSV backend</div>
+      <button id="forceBtn" class="rounded-lg border border-slate-700 px-3 py-1 hover:bg-slate-800">Force Re-scrape</button>
     </div>
   </div>
 
   <script>
-    // ------------------ STATE ------------------
-    let allLeads = [];
-    let currentLeads = [];
+    (function () {
+      const $ = s => document.querySelector(s);
+      const $$ = s => Array.from(document.querySelectorAll(s));
 
-    // which sources are selected
-    const selectedSources = new Set(["tax"]); // default Tax
+      const inputQ   = $('#q');
+      const inputZip = $('#zip');
+      const inputMin = $('#min_amount');
+      const inputMax = $('#max_amount');
+      const chips    = $$('.chip');
+      const tbody    = $('#leadsBody');
+      const btnRefresh = $('#refreshBtn');
+      const btnExport  = $('#exportBtn');
+      const btnForce   = $('#forceBtn');
+      const countSpan  = $('#countSpan');
 
-    // ------------------ UI HELPERS ------------------
-    function money(v) {
-      if (v == null || v === "") return "";
-      const n = Number(String(v).replace(/[^0-9.-]/g,""));
-      if (Number.isNaN(n)) return v;
-      return n.toLocaleString('en-US',{ style:'currency', currency:'USD', maximumFractionDigits:0 });
-    }
+      // init chip visuals
+      chips.forEach(c => setChipOn(c, c.dataset.on === 'true'));
+      chips.forEach(c => c.addEventListener('click', () => {
+        setChipOn(c, !(c.dataset.on === 'true'));
+        refresh();
+      }));
 
-    function pillActive(el, active) {
-      if (active) el.classList.add("ring-2","ring-emerald-400");
-      else el.classList.remove("ring-2","ring-emerald-400");
-    }
-
-    function updateCounts() {
-      document.getElementById('totalCount').textContent = allLeads.length;
-      document.getElementById('shownCount').textContent = currentLeads.length;
-      document.getElementById('matchNote').textContent = `${currentLeads.length} matching properties`;
-      document.getElementById('emptyState').classList.toggle('hidden', currentLeads.length > 0);
-    }
-
-    // ------------------ RENDER TABLE ------------------
-    function renderTable() {
-      const tbody = document.getElementById('leadsBody');
-      tbody.innerHTML = "";
-      for (const lead of currentLeads) {
-        const tr = document.createElement('tr');
-        const tags = (lead.distressTypes || "").split(/[|,]/).map(s => s.trim()).filter(Boolean);
-
-        tr.innerHTML = `
-          <td class="py-2 pr-4 align-top">
-            <div class="font-medium text-slate-100">${lead.owner || ""}</div>
-            <div class="text-[11px] text-slate-500">${lead.mail || ""}</div>
-          </td>
-          <td class="py-2 pr-4 align-top">
-            ${lead.propertyAddress || ""}
-          </td>
-          <td class="py-2 pr-4 align-top">${lead.parcel || ""}</td>
-          <td class="py-2 pr-4 align-top">${lead.zip || ""}</td>
-          <td class="py-2 pr-4 align-top">
-            <div class="flex flex-wrap gap-1">
-              ${tags.map(t => `<span class="tag px-2 py-0.5 rounded-full text-[11px]">${t}</span>`).join("")}
-            </div>
-          </td>
-          <td class="py-2 pr-4 align-top text-right">${money(lead.amountDue)}</td>
-          <td class="py-2 pl-4 align-top">
-            <button class="px-3 py-1 rounded-xl text-[11px] btn-ghost">Skiptrace</button>
-          </td>
-        `;
-        tbody.appendChild(tr);
+      function setChipOn(el, on) {
+        el.dataset.on = on ? 'true' : 'false';
+        el.setAttribute('data-on', el.dataset.on);
       }
-      updateCounts();
-    }
 
-    // ------------------ FILTER & LOAD ------------------
-    function applyFilters() {
-      const q = document.getElementById('q').value.trim().toLowerCase();
-      const zip = document.getElementById('zip').value.trim();
-      const minAmt = Number(document.getElementById('min_amount').value || 0);
-      const maxAmt = Number(document.getElementById('max_amount').value || 0);
-      const srcs = new Set([...selectedSources]);
+      function selectedSources() {
+        return chips
+          .filter(c => c.dataset.on === 'true')
+          .map(c => c.dataset.key)
+          .join(',');
+      }
 
-      currentLeads = allLeads.filter(l => {
-        // text search
-        if (q) {
-          const hay = `${l.owner||""}|${l.propertyAddress||""}|${l.parcel||""}`.toLowerCase();
-          if (!hay.includes(q)) return false;
+      function toQuery(obj) {
+        const p = new URLSearchParams();
+        Object.entries(obj).forEach(([k,v]) => { if (v !== undefined && v !== null && String(v).trim() !== '') p.append(k, String(v).trim()); });
+        return p.toString();
+      }
+
+      async function getLeads() {
+        const params = {
+          q: inputQ.value,
+          zip: inputZip.value,
+          min_amount: inputMin.value,
+          max_amount: inputMax.value,
+          sources: selectedSources() || 'tax'
+        };
+        const qs = toQuery(params);
+        const res = await fetch(`/api/leads?${qs}`);
+        if (!res.ok) throw new Error('Failed to fetch leads');
+        return res.json();
+      }
+
+      function fmtMoney(n){ n = Number(n||0); return n.toLocaleString(undefined,{maximumFractionDigits:0}); }
+
+      function render(rows) {
+        tbody.innerHTML = '';
+        if (!rows || !rows.length) {
+          tbody.innerHTML = `<tr><td colspan="7" class="px-4 py-10 text-center text-slate-400">No leads match your filters yet.</td></tr>`;
+          countSpan.textContent = '';
+          return;
         }
-        // zip
-        if (zip && String(l.zip||"").indexOf(zip) !== 0) return false;
-
-        // amount
-        const amt = Number(String(l.amountDue||"").replace(/[^0-9.-]/g,"")) || 0;
-        if (minAmt && amt < minAmt) return false;
-        if (maxAmt && amt > maxAmt) return false;
-
-        // sources / tags
-        if (srcs.size) {
-          const tags = (l.distressTypes || "").toLowerCase();
-          let ok = false;
-          for (const s of srcs) if (tags.includes(s)) { ok = true; break; }
-          if (!ok) return false;
+        for (const lead of rows) {
+          const tr = document.createElement('tr');
+          tr.innerHTML = `
+            <td class="px-4 py-3">${lead.owner || ''}</td>
+            <td class="px-4 py-3">${lead.address || ''}</td>
+            <td class="px-4 py-3">${lead.parcel || ''}</td>
+            <td class="px-4 py-3">${lead.zip || ''}</td>
+            <td class="px-4 py-3">${lead.distress || ''}</td>
+            <td class="px-4 py-3 text-right">$${fmtMoney(lead.amountDue)}</td>
+            <td class="px-4 py-3">
+              <button class="rounded-lg bg-slate-800 hover:bg-slate-700 text-xs px-3 py-1">Skiptrace</button>
+            </td>`;
+          tbody.appendChild(tr);
         }
-        return true;
+        countSpan.textContent = `Showing ${rows.length} result${rows.length===1?'':'s'}`;
+      }
+
+      async function refresh() {
+        btnRefresh.disabled = true;
+        btnRefresh.textContent = 'Loading…';
+        try {
+          const rows = await getLeads();
+          render(rows);
+        } catch (e) {
+          console.error(e);
+          render([]);
+        } finally {
+          btnRefresh.disabled = false;
+          btnRefresh.textContent = 'Refresh Leads';
+        }
+      }
+
+      // Export current CSV (server always writes to /data/leads.csv)
+      btnExport.addEventListener('click', () => {
+        window.location.href = '/data/leads.csv';
       });
 
-      renderTable();
-    }
-
-    async function loadLeads() {
-      const params = new URLSearchParams();
-      if (selectedSources.size) params.set('sources', [...selectedSources].join(','));
-      const url = `/api/leads?${params.toString()}`;
-      const r = await fetch(url);
-      const data = await r.json();
-      if (!Array.isArray(data)) {
-        console.warn('Unexpected /api/leads payload', data);
-        allLeads = [];
-      } else {
-        allLeads = data;
-      }
-      applyFilters();
-    }
-
-    // ------------------ REFRESH BUTTON ------------------
-    async function refreshAndReload() {
-      const btn = document.getElementById('refreshBtn');
-      btn.disabled = true;
-      const old = btn.textContent;
-      btn.textContent = 'Refreshing…';
-      try {
-        const r = await fetch('/api/refresh', { method:'GET' });
-        const j = await r.json();
-        console.log('refresh', j);
-        if (j.status !== 'success') {
-          alert('Refresh failed: ' + (j.message || 'unknown error'));
+      // Force re-scrape then reload table
+      btnForce.addEventListener('click', async () => {
+        btnForce.disabled = true;
+        btnForce.textContent = 'Scraping…';
+        try {
+          await fetch('/api/refresh', { method: 'GET' });
+          await refresh();
+        } catch (e) {
+          console.error(e);
+        } finally {
+          btnForce.disabled = false;
+          btnForce.textContent = 'Force Re-scrape';
         }
-        await loadLeads();
-      } catch (e) {
-        alert('Refresh failed: ' + e);
-      } finally {
-        btn.disabled = false;
-        btn.textContent = old;
-      }
-    }
-
-    // ------------------ EVENTS ------------------
-    document.getElementById('refreshBtn').addEventListener('click', refreshAndReload);
-    document.getElementById('exportBtn').addEventListener('click', () => {
-      // simple CSV export of currentLeads
-      const cols = ["owner","propertyAddress","parcel","zip","distressTypes","amountDue"];
-      const header = cols.join(",");
-      const rows = currentLeads.map(r => cols.map(c => `"${String(r[c]??"").replace(/"/g,'""')}"`).join(","));
-      const csv = [header, ...rows].join("\n");
-      const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
-      const a = document.createElement('a');
-      a.href = URL.createObjectURL(blob);
-      a.download = 'distress_leads.csv';
-      a.click();
-    });
-
-    // source pill toggles
-    document.querySelectorAll('#sourcePills [data-src]').forEach(btn => {
-      const src = btn.getAttribute('data-src');
-      pillActive(btn, selectedSources.has(src));
-      btn.addEventListener('click', () => {
-        if (selectedSources.has(src)) selectedSources.delete(src);
-        else selectedSources.add(src);
-        pillActive(btn, selectedSources.has(src));
-        applyFilters();
       });
-    });
 
-    // input live filtering
-    ['q','zip','min_amount','max_amount'].forEach(id => {
-      document.getElementById(id).addEventListener('input', () => applyFilters());
-    });
+      // Enter key triggers refresh
+      [inputQ, inputZip, inputMin, inputMax].forEach(inp => {
+        inp.addEventListener('keydown', (ev) => { if (ev.key === 'Enter') refresh(); });
+        inp.addEventListener('change', refresh);
+      });
 
-    // mock auth label (optional – replace with your Firebase hook)
-    (function setUser(){
-      const email = (localStorage.getItem('di_user') || '').trim();
-      if (email) document.getElementById('userEmail').textContent = email;
-      document.getElementById('logoutBtn').onclick = () => {
-        localStorage.removeItem('di_user');
-        location.href = '/login';
-      };
+      btnRefresh.addEventListener('click', refresh);
+
+      // Initial load
+      refresh();
     })();
-
-    // initial load
-    loadLeads();
   </script>
 </body>
 </html>
