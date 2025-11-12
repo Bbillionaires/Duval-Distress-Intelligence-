@@ -1,3 +1,1 @@
-id,parcel,owner,mailingAddress,siteAddress,zip,distressTypes,amountDue,lastUpdated
-1,12345-0000,"Smith, John","123 Mailing St, Jacksonville, FL","456 Property Ave, Jacksonville, FL",32209,"TAX",15000,2025-11-10
-
+id,owner,siteAddress,mailingAddress,parcel,zip,distressTypes,amountDue
