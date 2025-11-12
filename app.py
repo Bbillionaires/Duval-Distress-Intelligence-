@@ -13,7 +13,7 @@ from flask import Flask, jsonify, request, send_from_directory
 # -------------------------------------------------------------------
 BASE_DIR = Path(__file__).resolve().parent
 
-# Use env vars if set; otherwise use the values you discovered
+# Use env vars if present, otherwise your captured values
 ALG_APP_ID = os.getenv("ALG_APP_ID", "0LWZO52LS2")
 ALG_API_KEY = os.getenv("ALG_API_KEY", "c0745578b56854a1b90ed57b63fbf0ba")
 ALG_INDEX = os.getenv("ALG_INDEX", "fl-duval.property_tax")
@@ -24,7 +24,7 @@ app = Flask(__name__, static_folder=None)
 
 
 # -------------------------------------------------------------------
-# Helper functions
+# Helpers
 # -------------------------------------------------------------------
 def algolia_headers() -> Dict[str, str]:
     return {
@@ -53,7 +53,7 @@ def pick(hit: Dict[str, Any], *keys: str, default: str = "") -> str:
 
 
 def map_hit_to_lead(hit: Dict[str, Any]) -> Dict[str, Any]:
-    """Normalize a single Algolia hit to our lead format."""
+    """Turn one Algolia hit into our normalized lead object."""
     owner = pick(hit, "owner", "owner_name", "owner1", "name", default="")
     address = pick(
         hit,
@@ -92,28 +92,43 @@ def map_hit_to_lead(hit: Dict[str, Any]) -> Dict[str, Any]:
 
 def algolia_search(query: str, hits_per_page: int = 100) -> List[Dict[str, Any]]:
     """
-    Call Algolia using the same structure that the site uses,
-    but minimal params for stability.
+    Call Algolia using the SAME shape as the browser payload:
+
+      {
+        "requests": [{
+          "indexName": "fl-duval.property_tax",
+          "params": "clickAnalytics=true&facets=[]&highlightPreTag=__ais-highlight__&highlightPostTag=__/ais-highlight__&hitsPerPage=15&query=030147-0432&tagFilters="
+        }]
+      }
     """
-    params = (
-        "clickAnalytics=true"
-        "&facets=[]"
-        "&highlightPreTag=__ais-highlight__"
-        "&highlightPostTag=__/ais-highlight__"
-        f"&hitsPerPage={hits_per_page}"
-        f"&query={urllib.parse.quote(query)}"
-    )
+
+    # Build a dict, then let urllib.urlencode handle encoding
+    query_params = {
+        "clickAnalytics": "true",
+        "facets": "[]",
+        "highlightPreTag": "__ais-highlight__",
+        "highlightPostTag": "__/ais-highlight__",
+        "hitsPerPage": str(hits_per_page),
+        "query": query,        # NOT pre-encoded; urlencode will do it
+        "tagFilters": "",
+    }
+    params_str = urllib.parse.urlencode(query_params)
 
     payload = {
         "requests": [
             {
                 "indexName": ALG_INDEX,
-                "params": params,
+                "params": params_str,
             }
         ]
     }
 
-    resp = requests.post(ALG_ENDPOINT, headers=algolia_headers(), data=json.dumps(payload), timeout=20)
+    resp = requests.post(
+        ALG_ENDPOINT,
+        headers=algolia_headers(),
+        data=json.dumps(payload),
+        timeout=20,
+    )
     resp.raise_for_status()
     data = resp.json()
     results = data.get("results") or []
@@ -142,15 +157,24 @@ def api_health():
 
 @app.get("/api/algolia-debug")
 def api_algolia_debug():
-    """Small debug helper to see what a raw hit looks like."""
+    """
+    Check what Algolia returns for a test query.
+    Example:
+      /api/algolia-debug?q=030147-0432
+    """
     q = request.args.get("q", "").strip() or "030147-0432"
-    hits = algolia_search(q, hits_per_page=5)
+    try:
+        hits = algolia_search(q, hits_per_page=5)
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+
     sample = hits[0] if hits else {}
     return jsonify(
         {
+            "status": "success",
             "query": q,
             "hit_count": len(hits),
-            "first_hit_keys": list(sample.keys()),
+            "first_hit_keys": list(sample.keys()) if sample else [],
             "first_hit_sample": sample,
         }
     )
@@ -159,14 +183,14 @@ def api_algolia_debug():
 @app.get("/api/leads")
 def api_leads():
     """
-    Main endpoint used by the UI.
+    Main endpoint the UI uses.
 
     Query params:
       q        = search text (parcel, owner, or address)
-      zip      = optional zip filter (5-digit)
-      min      = optional minimum amount due
-      max      = optional maximum amount due
-      limit    = max results to return (default 100)
+      zip      = optional zip filter
+      min      = optional min amount
+      max      = optional max amount
+      limit    = max results (default 100)
     """
     q = (request.args.get("q") or "").strip()
     zip_filter = (request.args.get("zip") or "").strip()
@@ -174,10 +198,8 @@ def api_leads():
     max_raw = request.args.get("max") or request.args.get("max_amount") or ""
     limit_raw = request.args.get("limit") or "100"
 
-    # Decide what to send to Algolia:
-    # - If user typed something, we search that
-    # - If they only provided ZIP, we use ZIP as the query term
     search_term = q or zip_filter or "Duval"
+
     try:
         limit = max(1, int(limit_raw))
     except Exception:
@@ -189,10 +211,9 @@ def api_leads():
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
 
-    # Normalize hits → leads
+    # Map + filter
     leads = [map_hit_to_lead(h) for h in hits]
 
-    # Apply extra filters on our side
     try:
         min_amount = float(min_raw) if min_raw not in ("", None) else None
     except Exception:
@@ -235,13 +256,9 @@ def index():
 
 @app.get("/<path:filename>")
 def static_files(filename: str):
-    """Serve static files (CSS/JS) if you add them later."""
     return send_from_directory(BASE_DIR, filename)
 
 
-# -------------------------------------------------------------------
-# Local dev entrypoint
-# -------------------------------------------------------------------
 if __name__ == "__main__":
     port = int(os.getenv("PORT", "10000"))
     app.run(host="0.0.0.0", port=port)
