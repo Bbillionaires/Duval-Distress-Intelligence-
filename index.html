@@ -1,223 +1,256 @@
 <!doctype html>
 <html lang="en">
 <head>
-  <meta charset="utf-8" />
-  <title>Distress Intelligence</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta charset="UTF-8" />
+  <title>Distress Intelligence · Duval Tax Search</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+  <!-- Tailwind CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+
   <style>
-    :root { color-scheme: dark; }
-    * { box-sizing: border-box; }
     body {
-      margin: 0;
-      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-      background: #020617;
-      color: #e5e7eb;
+      background: #020617; /* slate-950 */
+      color: #e5e7eb;      /* gray-200 */
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
+        sans-serif;
     }
-    .wrap {
-      max-width: 1100px;
-      margin: 24px auto;
-      padding: 0 16px 32px;
-    }
-    h1 {
-      margin: 0;
-      font-size: 28px;
-    }
-    .muted {
-      color: #9ca3af;
-      font-size: 14px;
-      margin-top: 4px;
-    }
-    .card {
-      background: #0b1120;
-      border-radius: 16px;
-      border: 1px solid #1f2937;
-      padding: 16px;
-      margin-top: 18px;
-    }
-    .row {
-      display: grid;
-      grid-template-columns: repeat(4, minmax(0,1fr));
-      gap: 10px;
-    }
-    @media (max-width: 768px) {
-      .row { grid-template-columns: repeat(2, minmax(0,1fr)); }
-    }
-    input, button {
-      width: 100%;
-      padding: 10px 12px;
-      border-radius: 12px;
-      border: 1px solid #374151;
-      background: #020617;
-      color: #e5e7eb;
-      font-size: 14px;
-    }
-    input::placeholder { color: #6b7280; }
-    button {
-      background: #10b981;
-      border: none;
-      font-weight: 600;
-      cursor: pointer;
-    }
-    button.secondary { background: #111827; }
-    button:disabled { opacity: .6; cursor: default; }
-    table {
-      width: 100%;
-      border-collapse: collapse;
-      margin-top: 12px;
-      font-size: 13px;
-    }
-    th, td {
-      padding: 8px 6px;
-      border-bottom: 1px solid #1f2937;
-      text-align: left;
-    }
-    th {
-      color: #9ca3af;
-      font-weight: 600;
-      font-size: 12px;
-      text-transform: uppercase;
-      letter-spacing: .04em;
-    }
-    tr:nth-child(even) td { background: rgba(15,23,42,0.4); }
-    .pill {
-      display: inline-flex;
-      align-items: center;
-      padding: 2px 8px;
-      border-radius: 999px;
-      background: rgba(16,185,129,0.1);
-      color: #6ee7b7;
-      font-size: 11px;
-    }
-    #status { margin-top: 10px; font-size: 13px; color: #9ca3af; }
   </style>
 </head>
-<body>
-  <div class="wrap">
-    <div>
-      <h1>Distress <span style="color:#10b981;">Intelligence</span></h1>
-      <div class="muted">Live Duval tax distress search • MVP</div>
-    </div>
+<body class="min-h-screen flex items-start justify-center py-10 px-4">
+  <div class="w-full max-w-4xl">
+    <!-- Header -->
+    <header class="mb-8">
+      <h1 class="text-3xl sm:text-4xl font-extrabold tracking-tight">
+        <span class="text-white">Distress</span>
+        <span class="text-emerald-400"> Intelligence</span>
+      </h1>
+      <p class="mt-2 text-sm sm:text-base text-slate-400">
+        Live Duval tax distress search · MVP
+      </p>
+    </header>
 
-    <div class="card">
-      <div class="row">
-        <div>
-          <label style="font-size:12px;color:#9ca3af;">Search</label>
-          <input id="q" placeholder="Parcel / Owner / Address (e.g. 030147-0432)" />
-        </div>
-        <div>
-          <label style="font-size:12px;color:#9ca3af;">Zip</label>
-          <input id="zip" placeholder="e.g. 32209" />
-        </div>
-        <div>
-          <label style="font-size:12px;color:#9ca3af;">Min Amount Due</label>
-          <input id="min" type="number" placeholder="0" />
-        </div>
-        <div>
-          <label style="font-size:12px;color:#9ca3af;">Max Amount Due</label>
-          <input id="max" type="number" placeholder="" />
-        </div>
-      </div>
+    <!-- Search Card -->
+    <main
+      class="bg-slate-900/70 border border-slate-800 rounded-2xl shadow-lg p-4 sm:p-6 space-y-6"
+    >
+      <!-- Form -->
+      <section class="space-y-4">
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <!-- Account / Parcel / RE number -->
+          <div>
+            <label
+              for="search"
+              class="block text-xs font-semibold tracking-wide text-slate-300 mb-1"
+              >Search</label
+            >
+            <input
+              id="search"
+              type="text"
+              placeholder="030147-0432"
+              class="w-full rounded-xl bg-slate-800/80 border border-slate-700 px-3 py-2 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-emerald-400 focus:border-emerald-400"
+            />
+          </div>
 
-      <div class="row" style="margin-top:12px;">
-        <div>
-          <button id="btnSearch">Search Distress</button>
+          <!-- Zip -->
+          <div>
+            <label
+              for="zip"
+              class="block text-xs font-semibold tracking-wide text-slate-300 mb-1"
+              >Zip</label
+            >
+            <input
+              id="zip"
+              type="text"
+              inputmode="numeric"
+              placeholder="e.g. 32209"
+              class="w-full rounded-xl bg-slate-800/80 border border-slate-700 px-3 py-2 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-emerald-400 focus:border-emerald-400"
+            />
+          </div>
         </div>
-        <div>
-          <button id="btnClear" class="secondary">Clear Filters</button>
-        </div>
-        <div style="grid-column: span 2 / span 2; align-self:center; text-align:right;">
-          <span id="status"></span>
-        </div>
-      </div>
 
-      <table id="tbl">
-        <thead>
-          <tr>
-            <th>Owner</th>
-            <th>Property Address</th>
-            <th>Parcel</th>
-            <th>Zip</th>
-            <th>Distress</th>
-            <th>Amount Due</th>
-          </tr>
-        </thead>
-        <tbody></tbody>
-      </table>
-    </div>
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <!-- Min amount -->
+          <div>
+            <label
+              for="minAmountDue"
+              class="block text-xs font-semibold tracking-wide text-slate-300 mb-1"
+              >Min Amount Due</label
+            >
+            <input
+              id="minAmountDue"
+              type="number"
+              min="0"
+              step="1"
+              placeholder="0"
+              class="w-full rounded-xl bg-slate-800/80 border border-slate-700 px-3 py-2 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-emerald-400 focus:border-emerald-400"
+            />
+          </div>
+
+          <!-- Max amount -->
+          <div>
+            <label
+              for="maxAmountDue"
+              class="block text-xs font-semibold tracking-wide text-slate-300 mb-1"
+              >Max Amount Due</label
+            >
+            <input
+              id="maxAmountDue"
+              type="number"
+              min="0"
+              step="1"
+              placeholder="20000"
+              class="w-full rounded-xl bg-slate-800/80 border border-slate-700 px-3 py-2 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-emerald-400 focus:border-emerald-400"
+            />
+          </div>
+        </div>
+
+        <!-- Buttons -->
+        <div class="flex flex-col sm:flex-row gap-3 pt-2">
+          <button
+            type="button"
+            onclick="searchDistress()"
+            class="flex-1 inline-flex items-center justify-center rounded-full bg-emerald-500 hover:bg-emerald-400 text-slate-900 font-semibold text-sm py-2.5 shadow-md shadow-emerald-500/30 transition"
+          >
+            Search Distress
+          </button>
+          <button
+            type="button"
+            onclick="clearFilters()"
+            class="flex-1 inline-flex items-center justify-center rounded-full bg-slate-800 hover:bg-slate-700 text-slate-100 font-semibold text-sm py-2.5 border border-slate-600 transition"
+          >
+            Clear Filters
+          </button>
+        </div>
+      </section>
+
+      <!-- Results -->
+      <section class="space-y-3">
+        <div class="flex items-center justify-between text-xs text-slate-400">
+          <span id="results-count">Found 0 result(s).</span>
+          <span class="hidden sm:inline">
+            Tip: start with a known real estate number (e.g. 030147-0432).
+          </span>
+        </div>
+
+        <div class="overflow-x-auto rounded-2xl border border-slate-800">
+          <table class="min-w-full text-left text-xs sm:text-sm">
+            <thead class="bg-slate-800/80 text-slate-300 uppercase tracking-wide text-[0.65rem] sm:text-xs">
+              <tr>
+                <th class="px-3 py-3">Owner</th>
+                <th class="px-3 py-3">Property Address</th>
+                <th class="px-3 py-3">Parcel</th>
+                <th class="px-3 py-3">Zip</th>
+                <th class="px-3 py-3">Distress</th>
+                <th class="px-3 py-3">Amount Due</th>
+              </tr>
+            </thead>
+            <tbody
+              id="results"
+              class="divide-y divide-slate-800 bg-slate-900/60 text-slate-100"
+            >
+              <tr>
+                <td class="px-3 py-4 text-center text-slate-500" colspan="6">
+                  No results yet. Run a search above.
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+    </main>
   </div>
 
+  <!-- Page logic -->
   <script>
-    const $ = (sel) => document.querySelector(sel);
+    const API_BASE = "https://duval-distress-intelligence.onrender.com";
 
-    async function fetchLeads() {
-      const q   = encodeURIComponent($('#q').value.trim());
-      const zip = encodeURIComponent($('#zip').value.trim());
-      const min = encodeURIComponent($('#min').value.trim());
-      const max = encodeURIComponent($('#max').value.trim());
+    async function searchDistress() {
+      const search = document.getElementById("search").value.trim();
+      const zip = document.getElementById("zip").value.trim();
+      const minAmountDue = document
+        .getElementById("minAmountDue")
+        .value.trim();
+      const maxAmountDue = document
+        .getElementById("maxAmountDue")
+        .value.trim();
 
-      const params = [];
-      if (q)   params.push('q=' + q);
-      if (zip) params.push('zip=' + zip);
-      if (min) params.push('min=' + min);
-      if (max) params.push('max=' + max);
+      const resultsBody = document.getElementById("results");
+      const countLabel = document.getElementById("results-count");
 
-      const url = '/api/leads' + (params.length ? ('?' + params.join('&')) : '');
-      $('#status').textContent = 'Searching…';
-      $('#btnSearch').disabled = true;
+      const params = new URLSearchParams();
+
+      // Account / real-estate number goes as "account"
+      if (search) params.append("account", search);
+      if (zip) params.append("zip", zip);
+      if (minAmountDue) params.append("minAmountDue", minAmountDue);
+      if (maxAmountDue) params.append("maxAmountDue", maxAmountDue);
+
+      const url = `${API_BASE}/api/search?${params.toString()}`;
 
       try {
         const res = await fetch(url);
         const data = await res.json();
-        if (data.status !== 'success') {
-          $('#status').textContent = 'Error: ' + (data.message || 'Unknown');
-          $('#btnSearch').disabled = false;
+
+        if (!data.rows || data.rows.length === 0) {
+          resultsBody.innerHTML =
+            "<tr><td colspan='6' class='px-3 py-4 text-center text-slate-500'>No results found.</td></tr>";
+          if (countLabel) countLabel.textContent = "Found 0 result(s).";
           return;
         }
-        const rows = data.rows || [];
-        $('#status').textContent = `Found ${rows.length} result(s).`;
-        const tb = $('#tbl tbody');
-        tb.innerHTML = '';
-        rows.forEach(r => {
-          const tr = document.createElement('tr');
-          tr.innerHTML = `
-            <td>${r.owner || ''}</td>
-            <td>${r.address || ''}</td>
-            <td>${r.parcel || ''}</td>
-            <td>${r.zip || ''}</td>
-            <td><span class="pill">${r.distress || 'Tax'}</span></td>
-            <td>$${r.amountDue || '0.00'}</td>
+
+        let html = "";
+        for (const r of data.rows) {
+          html += `
+            <tr>
+              <td class="px-3 py-3 align-top">${r.owner || ""}</td>
+              <td class="px-3 py-3 align-top">${r.address || ""}</td>
+              <td class="px-3 py-3 align-top">${r.parcel || ""}</td>
+              <td class="px-3 py-3 align-top">${r.zip || ""}</td>
+              <td class="px-3 py-3 align-top">${r.distress || ""}</td>
+              <td class="px-3 py-3 align-top">$${Number(
+                r.amountDue || 0
+              ).toLocaleString()}</td>
+            </tr>
           `;
-          tb.appendChild(tr);
-        });
+        }
+
+        resultsBody.innerHTML = html;
+        const count = data.count != null ? data.count : data.rows.length;
+        if (countLabel) countLabel.textContent = `Found ${count} result(s).`;
       } catch (err) {
-        $('#status').textContent = 'Error calling API.';
-      } finally {
-        $('#btnSearch').disabled = false;
+        console.error("Error calling API:", err);
+        resultsBody.innerHTML =
+          "<tr><td colspan='6' class='px-3 py-4 text-center text-rose-400'>Error calling API.</td></tr>";
+        if (countLabel) countLabel.textContent = "Error calling API.";
       }
     }
 
     function clearFilters() {
-      $('#q').value   = '';
-      $('#zip').value = '';
-      $('#min').value = '';
-      $('#max').value = '';
-      $('#status').textContent = '';
-      $('#tbl tbody').innerHTML = '';
+      document.getElementById("search").value = "";
+      document.getElementById("zip").value = "";
+      document.getElementById("minAmountDue").value = "";
+      document.getElementById("maxAmountDue").value = "";
+
+      const resultsBody = document.getElementById("results");
+      const countLabel = document.getElementById("results-count");
+
+      resultsBody.innerHTML =
+        "<tr><td colspan='6' class='px-3 py-4 text-center text-slate-500'>No results yet. Run a search above.</td></tr>";
+      if (countLabel) countLabel.textContent = "Found 0 result(s).";
     }
 
-    $('#btnSearch').addEventListener('click', fetchLeads);
-    $('#btnClear').addEventListener('click', clearFilters);
-
-    // Press Enter in any box to search
-    ['q','zip','min','max'].forEach(id => {
-      const el = $('#' + id);
-      el.addEventListener('keypress', (e) => {
-        if (e.key === 'Enter') fetchLeads();
+    // Allow Enter key in any input to trigger search
+    ["search", "zip", "minAmountDue", "maxAmountDue"].forEach((id) => {
+      const el = document.getElementById(id);
+      if (!el) return;
+      el.addEventListener("keydown", (e) => {
+        if (e.key === "Enter") {
+          e.preventDefault();
+          searchDistress();
+        }
       });
     });
-
-    // Optional: do a default search on load
-    // fetchLeads();
   </script>
 </body>
 </html>
