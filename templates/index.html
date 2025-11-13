@@ -1,0 +1,256 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Distress Intelligence · Duval Tax Search</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+  <!-- Tailwind CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+
+  <style>
+    body {
+      background: #020617; /* slate-950 */
+      color: #e5e7eb;      /* gray-200 */
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
+        sans-serif;
+    }
+  </style>
+</head>
+<body class="min-h-screen flex items-start justify-center py-10 px-4">
+  <div class="w-full max-w-4xl">
+    <!-- Header -->
+    <header class="mb-8">
+      <h1 class="text-3xl sm:text-4xl font-extrabold tracking-tight">
+        <span class="text-white">Distress</span>
+        <span class="text-emerald-400"> Intelligence</span>
+      </h1>
+      <p class="mt-2 text-sm sm:text-base text-slate-400">
+        Live Duval tax distress search · MVP
+      </p>
+    </header>
+
+    <!-- Search Card -->
+    <main
+      class="bg-slate-900/70 border border-slate-800 rounded-2xl shadow-lg p-4 sm:p-6 space-y-6"
+    >
+      <!-- Form -->
+      <section class="space-y-4">
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <!-- Account / Parcel / RE number -->
+          <div>
+            <label
+              for="search"
+              class="block text-xs font-semibold tracking-wide text-slate-300 mb-1"
+              >Search</label
+            >
+            <input
+              id="search"
+              type="text"
+              placeholder="030147-0432"
+              class="w-full rounded-xl bg-slate-800/80 border border-slate-700 px-3 py-2 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-emerald-400 focus:border-emerald-400"
+            />
+          </div>
+
+          <!-- Zip -->
+          <div>
+            <label
+              for="zip"
+              class="block text-xs font-semibold tracking-wide text-slate-300 mb-1"
+              >Zip</label
+            >
+            <input
+              id="zip"
+              type="text"
+              inputmode="numeric"
+              placeholder="e.g. 32209"
+              class="w-full rounded-xl bg-slate-800/80 border border-slate-700 px-3 py-2 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-emerald-400 focus:border-emerald-400"
+            />
+          </div>
+        </div>
+
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <!-- Min amount -->
+          <div>
+            <label
+              for="minAmountDue"
+              class="block text-xs font-semibold tracking-wide text-slate-300 mb-1"
+              >Min Amount Due</label
+            >
+            <input
+              id="minAmountDue"
+              type="number"
+              min="0"
+              step="1"
+              placeholder="0"
+              class="w-full rounded-xl bg-slate-800/80 border border-slate-700 px-3 py-2 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-emerald-400 focus:border-emerald-400"
+            />
+          </div>
+
+          <!-- Max amount -->
+          <div>
+            <label
+              for="maxAmountDue"
+              class="block text-xs font-semibold tracking-wide text-slate-300 mb-1"
+              >Max Amount Due</label
+            >
+            <input
+              id="maxAmountDue"
+              type="number"
+              min="0"
+              step="1"
+              placeholder="20000"
+              class="w-full rounded-xl bg-slate-800/80 border border-slate-700 px-3 py-2 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-emerald-400 focus:border-emerald-400"
+            />
+          </div>
+        </div>
+
+        <!-- Buttons -->
+        <div class="flex flex-col sm:flex-row gap-3 pt-2">
+          <button
+            type="button"
+            onclick="searchDistress()"
+            class="flex-1 inline-flex items-center justify-center rounded-full bg-emerald-500 hover:bg-emerald-400 text-slate-900 font-semibold text-sm py-2.5 shadow-md shadow-emerald-500/30 transition"
+          >
+            Search Distress
+          </button>
+          <button
+            type="button"
+            onclick="clearFilters()"
+            class="flex-1 inline-flex items-center justify-center rounded-full bg-slate-800 hover:bg-slate-700 text-slate-100 font-semibold text-sm py-2.5 border border-slate-600 transition"
+          >
+            Clear Filters
+          </button>
+        </div>
+      </section>
+
+      <!-- Results -->
+      <section class="space-y-3">
+        <div class="flex items-center justify-between text-xs text-slate-400">
+          <span id="results-count">Found 0 result(s).</span>
+          <span class="hidden sm:inline">
+            Tip: start with a known real estate number (e.g. 030147-0432).
+          </span>
+        </div>
+
+        <div class="overflow-x-auto rounded-2xl border border-slate-800">
+          <table class="min-w-full text-left text-xs sm:text-sm">
+            <thead class="bg-slate-800/80 text-slate-300 uppercase tracking-wide text-[0.65rem] sm:text-xs">
+              <tr>
+                <th class="px-3 py-3">Owner</th>
+                <th class="px-3 py-3">Property Address</th>
+                <th class="px-3 py-3">Parcel</th>
+                <th class="px-3 py-3">Zip</th>
+                <th class="px-3 py-3">Distress</th>
+                <th class="px-3 py-3">Amount Due</th>
+              </tr>
+            </thead>
+            <tbody
+              id="results"
+              class="divide-y divide-slate-800 bg-slate-900/60 text-slate-100"
+            >
+              <tr>
+                <td class="px-3 py-4 text-center text-slate-500" colspan="6">
+                  No results yet. Run a search above.
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <!-- Page logic -->
+  <script>
+    const API_BASE = "https://duval-distress-intelligence.onrender.com";
+
+    async function searchDistress() {
+      const search = document.getElementById("search").value.trim();
+      const zip = document.getElementById("zip").value.trim();
+      const minAmountDue = document
+        .getElementById("minAmountDue")
+        .value.trim();
+      const maxAmountDue = document
+        .getElementById("maxAmountDue")
+        .value.trim();
+
+      const resultsBody = document.getElementById("results");
+      const countLabel = document.getElementById("results-count");
+
+      const params = new URLSearchParams();
+
+      // Account / real-estate number goes as "account"
+      if (search) params.append("account", search);
+      if (zip) params.append("zip", zip);
+      if (minAmountDue) params.append("minAmountDue", minAmountDue);
+      if (maxAmountDue) params.append("maxAmountDue", maxAmountDue);
+
+      const url = `${API_BASE}/api/search?${params.toString()}`;
+
+      try {
+        const res = await fetch(url);
+        const data = await res.json();
+
+        if (!data.rows || data.rows.length === 0) {
+          resultsBody.innerHTML =
+            "<tr><td colspan='6' class='px-3 py-4 text-center text-slate-500'>No results found.</td></tr>";
+          if (countLabel) countLabel.textContent = "Found 0 result(s).";
+          return;
+        }
+
+        let html = "";
+        for (const r of data.rows) {
+          html += `
+            <tr>
+              <td class="px-3 py-3 align-top">${r.owner || ""}</td>
+              <td class="px-3 py-3 align-top">${r.address || ""}</td>
+              <td class="px-3 py-3 align-top">${r.parcel || ""}</td>
+              <td class="px-3 py-3 align-top">${r.zip || ""}</td>
+              <td class="px-3 py-3 align-top">${r.distress || ""}</td>
+              <td class="px-3 py-3 align-top">$${Number(
+                r.amountDue || 0
+              ).toLocaleString()}</td>
+            </tr>
+          `;
+        }
+
+        resultsBody.innerHTML = html;
+        const count = data.count != null ? data.count : data.rows.length;
+        if (countLabel) countLabel.textContent = `Found ${count} result(s).`;
+      } catch (err) {
+        console.error("Error calling API:", err);
+        resultsBody.innerHTML =
+          "<tr><td colspan='6' class='px-3 py-4 text-center text-rose-400'>Error calling API.</td></tr>";
+        if (countLabel) countLabel.textContent = "Error calling API.";
+      }
+    }
+
+    function clearFilters() {
+      document.getElementById("search").value = "";
+      document.getElementById("zip").value = "";
+      document.getElementById("minAmountDue").value = "";
+      document.getElementById("maxAmountDue").value = "";
+
+      const resultsBody = document.getElementById("results");
+      const countLabel = document.getElementById("results-count");
+
+      resultsBody.innerHTML =
+        "<tr><td colspan='6' class='px-3 py-4 text-center text-slate-500'>No results yet. Run a search above.</td></tr>";
+      if (countLabel) countLabel.textContent = "Found 0 result(s).";
+    }
+
+    // Allow Enter key in any input to trigger search
+    ["search", "zip", "minAmountDue", "maxAmountDue"].forEach((id) => {
+      const el = document.getElementById(id);
+      if (!el) return;
+      el.addEventListener("keydown", (e) => {
+        if (e.key === "Enter") {
+          e.preventDefault();
+          searchDistress();
+        }
+      });
+    });
+  </script>
+</body>
+  </html>
