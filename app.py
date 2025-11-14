@@ -1,237 +1,194 @@
-import os
-import csv
-from pathlib import Path
-from typing import List, Dict, Any, Set, Optional
-
-import requests
-from flask import Flask, jsonify, request, send_file, render_template
+    import os
+from flask import Flask, request, jsonify, send_file
 from flask_cors import CORS
+import csv
+import requests
+from algoliasearch.search_client import SearchClient
+from bs4 import BeautifulSoup
 
-BASE_DIR = Path(__file__).resolve().parent
-DATA_DIR = BASE_DIR / "data"
-CSV_FILE = DATA_DIR / "leads.csv"
+# --------------------------------------
+# CONFIG
+# --------------------------------------
 
-# Ensure data folder exists
-DATA_DIR.mkdir(exist_ok=True)
+ALGOLIA_APP_ID = "EG68MYCIPK"
+ALGOLIA_SEARCH_KEY = "71d337a60ec2815979ec0251572482a0"
+ALGOLIA_ADMIN_KEY = "8be43ca33a4046f065a8c3831bb91e99"
+ALGOLIA_INDEX = "duval_parcels"
 
-CSV_HEADERS = ["address", "zip", "parcel", "distress", "amountDue", "owner", "link"]
+CSV_FILE = "duval_data.csv"
 
-if not CSV_FILE.exists():
-    with CSV_FILE.open("w", newline="", encoding="utf-8") as f:
-        writer = csv.DictWriter(f, fieldnames=CSV_HEADERS)
-        writer.writeheader()
+# --------------------------------------
+# INIT
+# --------------------------------------
 
-ALGOLIA_APP_ID = os.getenv("ALGOLIA_APP_ID", "0LWZO52LS2")
-ALGOLIA_API_KEY = os.getenv("ALGOLIA_API_KEY", "")
-ALGOLIA_INDEX = os.getenv("ALGOLIA_INDEX", "fl-duval.property_tax")
-
-app = Flask(__name__, static_folder="static", template_folder="templates")
+app = Flask(__name__)
 CORS(app)
 
+client = SearchClient.create(ALGOLIA_APP_ID, ALGOLIA_ADMIN_KEY)
+index = client.init_index(ALGOLIA_INDEX)
 
-def read_existing_parcels() -> Set[str]:
-    parcels = set()
-    if not CSV_FILE.exists():
-        return parcels
+# --------------------------------------
+# CSV HELPERS
+# --------------------------------------
 
-    with CSV_FILE.open("r", newline="", encoding="utf-8") as f:
-        reader = csv.DictReader(f)
-        for row in reader:
-            p = (row.get("parcel") or "").strip()
-            if p:
-                parcels.add(p)
-    return parcels
-
-
-def load_all_rows() -> List[Dict[str, Any]]:
+def load_csv_data():
     rows = []
-    if not CSV_FILE.exists():
+    if not os.path.exists(CSV_FILE):
         return rows
-
-    with CSV_FILE.open("r", newline="", encoding="utf-8") as f:
+    with open(CSV_FILE, newline="", encoding="utf-8") as f:
         reader = csv.DictReader(f)
-        for row in reader:
-            try:
-                row["amountDue"] = float(row.get("amountDue") or 0)
-            except ValueError:
-                row["amountDue"] = 0.0
-            rows.append(row)
+        for r in reader:
+            rows.append(r)
     return rows
 
 
-def save_new_rows_no_duplicates(new_rows: List[Dict[str, Any]]) -> int:
-    if not new_rows:
-        return 0
+def save_csv_data(rows):
+    with open(CSV_FILE, "w", newline="", encoding="utf-8") as f:
+        writer = csv.DictWriter(f, fieldnames=[
+            "parcel",
+            "owner",
+            "address",
+            "zip",
+            "distress_type"
+        ])
+        writer.writeheader()
+        for r in rows:
+            writer.writerow(r)
 
-    existing = read_existing_parcels()
-    unique = []
+# -------------------------------------------------
+# LIVE SCRAPER (FALLBACK)
+# -------------------------------------------------
 
-    for r in new_rows:
-        parcel = (r.get("parcel") or "").strip()
-        if parcel and parcel not in existing:
-            existing.add(parcel)
-            unique.append(r)
+def scrape_duval(parcel_id):
+    """
+    Scrapes Duval County Property Tax website when data
+    is not found in Algolia or CSV.
+    """
 
-    if not unique:
-        return 0
+    SEARCH_URL = "https://county-taxes.net/api/search"
 
-    with CSV_FILE.open("a", newline="", encoding="utf-8") as f:
-        writer = csv.DictWriter(f, fieldnames=CSV_HEADERS)
-        for row in unique:
-            output = {h: "" for h in CSV_HEADERS}
-            output.update(row)
-            writer.writerow(output)
-
-    return len(unique)
-
-
-def normalize_algolia_hit(hit: Dict[str, Any]) -> Dict[str, Any]:
-    parcel = hit.get("account") or hit.get("account_number") or ""
-    owner = hit.get("display_name") or hit.get("owner_name") or ""
-    addr = hit.get("address") or {}
-
-    address = (
-        addr.get("address") or addr.get("name") or addr.get("line1") or ""
-    )
-    zip_code = (
-        addr.get("zip") or addr.get("postalCode") or addr.get("postcode") or ""
-    )
-
-    amount = hit.get("amount_due") or 0
-    try:
-        amount = float(amount)
-    except:
-        amount = 0.0
-
-    link = hit.get("public_url") or "https://county-taxes.net/fl-duval/property-tax"
-
-    return {
-        "address": address,
-        "zip": str(zip_code),
-        "parcel": str(parcel),
-        "distress": "Tax",
-        "amountDue": amount,
-        "owner": owner,
-        "link": link,
-    }
-
-
-def query_algolia(q: str) -> List[Dict[str, Any]]:
-    if not ALGOLIA_API_KEY:
-        return []
-
-    endpoint = f"https://{ALGOLIA_APP_ID}-dsn.algolia.net/1/indexes/*/queries"
-    headers = {
-        "X-Algolia-Application-Id": ALGOLIA_APP_ID,
-        "X-Algolia-API-Key": ALGOLIA_API_KEY,
-        "Content-Type": "application/json",
-    }
     payload = {
         "requests": [
             {
-                "indexName": ALGOLIA_INDEX,
-                "params": f"hitsPerPage=50&query={q}",
+                "indexName": "fl-duval.property_tax",
+                "params": f"query={parcel_id}"
             }
         ]
     }
 
+    headers = {
+        "x-algolia-agent": "Algolia for JavaScript",
+        "x-algolia-application-id": "0LWZO52LS2",
+        "x-algolia-api-key": "c0745578b56854a1b90ed57b63fbf0ba"
+    }
+
     try:
-        r = requests.post(endpoint, json=payload, headers=headers, timeout=10)
+        r = requests.post(
+            "https://0lwzo52ls2-dsn.algolia.net/1/indexes/*/queries",
+            json=payload,
+            headers=headers,
+            timeout=10
+        )
         data = r.json()
-        hits = data.get("results", [{}])[0].get("hits", [])
-        return [normalize_algolia_hit(h) for h in hits]
+
+        hits = data["results"][0]["hits"]
+        if not hits:
+            return None
+
+        hit = hits[0]
+
+        return {
+            "parcel": hit.get("account"),
+            "owner": hit.get("owner"),
+            "address": hit.get("address"),
+            "zip": hit.get("zip"),
+            "distress_type": "Tax"
+        }
     except:
-        return []
+        return None
 
+# -------------------------------------------------
+# SEARCH LOGIC (Search → CSV → Algolia → Live scrape)
+# -------------------------------------------------
 
-def filter_rows(rows, q, zip_code, min_amount, max_amount):
-    q = (q or "").lower().strip()
-    zip_code = (zip_code or "").strip()
+def full_lookup(parcel_id):
+    # 1 → Search Algolia first
+    try:
+        res = index.search(parcel_id)
+        if res.get("hits"):
+            return res["hits"][0]
+    except:
+        pass
 
-    out = []
-    for row in rows:
-        hay = f"{row.get('parcel','')} {row.get('address','')} {row.get('owner','')}".lower()
+    # 2 → Search CSV backup
+    csv_rows = load_csv_data()
+    for r in csv_rows:
+        if r["parcel"] == parcel_id:
+            return r
 
-        if q and q not in hay:
-            continue
-        if zip_code and str(row.get("zip", "")) != zip_code:
-            continue
+    # 3 → Scrape live
+    scraped = scrape_duval(parcel_id)
+    if scraped:
+        # Save to Algolia
+        index.save_object({**scraped, "objectID": scraped["parcel"]})
 
-        amt = float(row.get("amountDue", 0))
+        # Save to CSV (dedupe)
+        existing = load_csv_data()
+        if scraped["parcel"] not in [x["parcel"] for x in existing]:
+            existing.append(scraped)
+            save_csv_data(existing)
 
-        if min_amount is not None and amt < min_amount:
-            continue
-        if max_amount is not None and amt > max_amount:
-            continue
+        return scraped
 
-        out.append(row)
+    return None
 
-    return out
-
-
-@app.route("/")
-def index():
-    return render_template("index.html")
-
+# -------------------------------------------------
+# ROUTES
+# -------------------------------------------------
 
 @app.route("/api/search")
 def api_search():
     q = request.args.get("q", "").strip()
-    zip_code = request.args.get("zip", "").strip()
+    if q == "":
+        return jsonify({"count": 0, "rows": [], "status": "success"})
 
-    min_amount = request.args.get("minAmount")
-    min_amount = float(min_amount) if min_amount else None
+    result = full_lookup(q)
+    if not result:
+        return jsonify({"count": 0, "rows": [], "status": "success"})
 
-    max_amount = request.args.get("maxAmount")
-    max_amount = float(max_amount) if max_amount else None
-
-    rows = filter_rows(load_all_rows(), q, zip_code, min_amount, max_amount)
-
-    if not rows and q:
-        new_hits = query_algolia(q)
-        save_new_rows_no_duplicates(new_hits)
-        rows = filter_rows(load_all_rows(), q, zip_code, min_amount, max_amount)
-
-    return jsonify({"count": len(rows), "rows": rows, "status": "success"})
-
-
-@app.route("/api/health")
-def api_health():
-    exists = CSV_FILE.exists()
-    size = CSV_FILE.stat().st_size if exists else 0
-    return jsonify({
-        "algolia_app_id": ALGOLIA_APP_ID,
-        "algolia_index": ALGOLIA_INDEX,
-        "csv_exists": exists,
-        "csv_size": size,
-        "status": "success",
-    })
-
-
-@app.route("/api/export-info")
-def api_export_info():
-    exists = CSV_FILE.exists()
-    size = CSV_FILE.stat().st_size if exists else 0
-    return jsonify({
-        "exists": exists,
-        "size": size,
-        "path": str(CSV_FILE),
-        "status": "success",
-    })
+    return jsonify({"count": 1, "rows": [result], "status": "success"})
 
 
 @app.route("/api/export")
 def api_export():
-    if not CSV_FILE.exists():
-        return jsonify({"error": "CSV not found"}), 404
-    return send_file(
-        CSV_FILE,
-        mimetype="text/csv",
-        as_attachment=True,
-        download_name="leads.csv",
-    )
+    if not os.path.exists(CSV_FILE):
+        return jsonify({"error": "CSV not found"})
 
+    return send_file(CSV_FILE, as_attachment=True)
+
+
+@app.route("/api/health")
+def health():
+    csv_exists = os.path.exists(CSV_FILE)
+    csv_size = len(load_csv_data()) if csv_exists else 0
+
+    return jsonify({
+        "status": "success",
+        "algolia_app_id": ALGOLIA_APP_ID,
+        "algolia_index": ALGOLIA_INDEX,
+        "csv_exists": csv_exists,
+        "csv_size": csv_size
+    })
+
+
+@app.route("/")
+def index_page():
+    return "Backend online. UI coming soon."
+
+
+# -------------------------------------------------
+# START
+# -------------------------------------------------
 
 if __name__ == "__main__":
-    port = int(os.environ.get("PORT", "5000"))
-    app.run(host="0.0.0.0", port=port, debug=True)
+    app.run(host="0.0.0.0", port=10000)
