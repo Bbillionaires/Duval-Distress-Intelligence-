@@ -3,7 +3,7 @@ import csv
 from pathlib import Path
 from flask import Flask, jsonify, request, send_file, render_template
 from flask_cors import CORS
-from algoliasearch.search_client import SearchClient
+from algoliasearch import algoliasearch  # <- classic client
 
 # --------------------------------------------------
 # Flask setup
@@ -26,13 +26,13 @@ ALG_APP_ID = os.getenv("ALGOLIA_APP_ID", "0LWZO52LS2")
 ALG_API_KEY = os.getenv("ALGOLIA_API_KEY", "c0745578b56854a1b90ed57b63fbf0ba")
 ALG_INDEX = os.getenv("ALGOLIA_INDEX", "fl-duval.property_tax")
 
-# Create client/index once (Render will reuse the worker)
-alg_client = SearchClient.create(ALG_APP_ID, ALG_API_KEY)
+# Classic Algolia client (works with older python package)
+alg_client = algoliasearch.Client(ALG_APP_ID, ALG_API_KEY)
 alg_index = alg_client.init_index(ALG_INDEX)
 
 
-# Helper to safely parse float
 def parse_float(value):
+    """Safely convert query string to float or None."""
     if value is None:
         return None
     value = str(value).strip()
@@ -63,7 +63,7 @@ def api_search():
 
     # Build Algolia search params
     params = {
-        "hitsPerPage": 1000,  # grab up to 1000 records for export
+        "hitsPerPage": 1000,
     }
 
     filters = []
@@ -74,23 +74,19 @@ def api_search():
     if max_amount is not None:
         filters.append(f"amount_due <= {max_amount}")
 
-    # zip filter (if this attribute exists as a numeric or string facet)
+    # zip filter (assuming attribute "zip" exists)
     if zip_code:
-        # If zip is stored as string facet
         filters.append(f"zip:{zip_code}")
 
     if filters:
-        # Join all filters with AND
         params["filters"] = " AND ".join(filters)
 
-    # Call Algolia – note: query string is first arg, params is second
-    # If q is empty, Algolia will still return hits (browse)
+    # Call Algolia
     res = alg_index.search(q or "", params)
     hits = res.get("hits", [])
 
     rows = []
     for hit in hits:
-        # Try multiple possible field names based on what we saw
         owner = (
             hit.get("owner")
             or hit.get("owner_name")
@@ -123,12 +119,12 @@ def api_search():
                 "address": address,
                 "parcel": parcel,
                 "zip": zip_val,
-                "distress": "Tax",  # this index is tax-only
+                "distress": "Tax",
                 "amountDue": amount_due,
             }
         )
 
-    # Write to CSV for export
+    # Write to CSV
     fieldnames = ["owner", "address", "parcel", "zip", "distress", "amountDue"]
     with open(CSV_PATH, "w", newline="", encoding="utf-8") as f:
         writer = csv.DictWriter(f, fieldnames=fieldnames)
@@ -145,7 +141,6 @@ def api_search():
 @app.route("/api/export")
 def api_export():
     if not CSV_PATH.exists():
-        # Nothing searched yet
         return jsonify(
             {"error": "No CSV generated yet. Run a search first.", "status": "error"}
         ), 400
@@ -178,17 +173,12 @@ def api_health():
 
 
 # --------------------------------------------------
-# Frontend
+# Frontend route
 # --------------------------------------------------
 @app.route("/")
 def index():
-    # Renders templates/index.html
     return render_template("index.html")
 
 
-# --------------------------------------------------
-# Main (local dev)
-# --------------------------------------------------
 if __name__ == "__main__":
-    # For local testing; Render will use gunicorn
     app.run(host="0.0.0.0", port=5000, debug=True)
