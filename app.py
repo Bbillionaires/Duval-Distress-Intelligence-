@@ -3,26 +3,29 @@ from flask import Flask, request, jsonify
 from flask_cors import CORS
 import csv
 import requests
-from algoliasearch.search_client import SearchClient
+from datetime import datetime
 
 # ======================================
 # CONFIG
 # ======================================
-
-# Your OWN Algolia app (My First Application)
-MY_ALG_APP_ID = "EG68MYCIPK"
-MY_ALG_SEARCH_API_KEY = "71d337a60ec2815979ec0251572482a0"
-MY_ALG_ADMIN_API_KEY = "8be43ca33a4046f065a8c3831bb91e99"
-MY_ALG_INDEX = "duval_parcels"
 
 # Duval county Algolia (source tax data)
 COUNTY_ALG_APP_ID = "0LWZO52LS2"
 COUNTY_ALG_API_KEY = "c0745578b56854a1b90ed57b63fbf0ba"
 COUNTY_ALG_INDEX = "fl-duval.property_tax"
 
-# CSV cache file
+# Local CSV cache
 CSV_FILE = "duval_data.csv"
-CSV_FIELDS = ["parcel", "owner", "address", "zip", "amount_due", "distress", "link"]
+CSV_FIELDS = [
+    "parcel",
+    "owner",
+    "address",
+    "zip",
+    "amount_due",
+    "distress",
+    "link",
+    "last_refreshed",
+]
 
 # ======================================
 # FLASK APP
@@ -31,9 +34,6 @@ CSV_FIELDS = ["parcel", "owner", "address", "zip", "amount_due", "distress", "li
 app = Flask(__name__)
 CORS(app)
 
-# Algolia client for YOUR index
-search_client = SearchClient.create(MY_ALG_APP_ID, MY_ALG_ADMIN_API_KEY)
-my_index = search_client.init_index(MY_ALG_INDEX)
 
 # ======================================
 # CSV HELPERS
@@ -56,12 +56,15 @@ def save_csv_rows(rows):
         writer = csv.DictWriter(f, fieldnames=CSV_FIELDS)
         writer.writeheader()
         for r in rows:
-            writer.writerow({k: r.get(k, "") for k in CSV_FIELDS})
+            out = {}
+            for k in CSV_FIELDS:
+                out[k] = r.get(k, "")
+            writer.writerow(out)
 
 
 def append_row_if_new(row):
     rows = load_csv_rows()
-    existing = {r.get("parcel") for r in rows}
+    existing = {r.get("parcel") for r in rows if r.get("parcel")}
     parcel = row.get("parcel")
     if parcel and parcel not in existing:
         rows.append(row)
@@ -101,20 +104,26 @@ def filter_rows(rows, q=None, zip_code=None, min_amount=None, max_amount=None):
         out.append(r)
     return out
 
+
 # ======================================
-# COUNTY (DUVAL) LIVE SEARCH
+# DUVAL LIVE SEARCH (RAW HTTP TO ALGOLIA)
 # ======================================
 
 def search_duval_live(query):
     """
-    Hit Duval's Algolia index directly and turn hits into our rows.
+    Hit Duval's Algolia index directly (no Algolia Python client).
     """
+    if not query:
+        return []
+
     url = f"https://{COUNTY_ALG_APP_ID}-dsn.algolia.net/1/indexes/{COUNTY_ALG_INDEX}/query"
     headers = {
         "X-Algolia-Application-Id": COUNTY_ALG_APP_ID,
         "X-Algolia-API-Key": COUNTY_ALG_API_KEY,
         "Content-Type": "application/json",
     }
+
+    # This matches what you saw in DevTools: params string built with query + hitsPerPage
     params_str = f"query={query}&hitsPerPage=15"
 
     try:
@@ -127,6 +136,7 @@ def search_duval_live(query):
 
     hits = data.get("hits", [])
     rows = []
+    now_iso = datetime.utcnow().isoformat()
 
     for h in hits:
         parcel = h.get("account") or h.get("parcel") or ""
@@ -144,32 +154,12 @@ def search_duval_live(query):
             "amount_due": str(amount_due),
             "distress": "Tax",
             "link": public_url,
+            "last_refreshed": now_iso,
         }
         rows.append(row)
 
     return rows
 
-# ======================================
-# INDEX INTO YOUR ALGOLIA
-# ======================================
-
-def index_into_my_algolia(rows):
-    """
-    Save rows into your own duval_parcels index.
-    """
-    if not rows:
-        return
-
-    objects = []
-    for r in rows:
-        obj = dict(r)
-        obj["objectID"] = obj.get("parcel") or obj.get("address")
-        objects.append(obj)
-
-    try:
-        my_index.save_objects(objects)
-    except Exception as e:
-        print(f"[WARN] Failed indexing into your Algolia: {e}")
 
 # ======================================
 # API ROUTES
@@ -190,19 +180,19 @@ def api_search():
     rows = filter_rows(csv_rows, q=q, zip_code=zip_code,
                        min_amount=min_amount, max_amount=max_amount)
 
-    # 2. If nothing and we have a query, hit Duval live
+    # 2. If nothing from cache and we have a query, hit Duval live
     if not rows and q:
         live_rows = search_duval_live(q)
         for r in live_rows:
             append_row_if_new(r)
-        index_into_my_algolia(live_rows)
+        # Filter again in case we care about zip/amount filters
         rows = filter_rows(live_rows, q=q, zip_code=zip_code,
                            min_amount=min_amount, max_amount=max_amount)
 
     return jsonify({
+        "status": "success",
         "count": len(rows),
         "rows": rows,
-        "status": "success",
     })
 
 
@@ -210,9 +200,9 @@ def api_search():
 def api_export():
     rows = load_csv_rows()
     return jsonify({
+        "status": "success",
         "count": len(rows),
         "rows": rows,
-        "status": "success",
     })
 
 
@@ -221,8 +211,6 @@ def api_health():
     rows = load_csv_rows()
     return jsonify({
         "status": "success",
-        "algolia_app_id": MY_ALG_APP_ID,
-        "algolia_index": MY_ALG_INDEX,
         "csv_exists": os.path.exists(CSV_FILE),
         "csv_size": len(rows),
     })
@@ -234,4 +222,5 @@ def root():
 
 
 if __name__ == "__main__":
+    # For local dev; Render will use gunicorn with app:app
     app.run(host="0.0.0.0", port=10000)
