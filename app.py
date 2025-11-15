@@ -4,7 +4,8 @@ import json
 from datetime import datetime, timezone, timedelta
 
 from flask import Flask, request, jsonify
-from algoliasearch.search_client import SearchClient
+# CLASSIC ALGOLIA CLIENT (works with older versions)
+from algoliasearch import algoliasearch
 
 app = Flask(__name__)
 
@@ -42,12 +43,12 @@ CSV_FIELDS = [
 
 def get_algolia_index():
     """
-    Create Algolia client & index instance.
+    Create Algolia client & index instance using the classic client.
     Raises RuntimeError if env vars are missing.
     """
     if not (ALGOLIA_APP_ID and ALGOLIA_API_KEY and ALGOLIA_INDEX):
         raise RuntimeError("Algolia env vars ALGOLIA_APP_ID, ALGOLIA_API_KEY, ALGOLIA_INDEX must be set")
-    client = SearchClient.create(ALGOLIA_APP_ID, ALGOLIA_API_KEY)
+    client = algoliasearch.Client(ALGOLIA_APP_ID, ALGOLIA_API_KEY)
     return client.init_index(ALGOLIA_INDEX)
 
 
