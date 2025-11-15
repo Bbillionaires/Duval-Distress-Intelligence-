@@ -1,162 +1,206 @@
 import os
 import csv
-import time
-import requests
-from bs4 import BeautifulSoup
-from flask import Flask, request, jsonify
+import json
+from datetime import datetime, timedelta
 
-CSV_FILE = "duval_leads.csv"
-REFRESH_SECONDS = 30 * 24 * 60 * 60   # 30 days
+import requests
+from flask import Flask, request, jsonify
+from flask_cors import CORS
 
 app = Flask(__name__)
+CORS(app)
+
+# -------------------------
+# Config
+# -------------------------
+CSV_FILE = "duval_leads.csv"
+CACHE_DAYS = int(os.getenv("CACHE_DAYS", "30"))
+
+# Duval county's Algolia (from DevTools)
+ALGOLIA_APP_ID = "0LWZO52LS2"
+ALGOLIA_API_KEY = "c0745578b56854a1b90ed57b63fbf0ba"
+ALGOLIA_INDEX = "fl-duval.property_tax"
+ALGOLIA_ENDPOINT = f"https://{ALGOLIA_APP_ID.lower()}-dsn.algolia.net/1/indexes/*/queries"
 
 
-# ----------------------------------------------
-# Load CSV into dictionary
-# ----------------------------------------------
+# -------------------------
+# CSV helpers
+# -------------------------
 def load_csv():
+    """Return a dict: {parcel: row_dict}."""
     if not os.path.exists(CSV_FILE):
         return {}
 
     leads = {}
-    with open(CSV_FILE, "r", newline="", encoding="utf-8") as f:
+    with open(CSV_FILE, "r", encoding="utf-8") as f:
         reader = csv.DictReader(f)
         for row in reader:
-            leads[row["parcel"]] = row
+            parcel = row.get("parcel")
+            if parcel:
+                leads[parcel] = row
     return leads
 
 
-# ----------------------------------------------
-# Save dictionary back to CSV
-# ----------------------------------------------
 def save_csv(leads):
-    fieldnames = [
-        "parcel",
-        "owner",
-        "mailing_address",
-        "property_address",
-        "assessed_value",
-        "tax_years_json",
-        "total_due",
-        "last_updated"
-    ]
+    """Persist the leads dict back to CSV, with a fixed schema."""
+    fieldnames = ["parcel", "raw_json", "last_updated"]
 
     with open(CSV_FILE, "w", newline="", encoding="utf-8") as f:
         writer = csv.DictWriter(f, fieldnames=fieldnames)
         writer.writeheader()
         for parcel, data in leads.items():
-            writer.writerow(data)
+            row = {field: data.get(field, "") for field in fieldnames}
+            writer.writerow(row)
 
 
-# ----------------------------------------------
-# Scrape live Duval Tax Collector
-# ----------------------------------------------
-def scrape_duval(parcel):
-    try:
-        search_url = "https://tc.coj.net/RealEstate/Search"
-        session = requests.Session()
-
-        # GET page
-        r1 = session.get(search_url, timeout=10)
-        soup1 = BeautifulSoup(r1.text, "html.parser")
-
-        # Token
-        token_tag = soup1.find("input", {"name": "__RequestVerificationToken"})
-        token = token_tag["value"] if token_tag else ""
-
-        # POST search
-        payload = {
-            "__RequestVerificationToken": token,
-            "Parcel": parcel
-        }
-
-        headers = {
-            "User-Agent": "Mozilla/5.0",
-            "Referer": search_url
-        }
-
-        r2 = session.post(search_url, data=payload, headers=headers, timeout=15)
-        soup2 = BeautifulSoup(r2.text, "html.parser")
-
-        # -------- Extract fields --------
-        def extract(id):
-            tag = soup2.find("span", id=id)
-            return tag.text.strip() if tag else "N/A"
-
-        owner = extract("OwnerName")
-        mailing = extract("MailingAddress")
-        prop_addr = extract("SitusAddress")
-        assessed = extract("AssessedValue")
-
-        # Tax Years
-        table = soup2.find("table", id="TaxesTable")
-        years = []
-        if table:
-            for row in table.find_all("tr")[1:]:
-                cols = row.find_all("td")
-                if len(cols) >= 5:
-                    years.append({
-                        "year": cols[0].text.strip(),
-                        "type": cols[1].text.strip(),
-                        "amount_due": cols[4].text.strip()
-                    })
-
-        # Total due
-        total_due = 0
-        for y in years:
-            try:
-                total_due += float(y["amount_due"].replace("$", "").replace(",", ""))
-            except:
-                pass
-
-        return {
-            "parcel": parcel,
-            "owner": owner,
-            "mailing_address": mailing,
-            "property_address": prop_addr,
-            "assessed_value": assessed,
-            "tax_years_json": str(years),
-            "total_due": f"${total_due:,.2f}",
-            "last_updated": str(int(time.time())),
-            "status": "success"
-        }
-
-    except Exception as e:
-        return {"status": "error", "message": str(e), "parcel": parcel}
-
-
-# ----------------------------------------------
-# API: /api/parcel?parcel=0862860000
-# ----------------------------------------------
-@app.route("/api/parcel", methods=["GET"])
-def parcel_lookup():
-    parcel = request.args.get("parcel")
-    if not parcel:
-        return jsonify({"error": "Missing ?parcel="}), 400
-
+def get_cached_lead(parcel: str):
+    """Return cached row if it exists and is fresh, otherwise None."""
     leads = load_csv()
+    row = leads.get(parcel)
+    if not row:
+        return None
 
-    # If exists + not expired (fresh under 30 days)
-    if parcel in leads:
-        age = time.time() - float(leads[parcel]["last_updated"])
-        if age < REFRESH_SECONDS:
-            return jsonify({"source": "csv_cache", **leads[parcel]})
+    last_updated = row.get("last_updated")
+    if not last_updated:
+        return None
 
-    # Otherwise → scrape live
-    result = scrape_duval(parcel)
+    try:
+        dt = datetime.fromisoformat(last_updated)
+    except Exception:
+        return None
 
-    if result["status"] == "success":
-        leads[parcel] = result
-        save_csv(leads)
-        return jsonify({"source": "live_scrape", **result})
+    if datetime.utcnow() - dt > timedelta(days=CACHE_DAYS):
+        # too old, force refresh
+        return None
 
-    return jsonify(result)
+    return row
 
 
+def cache_lead(parcel: str, hit: dict):
+    """Store / update a parcel in CSV cache."""
+    leads = load_csv()
+    leads[parcel] = {
+        "parcel": parcel,
+        "raw_json": json.dumps(hit, ensure_ascii=False),
+        "last_updated": datetime.utcnow().isoformat(),
+    }
+    save_csv(leads)
+
+
+# -------------------------
+# External fetch (Duval Algolia)
+# -------------------------
+def fetch_from_duval(parcel: str):
+    """
+    Call Duval's Algolia index directly and return the first hit (or None).
+    """
+    headers = {
+        "X-Algolia-Application-Id": ALGOLIA_APP_ID,
+        "X-Algolia-API-Key": ALGOLIA_API_KEY,
+        "Content-Type": "application/json",
+    }
+
+    body = {
+        "requests": [
+            {
+                "indexName": ALGOLIA_INDEX,
+                # minimal params string; Algolia parses like a querystring
+                "params": f"query={parcel}&hitsPerPage=5",
+            }
+        ]
+    }
+
+    try:
+        resp = requests.post(ALGOLIA_ENDPOINT, headers=headers, json=body, timeout=15)
+        resp.raise_for_status()
+        data = resp.json()
+    except Exception as e:
+        # Log to server logs for debugging
+        print("Error calling Algolia:", e)
+        return None
+
+    try:
+        results = data.get("results", [])
+        if not results:
+            return None
+        hits = results[0].get("hits", [])
+        if not hits:
+            return None
+        return hits[0]  # just take first hit
+    except Exception:
+        return None
+
+
+# -------------------------
+# Routes
+# -------------------------
 @app.route("/")
-def home():
-    return "Hybrid Distress Intelligence backend is online."
+def root():
+    return "Distress Intelligence backend is online."
+
+
+@app.route("/api/health")
+def health():
+    csv_exists = os.path.exists(CSV_FILE)
+    csv_size = 0
+    if csv_exists:
+        with open(CSV_FILE, "r", encoding="utf-8") as f:
+            csv_size = sum(1 for _ in f) - 1  # minus header
+
+    return jsonify(
+        {
+            "status": "success",
+            "csv_exists": csv_exists,
+            "csv_size": max(csv_size, 0),
+            "cache_days": CACHE_DAYS,
+        }
+    )
+
+
+@app.route("/api/parcel")
+def parcel_lookup():
+    parcel = request.args.get("parcel", "").strip()
+    if not parcel:
+        return jsonify({"status": "error", "message": "parcel is required"}), 400
+
+    # 1. Try cache
+    cached = get_cached_lead(parcel)
+    if cached:
+        return jsonify(
+            {
+                "status": "success",
+                "source": "cache",
+                "count": 1,
+                "rows": [cached],
+            }
+        )
+
+    # 2. Fetch live from Duval Algolia
+    hit = fetch_from_duval(parcel)
+    if not hit:
+        return jsonify(
+            {
+                "status": "success",
+                "source": "live",
+                "count": 0,
+                "rows": [],
+            }
+        )
+
+    # 3. Cache and return
+    cache_lead(parcel, hit)
+
+    row = get_cached_lead(parcel)  # now guaranteed to exist & be normalized
+    return jsonify(
+        {
+            "status": "success",
+            "source": "live",
+            "count": 1,
+            "rows": [row],
+        }
+    )
 
 
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=10000)
+    # for local testing; Render uses gunicorn
+    app.run(host="0.0.0.0", port=int(os.getenv("PORT", 10000)))
