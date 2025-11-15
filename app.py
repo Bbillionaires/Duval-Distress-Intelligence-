@@ -1,12 +1,13 @@
 import os
 import csv
+import json
+import requests
 from flask import Flask, jsonify, request
-from algoliasearch.search_client import SearchClient
 
 # --- Config from environment variables ---
 
 ALGOLIA_APP_ID = os.getenv("ALGOLIA_APP_ID")
-ALGOLIA_API_KEY = os.getenv("ALGOLIA_API_KEY")
+ALGOLIA_API_KEY = os.getenv("ALGOLIA_API_KEY")  # use your SEARCH key here
 ALGOLIA_INDEX_NAME = os.getenv("ALGOLIA_INDEX_NAME", "duval_property_tax")
 
 # CSV (optional local cache)
@@ -18,16 +19,58 @@ app = Flask(__name__)
 
 # ---------- Helpers ----------
 
-def get_algolia_index():
+def algolia_search(query_str="", zip_code=None, min_due=None, max_due=None, hits_per_page=100):
     """
-    Returns an Algolia index instance if configuration is present,
-    otherwise returns None.
+    Call Algolia's search REST API directly using `requests`.
+    Returns a list of hits (dicts). If Algolia is not configured, returns [].
     """
     if not (ALGOLIA_APP_ID and ALGOLIA_API_KEY and ALGOLIA_INDEX_NAME):
-        return None
+        return []
 
-    client = SearchClient.create(ALGOLIA_APP_ID, ALGOLIA_API_KEY)
-    return client.init_index(ALGOLIA_INDEX_NAME)
+    url = f"https://{ALGOLIA_APP_ID}-dsn.algolia.net/1/indexes/{ALGOLIA_INDEX_NAME}/query"
+
+    headers = {
+        "X-Algolia-Application-Id": ALGOLIA_APP_ID,
+        "X-Algolia-API-Key": ALGOLIA_API_KEY,
+        "Content-Type": "application/json",
+    }
+
+    filters = []
+    numeric_filters = []
+
+    if zip_code:
+        filters.append(f"zip:{zip_code}")
+
+    if min_due:
+        try:
+            numeric_filters.append(f"amount_due>={float(min_due)}")
+        except ValueError:
+            pass
+
+    if max_due:
+        try:
+            numeric_filters.append(f"amount_due<={float(max_due)}")
+        except ValueError:
+            pass
+
+    body = {
+        "query": query_str or "",
+        "hitsPerPage": hits_per_page,
+    }
+
+    if filters:
+        body["filters"] = " AND ".join(filters)
+    if numeric_filters:
+        body["numericFilters"] = numeric_filters
+
+    try:
+        resp = requests.post(url, headers=headers, data=json.dumps(body), timeout=8)
+        resp.raise_for_status()
+        data = resp.json()
+        return data.get("hits", [])
+    except Exception:
+        # On any error, just act like Algolia returned nothing
+        return []
 
 
 def load_csv_rows():
@@ -59,11 +102,10 @@ def health():
     csv_exists = os.path.exists(CSV_PATH)
     csv_size = 0
     if csv_exists:
-        # subtract header row, never go below 0
         with open(CSV_PATH, encoding="utf-8") as f:
             csv_size = max(sum(1 for _ in f) - 1, 0)
 
-    # Algolia status
+    # Algolia config status (just checks envs, not a live ping)
     algolia_configured = bool(ALGOLIA_APP_ID and ALGOLIA_API_KEY and ALGOLIA_INDEX_NAME)
 
     return jsonify({
@@ -80,7 +122,7 @@ def health():
 def search():
     """
     Search order:
-    1. Try Algolia (if configured).
+    1. Try Algolia via HTTP (if configured).
     2. If Algolia returns nothing, fall back to local CSV (if present).
     """
     q = request.args.get("q", "").strip()
@@ -92,74 +134,45 @@ def search():
     source = "none"
 
     # ---------- 1) Try Algolia ----------
-    index = get_algolia_index()
-    if index:
-        filters = []
+    hits = algolia_search(
+        query_str=q,
+        zip_code=zip_code or None,
+        min_due=min_due or None,
+        max_due=max_due or None,
+        hits_per_page=100,
+    )
 
-        # Zip filter (assuming a "zip" attribute in Algolia objects)
-        if zip_code:
-            filters.append(f"zip:{zip_code}")
+    for h in hits:
+        rows.append({
+            "owner": h.get("owner") or h.get("OWNER") or "",
+            "property_address": h.get("property_address") or h.get("PROPERTY_ADDRESS") or "",
+            "parcel": h.get("parcel") or h.get("PARCEL") or "",
+            "zip": h.get("zip") or h.get("ZIP") or "",
+            "distress_type": h.get("distress_type") or h.get("DISTRESS_TYPE") or "Tax",
+            "amount_due": h.get("amount_due") or h.get("AMOUNT_DUE") or "",
+        })
 
-        # Amount filters (assuming "amount_due" numeric attribute)
-        numeric_filters = []
-        if min_due:
-            try:
-                min_val = float(min_due)
-                numeric_filters.append(f"amount_due>={min_val}")
-            except ValueError:
-                pass
-        if max_due:
-            try:
-                max_val = float(max_due)
-                numeric_filters.append(f"amount_due<={max_val}")
-            except ValueError:
-                pass
-
-        search_params = {
-            "hitsPerPage": 100,
-        }
-        if filters:
-            search_params["filters"] = " AND ".join(filters)
-        if numeric_filters:
-            search_params["numericFilters"] = numeric_filters
-
-        # Algolia always needs a query string; empty means "match all"
-        query_str = q or ""
-
-        algolia_result = index.search(query_str, search_params)
-        hits = algolia_result.get("hits", [])
-
-        for h in hits:
-            rows.append({
-                "owner": h.get("owner") or h.get("OWNER") or "",
-                "property_address": h.get("property_address") or h.get("PROPERTY_ADDRESS") or "",
-                "parcel": h.get("parcel") or h.get("PARCEL") or "",
-                "zip": h.get("zip") or h.get("ZIP") or "",
-                "distress_type": h.get("distress_type") or h.get("DISTRESS_TYPE") or "Tax",
-                "amount_due": h.get("amount_due") or h.get("AMOUNT_DUE") or "",
-            })
-
-        if rows:
-            source = "algolia"
+    if rows:
+        source = "algolia"
 
     # ---------- 2) Fallback: local CSV ----------
     if not rows:
         csv_rows = load_csv_rows()
         for r in csv_rows:
-            # match parcel or owner on the query if provided
+            # If a query was provided, match parcel or owner
             if q:
                 parcel = r.get("parcel", "") or r.get("PARCEL", "")
                 owner = r.get("owner", "") or r.get("OWNER", "")
                 if q not in parcel and q.lower() not in owner.lower():
                     continue
 
-            # zip filter
+            # Zip filter
             if zip_code:
                 r_zip = r.get("zip", "") or r.get("ZIP", "")
                 if r_zip != zip_code:
                     continue
 
-            # amount_due filters (if present in CSV)
+            # Amount-due filters
             r_amt_raw = r.get("amount_due") or r.get("AMOUNT_DUE")
             try:
                 r_amt = float(r_amt_raw) if r_amt_raw not in (None, "",) else None
