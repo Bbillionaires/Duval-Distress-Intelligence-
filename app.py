@@ -1,6 +1,5 @@
 import os
 import csv
-import json
 from datetime import datetime, timedelta
 
 from flask import Flask, jsonify, request
@@ -8,13 +7,13 @@ from flask_cors import CORS
 from algoliasearch.search_client import SearchClient
 
 # ------------------------------------------------------------------------------
-# Config - match Render env var names
+# Config (ENV VARS)
 # ------------------------------------------------------------------------------
 
-ALG_APP_ID = os.getenv("ALGOLIA_APP_ID")
-ALG_API_KEY = os.getenv("ALGOLIA_API_KEY")
-ALG_INDEX_NAME = os.getenv("ALGOLIA_INDEX_NAME") or os.getenv("ALGOLIA_INDEX")
-
+# These MUST match your Render environment variable names
+ALG_APP_ID = os.getenv("ALG_APP_ID")
+ALG_API_KEY = os.getenv("ALG_API_KEY")
+ALG_INDEX_NAME = os.getenv("ALG_INDEX")
 CSV_PATH = os.getenv("CSV_PATH", "leads.csv")
 CACHE_DAYS = int(os.getenv("CACHE_DAYS", "30"))
 
@@ -31,14 +30,24 @@ CORS(app)
 
 algolia_client = None
 algolia_index = None
+ALGOLIA_INIT_ERROR = None
 
 if ALG_APP_ID and ALG_API_KEY and ALG_INDEX_NAME:
     try:
         algolia_client = SearchClient.create(ALG_APP_ID, ALG_API_KEY)
         algolia_index = algolia_client.init_index(ALG_INDEX_NAME)
-    except Exception:
+    except Exception as e:
+        ALGOLIA_INIT_ERROR = str(e)
         algolia_index = None
-
+else:
+    missing = []
+    if not ALG_APP_ID:
+        missing.append("ALG_APP_ID")
+    if not ALG_API_KEY:
+        missing.append("ALG_API_KEY")
+    if not ALG_INDEX_NAME:
+        missing.append("ALG_INDEX")
+    ALGOLIA_INIT_ERROR = "Missing env vars: " + ", ".join(missing)
 
 # ------------------------------------------------------------------------------
 # CSV helpers
@@ -79,7 +88,7 @@ def save_lead_from_hit(hit: dict, source: str):
     if not parcel:
         return
 
-    # Check for duplicate parcel in CSV
+    # Avoid duplicates by parcel
     rows = load_csv_rows()
     for row in rows:
         if row.get("parcel") == parcel:
@@ -166,9 +175,13 @@ def health():
     info = {
         "status": "ok",
         "algolia_configured": bool(algolia_index),
-        "algolia_app_id": ALG_APP_ID or "",
-        "algolia_index": ALG_INDEX_NAME or "",
+        "algolia_app_id_set": bool(ALG_APP_ID),
+        "algolia_api_key_set": bool(ALG_API_KEY),
+        "algolia_index_set": bool(ALG_INDEX_NAME),
+        "algolia_index_name": ALG_INDEX_NAME or "",
+        "algolia_init_error": ALGOLIA_INIT_ERROR,
         "cache_days": CACHE_DAYS,
+        "csv_path": CSV_PATH,
         "csv_exists": csv_exists(),
         "csv_size": len(load_csv_rows()) if csv_exists() else 0,
     }
@@ -180,9 +193,13 @@ def config():
     data = {
         "status": "success",
         "algolia_configured": bool(algolia_index),
-        "algolia_app_id": ALG_APP_ID or "",
-        "algolia_index": ALG_INDEX_NAME or "",
+        "algolia_app_id_set": bool(ALG_APP_ID),
+        "algolia_api_key_set": bool(ALG_API_KEY),
+        "algolia_index_set": bool(ALG_INDEX_NAME),
+        "algolia_index_name": ALG_INDEX_NAME or "",
+        "algolia_init_error": ALGOLIA_INIT_ERROR,
         "cache_days": CACHE_DAYS,
+        "csv_path": CSV_PATH,
         "csv_exists": csv_exists(),
         "csv_size": len(load_csv_rows()) if csv_exists() else 0,
     }
@@ -192,10 +209,10 @@ def config():
 @app.route("/api/parcel")
 def parcel_lookup():
     """
-    Main endpoint:
-    - First checks CSV cache for this parcel, only if younger than CACHE_DAYS
-    - If not found or stale, queries Algolia
-    - Saves any fresh Algolia hits into CSV (no duplicates)
+    ?parcel=0862860000
+    1) Check CSV cache (last 30 days)
+    2) If none, hit Algolia live
+    3) Save live hits into CSV for future
     """
     parcel = request.args.get("parcel", "").strip()
     if not parcel:
@@ -227,7 +244,7 @@ def parcel_lookup():
             }
         )
 
-    # Save each hit into CSV for future cache use
+    # 3) Save each hit into CSV for future cache use
     for hit in hits:
         save_lead_from_hit(hit, source="live")
 
@@ -242,7 +259,7 @@ def parcel_lookup():
 
 
 # ------------------------------------------------------------------------------
-# Entrypoint for gunicorn
+# Entrypoint for local dev (Render uses gunicorn)
 # ------------------------------------------------------------------------------
 
 if __name__ == "__main__":
