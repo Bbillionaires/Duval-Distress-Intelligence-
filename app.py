@@ -11,9 +11,11 @@ from algoliasearch.search_client import SearchClient
 # Config
 # ------------------------------------------------------------------------------
 
-ALG_APP_ID = os.getenv("ALG_APP_ID")
-ALG_API_KEY = os.getenv("ALG_API_KEY")
-ALG_INDEX_NAME = os.getenv("ALG_INDEX")
+# Read Render env vars (ALGOLIA_*) and fall back to older names if present
+ALG_APP_ID = os.getenv("ALGOLIA_APP_ID") or os.getenv("ALG_APP_ID")
+ALG_API_KEY = os.getenv("ALGOLIA_API_KEY") or os.getenv("ALG_API_KEY")
+ALG_INDEX_NAME = os.getenv("ALGOLIA_INDEX") or os.getenv("ALG_INDEX")
+
 CSV_PATH = os.getenv("CSV_PATH", "leads.csv")
 CACHE_DAYS = int(os.getenv("CACHE_DAYS", "30"))
 
