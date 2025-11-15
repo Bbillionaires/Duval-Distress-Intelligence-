@@ -8,13 +8,12 @@ from flask_cors import CORS
 from algoliasearch.search_client import SearchClient
 
 # ------------------------------------------------------------------------------
-# Config
+# Config - match Render env var names
 # ------------------------------------------------------------------------------
 
-# Read Render env vars (ALGOLIA_*) and fall back to older names if present
-ALG_APP_ID = os.getenv("ALGOLIA_APP_ID") or os.getenv("ALG_APP_ID")
-ALG_API_KEY = os.getenv("ALGOLIA_API_KEY") or os.getenv("ALG_API_KEY")
-ALG_INDEX_NAME = os.getenv("ALGOLIA_INDEX") or os.getenv("ALG_INDEX")
+ALG_APP_ID = os.getenv("ALGOLIA_APP_ID")
+ALG_API_KEY = os.getenv("ALGOLIA_API_KEY")
+ALG_INDEX_NAME = os.getenv("ALGOLIA_INDEX_NAME") or os.getenv("ALGOLIA_INDEX")
 
 CSV_PATH = os.getenv("CSV_PATH", "leads.csv")
 CACHE_DAYS = int(os.getenv("CACHE_DAYS", "30"))
@@ -38,7 +37,6 @@ if ALG_APP_ID and ALG_API_KEY and ALG_INDEX_NAME:
         algolia_client = SearchClient.create(ALG_APP_ID, ALG_API_KEY)
         algolia_index = algolia_client.init_index(ALG_INDEX_NAME)
     except Exception:
-        # If something is wrong with keys, we keep algolia_index = None
         algolia_index = None
 
 
@@ -144,7 +142,6 @@ def search_algolia_by_parcel(parcel: str):
         return []
 
     try:
-        # Using filters on parcel field
         res = algolia_index.search(
             "",
             {"filters": f'parcel:"{parcel}"'}
@@ -180,9 +177,6 @@ def health():
 
 @app.route("/api/config")
 def config():
-    """
-    Simple config endpoint you can hit from the browser to confirm env + CSV.
-    """
     data = {
         "status": "success",
         "algolia_configured": bool(algolia_index),
@@ -252,5 +246,4 @@ def parcel_lookup():
 # ------------------------------------------------------------------------------
 
 if __name__ == "__main__":
-    # For local debugging only; Render uses gunicorn
     app.run(host="0.0.0.0", port=int(os.getenv("PORT", "10000")), debug=True)
