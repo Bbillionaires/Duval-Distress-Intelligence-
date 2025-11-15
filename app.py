@@ -2,18 +2,24 @@ import os
 import csv
 from datetime import datetime, timedelta
 
+import requests
 from flask import Flask, jsonify, request
 from flask_cors import CORS
-from algoliasearch.search_client import SearchClient
 
 # ------------------------------------------------------------------------------
-# Config (ENV VARS)
+# Duval county Algolia config (their public search endpoint)
 # ------------------------------------------------------------------------------
 
-# These MUST match your Render environment variable names
-ALG_APP_ID = os.getenv("ALG_APP_ID")
-ALG_API_KEY = os.getenv("ALG_API_KEY")
-ALG_INDEX_NAME = os.getenv("ALG_INDEX")
+# These are the values you captured from network inspector on county-taxes.net
+DUVAL_ALG_APP_ID = "0LWZO52LS2"
+DUVAL_ALG_API_KEY = "c0745578b56854a1b90ed57b63fbf0ba"
+DUVAL_ALG_INDEX = "fl-duval.property_tax"
+DUVAL_ALG_HOST = f"{DUVAL_ALG_APP_ID}-dsn.algolia.net"
+
+# ------------------------------------------------------------------------------
+# Local cache config
+# ------------------------------------------------------------------------------
+
 CSV_PATH = os.getenv("CSV_PATH", "leads.csv")
 CACHE_DAYS = int(os.getenv("CACHE_DAYS", "30"))
 
@@ -23,31 +29,6 @@ CACHE_DAYS = int(os.getenv("CACHE_DAYS", "30"))
 
 app = Flask(__name__)
 CORS(app)
-
-# ------------------------------------------------------------------------------
-# Algolia client
-# ------------------------------------------------------------------------------
-
-algolia_client = None
-algolia_index = None
-ALGOLIA_INIT_ERROR = None
-
-if ALG_APP_ID and ALG_API_KEY and ALG_INDEX_NAME:
-    try:
-        algolia_client = SearchClient.create(ALG_APP_ID, ALG_API_KEY)
-        algolia_index = algolia_client.init_index(ALG_INDEX_NAME)
-    except Exception as e:
-        ALGOLIA_INIT_ERROR = str(e)
-        algolia_index = None
-else:
-    missing = []
-    if not ALG_APP_ID:
-        missing.append("ALG_APP_ID")
-    if not ALG_API_KEY:
-        missing.append("ALG_API_KEY")
-    if not ALG_INDEX_NAME:
-        missing.append("ALG_INDEX")
-    ALGOLIA_INIT_ERROR = "Missing env vars: " + ", ".join(missing)
 
 # ------------------------------------------------------------------------------
 # CSV helpers
@@ -79,12 +60,11 @@ def load_csv_rows():
         return list(reader)
 
 
-def save_lead_from_hit(hit: dict, source: str):
+def save_lead_from_hit(parcel: str, hit: dict, source: str):
     """
-    Save a single Algolia hit into CSV (if not already present).
-    We only store a small subset of columns so CSV stays clean.
+    Save a single hit into CSV (if not already present by parcel).
+    We only keep a subset of fields so CSV stays simple.
     """
-    parcel = hit.get("parcel") or hit.get("objectID") or ""
     if not parcel:
         return
 
@@ -96,12 +76,12 @@ def save_lead_from_hit(hit: dict, source: str):
 
     row = {
         "parcel": parcel,
-        "owner_name": hit.get("owner_name", ""),
+        "owner_name": hit.get("owner_name", "") or hit.get("owner", ""),
         "display_name": hit.get("display_name", ""),
         "address": hit.get("address", ""),
         "city": hit.get("city", ""),
         "state": hit.get("state", ""),
-        "zip": hit.get("zip", ""),
+        "zip": hit.get("zip", "") or hit.get("zip_code", ""),
         "source": source,
         "created_at": datetime.utcnow().isoformat(),
     }
@@ -139,26 +119,32 @@ def find_recent_csv_rows(parcel: str):
 
 
 # ------------------------------------------------------------------------------
-# Algolia helper
+# Direct call to Duval county Algolia
 # ------------------------------------------------------------------------------
 
-def search_algolia_by_parcel(parcel: str):
+def search_duval_algolia_by_parcel(parcel: str):
     """
-    Search Algolia index for a parcel.
-    The index must have an attribute named 'parcel' for the filter to work.
+    Call the SAME Algolia that county-taxes.net uses.
+    We mimic their 'query = parcel number' behavior.
     """
-    if not algolia_index:
-        return []
+    url = f"https://{DUVAL_ALG_HOST}/1/indexes/{DUVAL_ALG_INDEX}/query"
 
-    try:
-        res = algolia_index.search(
-            "",
-            {"filters": f'parcel:"{parcel}"'}
-        )
-        hits = res.get("hits", [])
-        return hits
-    except Exception:
-        return []
+    headers = {
+        "X-Algolia-Application-Id": DUVAL_ALG_APP_ID,
+        "X-Algolia-API-Key": DUVAL_ALG_API_KEY,
+        "Content-Type": "application/json",
+    }
+
+    # This matches what you saw in devtools: query=PARCEL
+    body = {
+        "params": f"query={parcel}&hitsPerPage=20"
+    }
+
+    resp = requests.post(url, headers=headers, json=body, timeout=10)
+    resp.raise_for_status()
+    data = resp.json()
+    hits = data.get("hits", [])
+    return hits
 
 
 # ------------------------------------------------------------------------------
@@ -167,19 +153,16 @@ def search_algolia_by_parcel(parcel: str):
 
 @app.route("/")
 def root():
-    return "Duval Distress Intelligence backend is online."
+    return "Duval Distress Intelligence backend is online (Duval Algolia + CSV cache)."
 
 
 @app.route("/api/health")
 def health():
     info = {
         "status": "ok",
-        "algolia_configured": bool(algolia_index),
-        "algolia_app_id_set": bool(ALG_APP_ID),
-        "algolia_api_key_set": bool(ALG_API_KEY),
-        "algolia_index_set": bool(ALG_INDEX_NAME),
-        "algolia_index_name": ALG_INDEX_NAME or "",
-        "algolia_init_error": ALGOLIA_INIT_ERROR,
+        "using_duval_algolia": True,
+        "duval_alg_app_id": DUVAL_ALG_APP_ID,
+        "duval_alg_index": DUVAL_ALG_INDEX,
         "cache_days": CACHE_DAYS,
         "csv_path": CSV_PATH,
         "csv_exists": csv_exists(),
@@ -188,31 +171,14 @@ def health():
     return jsonify(info)
 
 
-@app.route("/api/config")
-def config():
-    data = {
-        "status": "success",
-        "algolia_configured": bool(algolia_index),
-        "algolia_app_id_set": bool(ALG_APP_ID),
-        "algolia_api_key_set": bool(ALG_API_KEY),
-        "algolia_index_set": bool(ALG_INDEX_NAME),
-        "algolia_index_name": ALG_INDEX_NAME or "",
-        "algolia_init_error": ALGOLIA_INIT_ERROR,
-        "cache_days": CACHE_DAYS,
-        "csv_path": CSV_PATH,
-        "csv_exists": csv_exists(),
-        "csv_size": len(load_csv_rows()) if csv_exists() else 0,
-    }
-    return jsonify(data)
-
-
 @app.route("/api/parcel")
 def parcel_lookup():
     """
-    ?parcel=0862860000
-    1) Check CSV cache (last 30 days)
-    2) If none, hit Algolia live
-    3) Save live hits into CSV for future
+    ?parcel=0862860000  or  ?parcel=030147-0432
+
+    1) Check CSV cache (fresh within CACHE_DAYS)
+    2) If none, call Duval Algolia live
+    3) Save hits into CSV and return to caller
     """
     parcel = request.args.get("parcel", "").strip()
     if not parcel:
@@ -220,7 +186,7 @@ def parcel_lookup():
             {"status": "error", "message": "Missing ?parcel= parameter"}
         ), 400
 
-    # 1) CSV cache first
+    # 1) CSV cache
     cached_rows = find_recent_csv_rows(parcel)
     if cached_rows:
         return jsonify(
@@ -232,8 +198,18 @@ def parcel_lookup():
             }
         )
 
-    # 2) Live Algolia lookup
-    hits = search_algolia_by_parcel(parcel)
+    # 2) Live Duval Algolia
+    try:
+        hits = search_duval_algolia_by_parcel(parcel)
+    except Exception as e:
+        return jsonify(
+            {
+                "status": "error",
+                "source": "duval_algolia",
+                "message": str(e),
+            }
+        ), 500
+
     if not hits:
         return jsonify(
             {
@@ -244,14 +220,14 @@ def parcel_lookup():
             }
         )
 
-    # 3) Save each hit into CSV for future cache use
-    for hit in hits:
-        save_lead_from_hit(hit, source="live")
+    # 3) Save one representative hit into CSV (you can change to save all)
+    # We store using the parcel number that was requested
+    save_lead_from_hit(parcel, hits[0], source="live_duval")
 
     return jsonify(
         {
             "status": "success",
-            "source": "live",
+            "source": "live_duval",
             "count": len(hits),
             "rows": hits,
         }
