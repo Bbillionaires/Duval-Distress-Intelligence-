@@ -16,8 +16,10 @@ from bs4 import BeautifulSoup
 DUVAL_ALG_APP_ID = "0LWZO52LS2"
 DUVAL_ALG_API_KEY = "c0745578b56854a1b90ed57b63fbf0ba"
 DUVAL_ALG_INDEX = "fl-duval.property_tax"
+
+# IMPORTANT: this matches the browser's network call with "requests":[...]
 DUVAL_ALG_ENDPOINT = (
-    f"https://{DUVAL_ALG_APP_ID}-dsn.algolia.net/1/indexes/{DUVAL_ALG_INDEX}/query"
+    f"https://{DUVAL_ALG_APP_ID}-dsn.algolia.net/1/indexes/*/queries"
 )
 
 # CSV & cache
@@ -106,11 +108,32 @@ def find_recent_csv_rows(parcel: str):
 # Duval Algolia search (live, no local data needed)
 # ------------------------------------------------------------------------------
 
+def _normalize_parcel_variants(parcel: str):
+    """
+    Given '0301470432' or '030147-0432', return:
+      raw, no_dash, dashed
+    e.g. '0301470432' -> ('0301470432', '0301470432', '030147-0432')
+    """
+    raw = parcel.strip()
+    no_dash = raw.replace("-", "")
+    dashed = raw
+    # Duval style appears to be 6 digits + '-' + 4 digits
+    if "-" not in dashed and len(no_dash) == 10:
+        dashed = f"{no_dash[:-4]}-{no_dash[-4:]}"
+    return raw, no_dash, dashed
+
+
 def search_duval_algolia(parcel: str):
     """
     Call Duval's public Algolia index for a parcel / external_id.
-    This is the same request you saw in the browser network tab.
+
+    We try several strategies in one multi-query call:
+      1) query = dashed parcel
+      2) filters on external_id
+      3) filters on external_id_tokens (no-dash)
     """
+    raw, no_dash, dashed = _normalize_parcel_variants(parcel)
+
     headers = {
         "x-algolia-application-id": DUVAL_ALG_APP_ID,
         "x-algolia-api-key": DUVAL_ALG_API_KEY,
@@ -124,11 +147,21 @@ def search_duval_algolia(parcel: str):
 
     body = {
         "requests": [
+            # 1) The simple search the UI does
             {
                 "indexName": DUVAL_ALG_INDEX,
-                # simple query on the parcel / external_id
-                "params": f"hitsPerPage=20&query={parcel}",
-            }
+                "params": f"hitsPerPage=20&query={dashed}",
+            },
+            # 2) Be explicit on external_id (e.g. "030147-0432")
+            {
+                "indexName": DUVAL_ALG_INDEX,
+                "params": f'hitsPerPage=20&filters=external_id:"{dashed}"',
+            },
+            # 3) Match their external_id_tokens (e.g. "0301470432")
+            {
+                "indexName": DUVAL_ALG_INDEX,
+                "params": f'hitsPerPage=20&filters=external_id_tokens:"{no_dash}"',
+            },
         ]
     }
 
@@ -141,13 +174,19 @@ def search_duval_algolia(parcel: str):
         )
         resp.raise_for_status()
         data = resp.json()
-        # Algolia multiple-queries format: {"results":[{ "hits":[...]}]}
         results = data.get("results") or []
-        if not results:
-            return []
-        hits = results[0].get("hits", [])
-        return hits
+
+        # Merge hits from all 3 strategies, dedupe by objectID/external_id
+        hits_by_id = {}
+        for block in results:
+            for hit in block.get("hits", []):
+                key = hit.get("objectID") or hit.get("external_id")
+                if key and key not in hits_by_id:
+                    hits_by_id[key] = hit
+
+        return list(hits_by_id.values())
     except Exception:
+        # If Algolia fails for any reason, act like "no hits" instead of crashing
         return []
 
 
@@ -261,7 +300,7 @@ def extract_amounts_from_html(html: str):
         idx = text.find(label)
         if idx == -1:
             return None
-        snippet = text[idx : idx + 160]
+        snippet = text[idx: idx + 160]
         import re
 
         m = re.search(r"\$?\d[\d,]*\.?\d*", snippet)
@@ -374,6 +413,8 @@ def parcel_lookup():
             {"status": "error", "message": "Missing ?parcel= parameter"}
         ), 400
 
+    raw, no_dash, dashed = _normalize_parcel_variants(parcel)
+
     # 1) CSV cache first
     cached_rows = find_recent_csv_rows(parcel)
     if cached_rows:
@@ -383,6 +424,11 @@ def parcel_lookup():
                 "source": "csv",
                 "count": len(cached_rows),
                 "rows": cached_rows,
+                "debug": {
+                    "parcel_raw": raw,
+                    "parcel_no_dash": no_dash,
+                    "parcel_dashed": dashed,
+                },
             }
         )
 
@@ -395,6 +441,11 @@ def parcel_lookup():
                 "source": "none",
                 "count": 0,
                 "rows": [],
+                "debug": {
+                    "parcel_raw": raw,
+                    "parcel_no_dash": no_dash,
+                    "parcel_dashed": dashed,
+                },
             }
         )
 
@@ -459,6 +510,11 @@ def parcel_lookup():
             "source": "live_duval",
             "count": len(out_rows),
             "rows": out_rows,
+            "debug": {
+                "parcel_raw": raw,
+                "parcel_no_dash": no_dash,
+                "parcel_dashed": dashed,
+            },
         }
     )
 
