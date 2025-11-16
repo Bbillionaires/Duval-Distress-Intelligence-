@@ -16,11 +16,9 @@ from bs4 import BeautifulSoup
 DUVAL_ALG_APP_ID = "0LWZO52LS2"
 DUVAL_ALG_API_KEY = "c0745578b56854a1b90ed57b63fbf0ba"
 DUVAL_ALG_INDEX = "fl-duval.property_tax"
-DUVAL_ALG_ENDPOINT = (
-    DUVAL_ALG_ENDPOINT = (
-    f"https://{DUVAL_ALG_APP_ID}-dsn.algolia.net/1/indexes/*/queries"
-)
-)
+
+# Correct multi-queries endpoint for Algolia
+DUVAL_ALG_ENDPOINT = f"https://{DUVAL_ALG_APP_ID}-dsn.algolia.net/1/indexes/*/queries"
 
 # CSV & cache
 CSV_PATH = os.getenv("CSV_PATH", "leads.csv")
@@ -108,29 +106,11 @@ def find_recent_csv_rows(parcel: str):
 # Duval Algolia search (live, no local data needed)
 # ------------------------------------------------------------------------------
 
-def search_duval_algolia(parcel: str, debug: bool = False):
+def search_duval_algolia(parcel: str):
     """
     Call Duval's public Algolia index for a parcel / external_id.
-    Tries a few variants of the parcel (raw, dashed, no-dash).
-    Returns (hits, debug_info).
+    This is the same request you saw in the browser network tab.
     """
-    parcel_raw = parcel.strip()
-    parcel_no_dash = parcel_raw.replace("-", "")
-
-    # Best guess dashed form for a 10-digit code: XXXXXX-XXXX
-    parcel_dashed = parcel_raw
-    if len(parcel_no_dash) == 10:
-        parcel_dashed = parcel_no_dash[:6] + "-" + parcel_no_dash[6:]
-
-    queries = []
-    # keep order: user input, dashed, no-dash
-    if parcel_raw not in queries:
-        queries.append(parcel_raw)
-    if parcel_dashed not in queries:
-        queries.append(parcel_dashed)
-    if parcel_no_dash not in queries:
-        queries.append(parcel_no_dash)
-
     headers = {
         "x-algolia-application-id": DUVAL_ALG_APP_ID,
         "x-algolia-api-key": DUVAL_ALG_API_KEY,
@@ -142,49 +122,33 @@ def search_duval_algolia(parcel: str, debug: bool = False):
         "Content-Type": "application/json",
     }
 
-    last_error = None
-    hits = []
-
-    for q in queries:
-        body = {
-            "requests": [
-                {
-                    "indexName": DUVAL_ALG_INDEX,
-                    "params": f"hitsPerPage=20&query={q}",
-                }
-            ]
-        }
-
-        try:
-            resp = requests.post(
-                DUVAL_ALG_ENDPOINT,
-                headers=headers,
-                data=json.dumps(body),
-                timeout=15,
-            )
-            resp.raise_for_status()
-            data = resp.json()
-            results = data.get("results") or []
-            if not results:
-                continue
-            hits_candidate = results[0].get("hits", [])
-            if hits_candidate:
-                hits = hits_candidate
-                break
-        except Exception as e:
-            last_error = str(e)
-            continue
-
-    debug_info = {
-        "parcel_raw": parcel_raw,
-        "parcel_dashed": parcel_dashed,
-        "parcel_no_dash": parcel_no_dash,
-        "tried_queries": queries,
-        "hits_found": len(hits),
-        "last_error": last_error,
+    body = {
+        "requests": [
+            {
+                "indexName": DUVAL_ALG_INDEX,
+                # simple query on the parcel / external_id
+                "params": f"hitsPerPage=20&query={parcel}",
+            }
+        ]
     }
 
-    return hits, debug_info if debug else None
+    try:
+        resp = requests.post(
+            DUVAL_ALG_ENDPOINT,
+            headers=headers,
+            data=json.dumps(body),
+            timeout=15,
+        )
+        resp.raise_for_status()
+        data = resp.json()
+        # Algolia multiple-queries format: {"results":[{ "hits":[...]}]}
+        results = data.get("results") or []
+        if not results:
+            return []
+        hits = results[0].get("hits", [])
+        return hits
+    except Exception:
+        return []
 
 
 # ------------------------------------------------------------------------------
@@ -283,55 +247,39 @@ def extract_amounts_from_json(data: dict):
 
 def extract_amounts_from_html(html: str):
     """
-    Fallback: parse the bills page HTML and try hard to find dollar amounts.
-
-    1) Look near labels like 'TOTAL AMOUNT DUE', 'TOTAL DUE', 'DELINQUENT', 'PRIOR YEAR'
-    2) If still nothing for total_due, grab ALL dollar amounts on the page
-       and take the largest as total_due (often the total due is the largest).
+    Fallback: parse the bills page HTML and look for common labels
+    like 'TOTAL AMOUNT DUE', 'DELINQUENT', 'PRIOR YEAR'.
     """
     soup = BeautifulSoup(html, "html.parser")
-    text = " ".join(soup.stripped_strings)
-    upper_text = text.upper()
+    text = " ".join(soup.stripped_strings).upper()
 
     total_due = None
     delinquent_due = None
     last_year_due = None
 
-    def find_amount_near(label: str):
-        idx = upper_text.find(label)
+    def find_amount_near(label):
+        idx = text.find(label)
         if idx == -1:
             return None
-        snippet = text[idx: idx + 260]
+        snippet = text[idx: idx + 160]
         import re
-        m = re.search(r"\$?\s*\d[\d,]*\.?\d*", snippet)
+
+        m = re.search(r"\$?\d[\d,]*\.?\d*", snippet)
         if m:
             return normalize_amount(m.group(0))
         return None
 
-    # Label-based
+    # Try to grab amounts near common labels
     if total_due is None:
         total_due = find_amount_near("TOTAL AMOUNT DUE")
     if total_due is None:
         total_due = find_amount_near("TOTAL DUE")
-    if total_due is None:
-        total_due = find_amount_near("AMOUNT DUE")
 
     if delinquent_due is None:
         delinquent_due = find_amount_near("DELINQUENT")
 
     if last_year_due is None:
         last_year_due = find_amount_near("PRIOR YEAR")
-    if last_year_due is None:
-        last_year_due = find_amount_near("PREVIOUS YEAR")
-
-    # Bruteforce: largest amount anywhere on the page as total_due
-    if total_due is None:
-        import re
-        all_matches = re.findall(r"\$?\s*\d[\d,]*\.?\d*", text)
-        amounts = [normalize_amount(m) for m in all_matches]
-        amounts = [a for a in amounts if a is not None]
-        if amounts:
-            total_due = max(amounts)
 
     return total_due, delinquent_due, last_year_due
 
@@ -352,6 +300,7 @@ def fetch_duval_bill_amounts(public_url: str):
 
     html_url = DUVAL_BASE_URL + public_url
 
+    # If a query string exists, append &format=json, otherwise ?format=json
     if "?" in public_url:
         json_url = DUVAL_BASE_URL + public_url + "&format=json"
     else:
@@ -414,47 +363,70 @@ def parcel_lookup():
     - checks CSV cache for this parcel (<= CACHE_DAYS old)
     - if found, returns cached row(s)
     - else:
-        * hits Duval Algolia for that parcel (with dash/no-dash variants)
+        * hits Duval Algolia for that parcel
         * for each hit: fetches bill amounts (JSON+HTML scrape)
         * stores a compact row in CSV (no duplicates by parcel)
         * returns the fresh rows
     """
-    parcel = request.args.get("parcel", "").strip()
-    debug_flag = request.args.get("debug") == "1"
-
-    if not parcel:
+    parcel_raw = request.args.get("parcel", "").strip()
+    if not parcel_raw:
         return jsonify(
             {"status": "error", "message": "Missing ?parcel= parameter"}
         ), 400
 
-    # 1) CSV cache first
-    cached_rows = find_recent_csv_rows(parcel)
-    if cached_rows:
-        body = {
-            "status": "success",
-            "source": "csv",
-            "count": len(cached_rows),
-            "rows": cached_rows,
-        }
-        if debug_flag:
-            body["debug"] = {
-                "from_cache": True,
-                "parcel": parcel,
-            }
-        return jsonify(body)
+    # Normalize parcel variations
+    parcel_no_dash = parcel_raw.replace("-", "")
+    parcel_dashed = (
+        f"{parcel_no_dash[:6]}-{parcel_no_dash[6:]}"
+        if len(parcel_no_dash) == 10
+        else parcel_raw
+    )
 
-    # 2) Live Algolia lookup (Duval)
-    hits, debug_info = search_duval_algolia(parcel, debug=debug_flag)
+    # 1) CSV cache first (check by dashed form)
+    cached_rows = find_recent_csv_rows(parcel_dashed)
+    if cached_rows:
+        return jsonify(
+            {
+                "status": "success",
+                "source": "csv",
+                "count": len(cached_rows),
+                "rows": cached_rows,
+                "debug": {
+                    "parcel_raw": parcel_raw,
+                    "parcel_no_dash": parcel_no_dash,
+                    "parcel_dashed": parcel_dashed,
+                },
+            }
+        )
+
+    # 2) Live Algolia lookup (Duval) - try no-dash then dashed
+    hits = []
+    last_error = None
+    for q in [parcel_no_dash, parcel_dashed]:
+        if not q:
+            continue
+        try_hits = search_duval_algolia(q)
+        if try_hits:
+            hits = try_hits
+            break
+
     if not hits:
-        body = {
-            "status": "success",
-            "source": "none",
-            "count": 0,
-            "rows": [],
-        }
-        if debug_flag:
-            body["debug"] = debug_info
-        return jsonify(body)
+        return jsonify(
+            {
+                "status": "success",
+                "source": "none",
+                "count": 0,
+                "rows": [],
+                "debug": {
+                    "parcel_raw": parcel_raw,
+                    "parcel_no_dash": parcel_no_dash,
+                    "parcel_dashed": parcel_dashed,
+                    "tried_queries": [parcel_no_dash, parcel_dashed],
+                    "hits_found": 0,
+                    "last_error": last_error,
+                },
+            }
+        )
 
     out_rows = []
 
@@ -464,7 +436,7 @@ def parcel_lookup():
             hit.get("external_id")
             or hit.get("parcel")
             or hit.get("objectID")
-            or parcel
+            or parcel_dashed
         )
 
         owner_name = ""
@@ -506,20 +478,25 @@ def parcel_lookup():
             "created_at": datetime.utcnow().isoformat(),
         }
 
+        # Avoid duplicates within this response
         if not any(r["parcel"] == row["parcel"] for r in out_rows):
             out_rows.append(row)
             save_row(row)
 
-    body = {
-        "status": "success",
-        "source": "live_duval",
-        "count": len(out_rows),
-        "rows": out_rows,
-    }
-    if debug_flag:
-        body["debug"] = debug_info
-
-    return jsonify(body)
+    return jsonify(
+        {
+            "status": "success",
+            "source": "live_duval",
+            "count": len(out_rows),
+            "rows": out_rows,
+            "debug": {
+                "parcel_raw": parcel_raw,
+                "parcel_no_dash": parcel_no_dash,
+                "parcel_dashed": parcel_dashed,
+                "hits_found": len(hits),
+            },
+        }
+    )
 
 
 # ------------------------------------------------------------------------------
@@ -527,5 +504,6 @@ def parcel_lookup():
 # ------------------------------------------------------------------------------
 
 if __name__ == "__main__":
+    # For local debugging only; Render uses gunicorn
     port = int(os.getenv("PORT", "10000"))
     app.run(host="0.0.0.0", port=port, debug=True)
