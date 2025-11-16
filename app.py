@@ -17,7 +17,9 @@ DUVAL_ALG_APP_ID = "0LWZO52LS2"
 DUVAL_ALG_API_KEY = "c0745578b56854a1b90ed57b63fbf0ba"
 DUVAL_ALG_INDEX = "fl-duval.property_tax"
 DUVAL_ALG_ENDPOINT = (
-    f"https://{DUVAL_ALG_APP_ID}-dsn.algolia.net/1/indexes/{DUVAL_ALG_INDEX}/query"
+    DUVAL_ALG_ENDPOINT = (
+    f"https://{DUVAL_ALG_APP_ID}-dsn.algolia.net/1/indexes/*/queries"
+)
 )
 
 # CSV & cache
