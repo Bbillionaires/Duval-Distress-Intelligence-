@@ -397,23 +397,34 @@ def parcel_lookup():
         parcel_dashed = f"{parcel_no_dash[:-4]}-{parcel_no_dash[-4:]}"
 
     # ------------------------------------------------------------------
-    # 1) CSV cache first (we always store with the dashed parcel format)
-    # ------------------------------------------------------------------
+    # 1) CSV cache first (we store parcel as dashed form)
     cached_rows = find_recent_csv_rows(parcel_dashed)
+
+    all_missing_amounts = False
     if cached_rows:
-        response = {
+        # True if *every* cached row is missing all amounts
+        all_missing_amounts = all(
+            (row.get("total_due") in (None, ""))
+            and (row.get("delinquent_due") in (None, ""))
+            and (row.get("last_year_due") in (None, ""))
+            for row in cached_rows
+        )
+
+    # Only use cache if there is data AND at least one row has some amount info
+    if cached_rows and not all_missing_amounts:
+        resp = {
             "status": "success",
             "source": "csv",
             "count": len(cached_rows),
             "rows": cached_rows,
         }
         if debug_flag:
-            response["debug"] = {
+            resp["debug"] = {
                 "parcel_raw": parcel_raw,
                 "parcel_no_dash": parcel_no_dash,
                 "parcel_dashed": parcel_dashed,
             }
-        return jsonify(response)
+        return jsonify(resp)
 
     # ------------------------------------------------------------------
     # 2) Live Algolia lookup (Duval)
