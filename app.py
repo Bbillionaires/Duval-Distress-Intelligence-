@@ -266,23 +266,25 @@ def extract_amounts_from_html(html: str):
     return total_due, delinquent_due, last_year_due
 
 
-def fetch_duval_bill_amounts(public_url: str, debug: bool = False):
+def fetch_duval_bill_amounts(public_url: str):
     """
     Given public_url from Algolia (like '/public/real_estate/parcels/.../bills?...'),
     try:
       1) JSON endpoint (by adding &format=json or ?format=json),
-      2) fallback to HTML parse.
-    Returns (total_due, delinquent_due, last_year_due, debug_info)
-    """
-    debug_info = {
-        "json_ok": False,
-        "html_ok": False,
-        "json_error": None,
-        "html_error": None,
-    }
+      2) fallback to HTML parse via extract_amounts_from_html.
 
+    Returns:
+      (total_due, delinquent_due, last_year_due, fetch_debug)
+    """
     if not public_url:
-        return None, None, None, debug_info
+        return None, None, None, {
+            "json_ok": False,
+            "json_error": "no_public_url",
+            "html_ok": False,
+            "html_error": "no_public_url",
+            "html_length": 0,
+            "html_sample": "",
+        }
 
     if not public_url.startswith("/"):
         public_url = "/" + public_url
@@ -295,40 +297,58 @@ def fetch_duval_bill_amounts(public_url: str, debug: bool = False):
     else:
         json_url = DUVAL_BASE_URL + public_url + "?format=json"
 
-    total_due = delinquent_due = last_year_due = None
+    total_due = None
+    delinquent_due = None
+    last_year_due = None
+
+    fetch_debug = {
+        "json_ok": False,
+        "json_error": None,
+        "html_ok": False,
+        "html_error": None,
+        "html_length": 0,
+        "html_sample": "",
+    }
 
     # 1) Try JSON
     try:
         rj = requests.get(json_url, timeout=15)
         if rj.ok:
-            debug_info["json_ok"] = True
-            data = rj.json()
-            total_due, delinquent_due, last_year_due = extract_amounts_from_json(data)
+            fetch_debug["json_ok"] = True
+            try:
+                data = rj.json()
+                t, d, l = extract_amounts_from_json(data)
+                total_due = t
+                delinquent_due = d
+                last_year_due = l
+            except Exception as e:
+                fetch_debug["json_error"] = str(e)
         else:
-            debug_info["json_error"] = f"status {rj.status_code}"
+            fetch_debug["json_error"] = f"status_{rj.status_code}"
     except Exception as e:
-        debug_info["json_error"] = str(e)
+        fetch_debug["json_error"] = str(e)
 
     # 2) If still nothing, try HTML
     if total_due is None and delinquent_due is None and last_year_due is None:
         try:
             rh = requests.get(html_url, timeout=15)
+            fetch_debug["html_ok"] = rh.ok
             if rh.ok:
-                debug_info["html_ok"] = True
-                total_due, delinquent_due, last_year_due = extract_amounts_from_html(
-                    rh.text
-                )
+                html_text = rh.text
+                fetch_debug["html_length"] = len(html_text)
+                # capture a small slice so we can see what the backend actually sees
+                fetch_debug["html_sample"] = html_text[:400]
+
+                t, d, l = extract_amounts_from_html(html_text)
+                total_due = t
+                delinquent_due = d
+                last_year_due = l
             else:
-                debug_info["html_error"] = f"status {rh.status_code}"
+                fetch_debug["html_error"] = f"status_{rh.status_code}"
         except Exception as e:
-            debug_info["html_error"] = str(e)
+            fetch_debug["html_error"] = str(e)
 
-    return total_due, delinquent_due, last_year_due, debug_info
-
-
-# ------------------------------------------------------------------------------
-# Routes
-# ------------------------------------------------------------------------------
+    return total_due, delinquent_due, last_year_due, fetch_debug
 
 @app.route("/")
 def root():
