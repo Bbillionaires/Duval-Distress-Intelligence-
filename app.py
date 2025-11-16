@@ -374,73 +374,82 @@ def parcel_lookup():
     """
     Main endpoint:
 
-    - checks CSV cache for this parcel (<= CACHE_DAYS old)
-    - if found, returns cached row(s)
-    - else:
-        * hits Duval Algolia for that parcel
-        * for each hit: fetches bill amounts (JSON+HTML scrape)
-        * stores a compact row in CSV (no duplicates by parcel)
-        * returns the fresh rows
+    - Normalizes the parcel (with and without dash).
+    - Checks CSV cache for this parcel (<= CACHE_DAYS old).
+    - If found, returns cached rows.
+    - Else:
+        * hits Duval Algolia for that parcel (no local data needed),
+        * for each hit: fetches bill amounts (HTML scraper),
+        * stores a compact row in CSV (no duplicates by parcel),
+        * returns the fresh rows.
+
+    If ?debug=1 is in the query string, we also return a "debug" block
+    showing parcel normalization and amount-fetch info.
     """
     parcel_raw = request.args.get("parcel", "").strip()
-    debug_flag = request.args.get("debug", "0") == "1"
+    debug_flag = request.args.get("debug") == "1"
 
     if not parcel_raw:
         return jsonify(
             {"status": "error", "message": "Missing ?parcel= parameter"}
         ), 400
 
-    # Normalize parcel formats we will try: no dash and with dash
+    # Normalize parcel: remove dash, then re-add to standard format if length 10
     parcel_no_dash = parcel_raw.replace("-", "")
-    parcel_dashed = (
-        f"{parcel_no_dash[:-4]}-{parcel_no_dash[-4:]}"
-        if len(parcel_no_dash) > 4
-        else parcel_raw
-    )
+    parcel_dashed = parcel_raw
+    if len(parcel_no_dash) == 10:
+        parcel_dashed = f"{parcel_no_dash[:-4]}-{parcel_no_dash[-4:]}"
 
-    # 1) CSV cache first (we store parcel as dashed form)
+    # ------------------------------------------------------------------
+    # 1) CSV cache first (we always store with the dashed parcel format)
+    # ------------------------------------------------------------------
     cached_rows = find_recent_csv_rows(parcel_dashed)
     if cached_rows:
-        resp = {
+        response = {
             "status": "success",
             "source": "csv",
             "count": len(cached_rows),
             "rows": cached_rows,
         }
         if debug_flag:
-            resp["debug"] = {
+            response["debug"] = {
                 "parcel_raw": parcel_raw,
                 "parcel_no_dash": parcel_no_dash,
                 "parcel_dashed": parcel_dashed,
             }
-        return jsonify(resp)
+        return jsonify(response)
 
-    # 2) Live Algolia lookup (Duval), try both formats
+    # ------------------------------------------------------------------
+    # 2) Live Algolia lookup (Duval)
+    #    We'll try both "no dash" and "dashed" forms to be safe.
+    # ------------------------------------------------------------------
     hits = search_duval_algolia(parcel_no_dash)
     if not hits:
         hits = search_duval_algolia(parcel_dashed)
 
     if not hits:
-        resp = {
+        response = {
             "status": "success",
             "source": "none",
             "count": 0,
             "rows": [],
         }
         if debug_flag:
-            resp["debug"] = {
+            response["debug"] = {
                 "parcel_raw": parcel_raw,
                 "parcel_no_dash": parcel_no_dash,
                 "parcel_dashed": parcel_dashed,
                 "hits_found": 0,
             }
-        return jsonify(resp)
+        return jsonify(response)
 
     out_rows = []
-    debug_amounts = []
+    amount_fetch_debug = []
 
     for hit in hits:
+        # -----------------------------
         # Basic identity fields
+        # -----------------------------
         parcel_id = (
             hit.get("external_id")
             or hit.get("parcel")
@@ -468,24 +477,14 @@ def parcel_lookup():
 
         public_url = custom_params.get("public_url", "")
 
-        # 3) Fetch bill amounts via Duval API / HTML
-        total_due, delinquent_due, last_year_due, dbg = fetch_duval_bill_amounts(
-            public_url, debug=debug_flag
+        # -----------------------------
+        # Fetch bill amounts via Duval
+        # -----------------------------
+        total_due, delinquent_due, last_year_due, fetch_dbg = fetch_duval_bill_amounts(
+            public_url
         )
-        if debug_flag:
-            debug_amounts.append(
-                {
-                    "parcel": parcel_id,
-                    "public_url": public_url,
-                    "amounts": {
-                        "total_due": total_due,
-                        "delinquent_due": delinquent_due,
-                        "last_year_due": last_year_due,
-                    },
-                    "fetch_debug": dbg,
-                }
-            )
 
+        # For CSV, store empty string if the amount is None
         row = {
             "parcel": parcel_id,
             "owner_name": owner_name,
@@ -495,9 +494,9 @@ def parcel_lookup():
             "state": state,
             "zip": zip_code,
             "public_url": public_url,
-            "total_due": "" if total_due is None else total_due,
-            "delinquent_due": "" if delinquent_due is None else delinquent_due,
-            "last_year_due": "" if last_year_due is None else last_year_due,
+            "total_due": total_due if total_due is not None else "",
+            "delinquent_due": delinquent_due if delinquent_due is not None else "",
+            "last_year_due": last_year_due if last_year_due is not None else "",
             "source": "live_duval",
             "created_at": datetime.utcnow().isoformat(),
         }
@@ -507,21 +506,40 @@ def parcel_lookup():
             out_rows.append(row)
             save_row(row)
 
-    resp = {
+        # Collect fetch-debug info per parcel if we are in debug mode
+        amount_fetch_debug.append(
+            {
+                "parcel": parcel_id,
+                "public_url": public_url,
+                "amounts": {
+                    "total_due": total_due,
+                    "delinquent_due": delinquent_due,
+                    "last_year_due": last_year_due,
+                },
+                "fetch_debug": fetch_dbg,
+            }
+        )
+
+    # -----------------------------
+    # Build final JSON response
+    # -----------------------------
+    response = {
         "status": "success",
         "source": "live_duval",
         "count": len(out_rows),
         "rows": out_rows,
     }
+
     if debug_flag:
-        resp["debug"] = {
+        response["debug"] = {
             "parcel_raw": parcel_raw,
             "parcel_no_dash": parcel_no_dash,
             "parcel_dashed": parcel_dashed,
             "hits_found": len(hits),
-            "amount_fetch": debug_amounts,
+            "amount_fetch": amount_fetch_debug,
         }
-    return jsonify(resp)
+
+    return jsonify(response)
 
 
 # ------------------------------------------------------------------------------
