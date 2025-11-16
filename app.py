@@ -219,32 +219,32 @@ def extract_amounts_from_json(data: dict):
 
 def extract_amounts_from_html(html: str):
     """
-    Parse the bills page HTML and grab the *largest* dollar-like amount.
-    On Duval pages, the biggest X,XXX.XX (with 2 decimals) on the screen
-    should be the Total Amount Due.
+    Parse the Duval bills HTML (from load-amount-due) and grab the Total Amount Due.
+
+    Duval often puts the amount inside hidden inputs or attributes, not just visible
+    text, so we scan the entire raw HTML string (not only soup.stripped_strings).
 
     Strategy:
-      1) Grab ALL text from the HTML.
-      2) Look for $X,XXX.XX patterns.
-      3) If none, look for plain X,XXX.XX patterns.
-      4) Convert to floats and return the max as total_due.
+      1) Run regex over the full HTML to find $X,XXX.XX patterns.
+      2) If none, look for plain X,XXX.XX patterns.
+      3) Convert all matches to floats.
+      4) Return the *largest* one as total_due.
     """
-    soup = BeautifulSoup(html, "html.parser")
-    text = " ".join(soup.stripped_strings)
-
     import re
 
-    # Patterns:
-    #   $3,323.14   or   $104.25
+    # Work on the raw HTML so we catch values in attributes like value="3323.14"
+    page = html
+
+    # Matches: $3,323.14 or $104.25
     dollar_pattern = re.compile(r"\$\s*\d[\d,]*\.\d{2}")
-    #   3,323.14    or   104.25   (no $ sign)
+    # Matches: 3,323.14 or 104.25 (no dollar sign)
     plain_pattern = re.compile(r"\b\d[\d,]*\.\d{2}\b")
 
-    matches = dollar_pattern.findall(text)
+    matches = dollar_pattern.findall(page)
 
     if not matches:
-        # Fallback if the $ sign isn’t present in this snippet
-        matches = plain_pattern.findall(text)
+        # If we didn't see a $ sign, fall back to plain numbers
+        matches = plain_pattern.findall(page)
 
     amounts = []
     for m in matches:
@@ -253,13 +253,13 @@ def extract_amounts_from_html(html: str):
             amounts.append(val)
 
     if not amounts:
-        # Couldn’t find any suitable money values
+        # Couldn’t find anything that looks like money
         return None, None, None
 
-    # Heuristic: the largest amount is the Total Amount Due
+    # Heuristic: on these pages the largest numeric amount is the Total Amount Due
     total_due = max(amounts)
 
-    # We’re not reliably scraping these yet
+    # We’re not scrapping delinquent / last-year separately yet
     delinquent_due = None
     last_year_due = None
 
