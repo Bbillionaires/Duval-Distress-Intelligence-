@@ -219,49 +219,45 @@ def extract_amounts_from_json(data: dict):
 
 def extract_amounts_from_html(html: str):
     """
-    Parse the Duval bills HTML (from load-amount-due) and grab the Total Amount Due.
+    Fallback: parse the bills page HTML and look for:
+      - 'TOTAL AMOUNT DUE' or 'AMOUNT DUE' labels
+      - the first $amount that appears right after that label.
 
-    Duval often puts the amount inside hidden inputs or attributes, not just visible
-    text, so we scan the entire raw HTML string (not only soup.stripped_strings).
-
-    Strategy:
-      1) Run regex over the full HTML to find $X,XXX.XX patterns.
-      2) If none, look for plain X,XXX.XX patterns.
-      3) Convert all matches to floats.
-      4) Return the *largest* one as total_due.
+    We work directly on the raw HTML so we don't lose structure.
     """
     import re
 
-    # Work on the raw HTML so we catch values in attributes like value="3323.14"
-    page = html
-
-    # Matches: $3,323.14 or $104.25
-    dollar_pattern = re.compile(r"\$\s*\d[\d,]*\.\d{2}")
-    # Matches: 3,323.14 or 104.25 (no dollar sign)
-    plain_pattern = re.compile(r"\b\d[\d,]*\.\d{2}\b")
-
-    matches = dollar_pattern.findall(page)
-
-    if not matches:
-        # If we didn't see a $ sign, fall back to plain numbers
-        matches = plain_pattern.findall(page)
-
-    amounts = []
-    for m in matches:
-        val = normalize_amount(m)
-        if val is not None and val >= 0.01:
-            amounts.append(val)
-
-    if not amounts:
-        # Couldn’t find anything that looks like money
+    if not html:
         return None, None, None
 
-    # Heuristic: on these pages the largest numeric amount is the Total Amount Due
-    total_due = max(amounts)
+    # Normalized version for case-insensitive search
+    html_upper = html.upper()
 
-    # We’re not scrapping delinquent / last-year separately yet
+    # Patterns we will try in order, most specific first
+    label_patterns = [
+        r"TOTAL\s+AMOUNT\s+DUE",
+        r"AMOUNT\s+DUE",
+        r"TOTAL\s+DUE",
+    ]
+
+    total_due = None
     delinquent_due = None
     last_year_due = None
+
+    for label_pattern in label_patterns:
+        label_match = re.search(label_pattern, html_upper)
+        if not label_match:
+            continue
+
+        # Take a window of HTML right after the label
+        start = label_match.end()
+        window = html[start : start + 800]  # 800 chars after the label
+
+        # Look for a currency-like value in that window
+        amount_match = re.search(r"\$?\s*\d[\d,]*\.\d{2}", window)
+        if amount_match:
+            total_due = normalize_amount(amount_match.group(0))
+            break
 
     return total_due, delinquent_due, last_year_due
 
