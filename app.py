@@ -269,6 +269,43 @@ def extract_amounts_from_html(html: str, dbg: dict | None = None):
 
     return total_due, delinquent_due, last_year_due
 
+def build_iframe_url_from_public(public_url: str) -> str | None:
+    """
+    Given Duval's public bills URL like:
+      /public/real_estate/parcels/030147-0432/bills?parcel=1573c4fe-...
+    build the corresponding iframe load-amount-due URL, which looks like:
+
+      https://county-taxes.net/iframe-taxsys/duval.county-taxes.com/govhub/property-tax/
+      ZHV2YWw6cmVhbF9lc3RhdGU6cGFyZW50czoxNTczYzRmZS1mYjVjLTExZWItODdkYS03ZTgwMmU0NmVlNTg=
+      /load-amount-due
+
+    The middle part is base64("duval:real_estate:parents:<parcel-guid>").
+    """
+    try:
+        if not public_url:
+            return None
+
+        # Ensure leading slash
+        if not public_url.startswith("/"):
+            public_url = "/" + public_url
+
+        parsed = urlparse(public_url)
+        qs = parse_qs(parsed.query)
+        guid_list = qs.get("parcel") or []
+        if not guid_list:
+            return None
+
+        guid = guid_list[0]
+        raw_key = f"duval:real_estate:parents:{guid}"
+        encoded = base64.b64encode(raw_key.encode("utf-8")).decode("utf-8")
+
+        return (
+            f"{DUVAL_BASE_URL}"
+            f"/iframe-taxsys/duval.county-taxes.com/govhub/property-tax/"
+            f"{encoded}/load-amount-due"
+        )
+    except Exception:
+        return None
 
 def fetch_duval_bill_amounts(public_url: str, debug: bool = False):
     """
