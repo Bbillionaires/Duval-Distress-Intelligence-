@@ -219,40 +219,47 @@ def extract_amounts_from_json(data: dict):
 
 def extract_amounts_from_html(html: str):
     """
-    Parse the bills page HTML and grab the *largest* dollar amount.
-    On Duval pages, the biggest $X,XXX.XX on the screen is almost
-    always the "Total Amount Due".
+    Parse the bills page HTML and grab the *largest* dollar-like amount.
+    On Duval pages, the biggest X,XXX.XX (with 2 decimals) on the screen
+    should be the Total Amount Due.
 
-    We keep it simple: scan all "$" amounts, convert to floats,
-    and return the maximum as total_due.
+    Strategy:
+      1) Grab ALL text from the HTML.
+      2) Look for $X,XXX.XX patterns.
+      3) If none, look for plain X,XXX.XX patterns.
+      4) Convert to floats and return the max as total_due.
     """
     soup = BeautifulSoup(html, "html.parser")
-
-    # Join all visible text
     text = " ".join(soup.stripped_strings)
 
     import re
 
-    # Find all patterns like $3,323.14 or $104.25
-    dollar_pattern = re.compile(r"\$\d[\d,]*\.?\d*")
+    # Patterns:
+    #   $3,323.14   or   $104.25
+    dollar_pattern = re.compile(r"\$\s*\d[\d,]*\.\d{2}")
+    #   3,323.14    or   104.25   (no $ sign)
+    plain_pattern = re.compile(r"\b\d[\d,]*\.\d{2}\b")
+
     matches = dollar_pattern.findall(text)
+
+    if not matches:
+        # Fallback if the $ sign isn’t present in this snippet
+        matches = plain_pattern.findall(text)
 
     amounts = []
     for m in matches:
         val = normalize_amount(m)
-        # Ignore zero/negative/noise
         if val is not None and val >= 0.01:
             amounts.append(val)
 
     if not amounts:
-        # Couldn’t find any dollar amounts
+        # Couldn’t find any suitable money values
         return None, None, None
 
-    # Heuristic: the largest dollar amount on the page
-    # should be the total amount due.
+    # Heuristic: the largest amount is the Total Amount Due
     total_due = max(amounts)
 
-    # For now we only reliably fill total_due
+    # We’re not reliably scraping these yet
     delinquent_due = None
     last_year_due = None
 
