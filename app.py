@@ -217,47 +217,55 @@ def extract_amounts_from_json(data: dict):
     return total_due, delinquent_due, last_year_due
 
 
-def extract_amounts_from_html(html: str):
+def extract_amounts_from_html(html: str, dbg: dict | None = None):
     """
-    Fallback: parse the bills page HTML and look for:
-      - 'TOTAL AMOUNT DUE' or 'AMOUNT DUE' labels
-      - the first $amount that appears right after that label.
+    Very defensive HTML parser for Duval's bill page.
 
-    We work directly on the raw HTML so we don't lose structure.
+    Strategy:
+    - Find *all* currency-looking values in the HTML.
+    - Convert them to floats.
+    - Heuristic: treat the *smallest positive* amount as "total_due"
+      (this matches your examples where the real amount due is much
+       smaller than the big tax / value numbers).
+    - We leave delinquent + last_year as None for now.
+    - We also push the full list of amounts into dbg["html_amounts"]
+      so we can refine later if needed.
     """
     import re
 
-    if not html:
-        return None, None, None
+    if dbg is not None:
+        dbg.setdefault("html_ok", True)
+        dbg["html_length"] = len(html)
+        dbg["html_sample"] = html[:400]
 
-    # Normalized version for case-insensitive search
-    html_upper = html.upper()
+    # Find all currency-like patterns, e.g. $1,234.56 or 104.00
+    raw_amounts = re.findall(r"\$?\d[\d,]*\.\d{2}", html)
+    amounts: list[float] = []
 
-    # Patterns we will try in order, most specific first
-    label_patterns = [
-        r"TOTAL\s+AMOUNT\s+DUE",
-        r"AMOUNT\s+DUE",
-        r"TOTAL\s+DUE",
-    ]
-
-    total_due = None
-    delinquent_due = None
-    last_year_due = None
-
-    for label_pattern in label_patterns:
-        label_match = re.search(label_pattern, html_upper)
-        if not label_match:
+    for m in raw_amounts:
+        s = m.replace("$", "").replace(",", "")
+        try:
+            val = float(s)
+            if val > 0:
+                amounts.append(val)
+        except ValueError:
             continue
 
-        # Take a window of HTML right after the label
-        start = label_match.end()
-        window = html[start : start + 800]  # 800 chars after the label
+    if dbg is not None:
+        dbg["html_amounts"] = amounts
 
-        # Look for a currency-like value in that window
-        amount_match = re.search(r"\$?\s*\d[\d,]*\.\d{2}", window)
-        if amount_match:
-            total_due = normalize_amount(amount_match.group(0))
-            break
+    if not amounts:
+        # Nothing found we trust
+        return None, None, None
+
+    # Heuristic:
+    # - Real "amount due" on your examples is the *smallest* positive value on the page.
+    # - Big numbers (millions / tens of thousands) are usually assessments, etc.
+    total_due = min(amounts)
+
+    # For now, we don't try to split delinquent vs last_year
+    delinquent_due = None
+    last_year_due = None
 
     return total_due, delinquent_due, last_year_due
 
