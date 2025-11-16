@@ -262,7 +262,6 @@ def extract_amounts_from_html(html: str):
     return total_due, delinquent_due, last_year_due
 
 
-def fetch_duval_bill_amounts(public_url: str):
 def fetch_duval_bill_amounts(public_url: str, debug: bool = False):
     """
     Given public_url from Algolia (like '/public/real_estate/parcels/.../bills?parcel=<GUID>'),
