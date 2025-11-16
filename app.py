@@ -336,7 +336,6 @@ def fetch_duval_bill_amounts(public_url: str):
             if rh.ok:
                 html_text = rh.text
                 fetch_debug["html_length"] = len(html_text)
-                # capture a small slice so we can see what the backend actually sees
                 fetch_debug["html_sample"] = html_text[:400]
 
                 t, d, l = extract_amounts_from_html(html_text)
