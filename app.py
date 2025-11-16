@@ -219,44 +219,92 @@ def extract_amounts_from_json(data: dict):
 
 def extract_amounts_from_html(html: str):
     """
-    Fallback: parse the bills page HTML and look for amounts near labels
-    like 'TOTAL AMOUNT DUE', 'DELINQUENT', 'PRIOR YEAR'.
+    Fallback: parse the bills page HTML and look for common labels
+    like 'TOTAL AMOUNT DUE', 'TOTAL DUE', 'DELINQUENT', 'PRIOR YEAR'.
+
+    If those labels are not clearly found, we fall back to
+    "first dollar amount on the page" as total_due and the second
+    as delinquent_due.
     """
     soup = BeautifulSoup(html, "html.parser")
-    full_text = " ".join(soup.stripped_strings).upper()
+
+    # Join all visible text on the page
+    text = " ".join(soup.stripped_strings)
+    upper = text.upper()
 
     import re
 
     def find_amount_near(labels):
+        """
+        Look for any of the labels in the uppercased text.
+        If found, grab a window of text after it and search
+        for a $-style number.
+        """
         for label in labels:
-            idx = full_text.find(label)
+            idx = upper.find(label)
             if idx == -1:
                 continue
-            snippet = full_text[idx: idx + 220]
+
+            # Take a slice of the ORIGINAL text (preserves $ and commas)
+            snippet = text[idx : idx + 220]
+
             m = re.search(r"\$?\d[\d,]*\.?\d*", snippet)
             if m:
                 return normalize_amount(m.group(0))
+
         return None
 
+    total_due = None
+    delinquent_due = None
+    last_year_due = None
+
+    # Try more label variations to match whatever Duval uses
     total_due = find_amount_near(
-        ["TOTAL AMOUNT DUE", "TOTAL DUE", "CURRENT AMOUNT DUE"]
-    )
-    delinquent_due = find_amount_near(
-        ["DELINQUENT", "DELINQUENT AMOUNT", "DELINQUENT DUE"]
-    )
-    last_year_due = find_amount_near(
-        ["PRIOR YEAR", "PRIOR YEAR DUE", "PRIOR YEAR AMOUNT"]
+        [
+            "TOTAL AMOUNT DUE",
+            "TOTAL DUE",
+            "TOTAL DUE:",
+            "TOTAL AMOUNT",
+            "AMOUNT DUE",
+        ]
     )
 
-    # As a last resort, take the largest dollar amount we can see as total_due
-    if total_due is None:
-        amounts = []
-        for m in re.finditer(r"\$?\d[\d,]*\.?\d*", full_text):
-            amt = normalize_amount(m.group(0))
-            if amt is not None:
-                amounts.append(amt)
-        if amounts:
-            total_due = max(amounts)
+    delinquent_due = find_amount_near(
+        [
+            "DELINQUENT",
+            "DELINQUENT TAX",
+            "DELINQUENT AMOUNT",
+            "DELINQUENT TAXES",
+        ]
+    )
+
+    last_year_due = find_amount_near(
+        [
+            "PRIOR YEAR",
+            "PRIOR YEAR TAX",
+            "PRIOR YEAR DELINQUENT",
+            "PRIOR YEAR TAXES",
+        ]
+    )
+
+    # If we still didn't find anything, fallback:
+    # - treat the FIRST dollar amount on the page as total_due
+    # - treat the SECOND (if exists) as delinquent_due
+    if total_due is None or (delinquent_due is None and last_year_due is None):
+        all_amounts = re.findall(r"\$?\d[\d,]*\.?\d*", text)
+        cleaned = [
+            normalize_amount(a)
+            for a in all_amounts
+            if normalize_amount(a) is not None
+        ]
+
+        if total_due is None and cleaned:
+            total_due = cleaned[0]
+
+        # If no specific delinquent / prior-year label found,
+        # use second number as "delinquent" best-effort
+        if delinquent_due is None and len(cleaned) > 1:
+            delinquent_due = cleaned[1]
 
     return total_due, delinquent_due, last_year_due
 
