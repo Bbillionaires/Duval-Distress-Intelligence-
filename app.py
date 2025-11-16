@@ -12,13 +12,13 @@ from bs4 import BeautifulSoup
 # Config
 # ------------------------------------------------------------------------------
 
-# Duval Algolia public search config (this is what your browser uses)
+# Duval Algolia public search config (this is what the browser uses)
 DUVAL_ALG_APP_ID = "0LWZO52LS2"
 DUVAL_ALG_API_KEY = "c0745578b56854a1b90ed57b63fbf0ba"
 DUVAL_ALG_INDEX = "fl-duval.property_tax"
-
-# Correct multi-queries endpoint for Algolia
-DUVAL_ALG_ENDPOINT = f"https://{DUVAL_ALG_APP_ID}-dsn.algolia.net/1/indexes/*/queries"
+DUVAL_ALG_ENDPOINT = (
+    f"https://{DUVAL_ALG_APP_ID}-dsn.algolia.net/1/indexes/{DUVAL_ALG_INDEX}/query"
+)
 
 # CSV & cache
 CSV_PATH = os.getenv("CSV_PATH", "leads.csv")
@@ -27,14 +27,12 @@ CACHE_DAYS = int(os.getenv("CACHE_DAYS", "30"))
 # Base for Duval public site (bills page)
 DUVAL_BASE_URL = "https://county-taxes.net"
 
-
 # ------------------------------------------------------------------------------
 # Flask app
 # ------------------------------------------------------------------------------
 
 app = Flask(__name__)
 CORS(app)
-
 
 # ------------------------------------------------------------------------------
 # CSV helpers
@@ -109,7 +107,6 @@ def find_recent_csv_rows(parcel: str):
 def search_duval_algolia(parcel: str):
     """
     Call Duval's public Algolia index for a parcel / external_id.
-    This is the same request you saw in the browser network tab.
     """
     headers = {
         "x-algolia-application-id": DUVAL_ALG_APP_ID,
@@ -126,7 +123,6 @@ def search_duval_algolia(parcel: str):
         "requests": [
             {
                 "indexName": DUVAL_ALG_INDEX,
-                # simple query on the parcel / external_id
                 "params": f"hitsPerPage=20&query={parcel}",
             }
         ]
@@ -141,18 +137,16 @@ def search_duval_algolia(parcel: str):
         )
         resp.raise_for_status()
         data = resp.json()
-        # Algolia multiple-queries format: {"results":[{ "hits":[...]}]}
         results = data.get("results") or []
         if not results:
             return []
-        hits = results[0].get("hits", [])
-        return hits
+        return results[0].get("hits", [])
     except Exception:
         return []
 
 
 # ------------------------------------------------------------------------------
-# Duval bill details: JSON + HTML scraper
+# Amount parsing helpers
 # ------------------------------------------------------------------------------
 
 def normalize_amount(val):
@@ -177,123 +171,113 @@ def normalize_amount(val):
 def extract_amounts_from_json(data: dict):
     """
     Try to pull useful amount fields from a JSON response.
-    We don't know exact schema, so we guess common patterns and also
-    look under a 'bill' or 'bills' object.
+    Walks nested dicts/lists and looks for keys that smell like totals,
+    delinquent, prior year, etc.
     """
     total_due = None
     delinquent_due = None
     last_year_due = None
 
-    candidates_total = [
-        "total_due",
-        "amount_due",
-        "current_due",
-        "totalAmountDue",
-    ]
-    candidates_delinquent = [
-        "delinquent_due",
-        "delinquentAmount",
-        "delinquent_due_total",
-    ]
-    candidates_last_year = [
-        "prior_year_due",
-        "last_year_due",
-        "priorYearAmount",
-    ]
+    def search_dict(d):
+        nonlocal total_due, delinquent_due, last_year_due
+        if not isinstance(d, dict):
+            return
 
-    # Check top-level keys
-    for key in candidates_total:
-        if key in data:
-            total_due = normalize_amount(data[key])
-            break
+        for key, value in d.items():
+            lk = key.lower()
 
-    for key in candidates_delinquent:
-        if key in data:
-            delinquent_due = normalize_amount(data[key])
-            break
+            # total / current
+            if total_due is None and any(t in lk for t in ["total", "current"]):
+                amt = normalize_amount(value)
+                if amt is not None:
+                    total_due = amt
 
-    for key in candidates_last_year:
-        if key in data:
-            last_year_due = normalize_amount(data[key])
-            break
+            # delinquent
+            if delinquent_due is None and "delinquent" in lk:
+                amt = normalize_amount(value)
+                if amt is not None:
+                    delinquent_due = amt
 
-    # Check nested 'bill' or 'bills'
-    bills = []
-    if isinstance(data, dict):
-        if isinstance(data.get("bill"), dict):
-            bills = [data["bill"]]
-        elif isinstance(data.get("bills"), list):
-            bills = data["bills"]
+            # prior / last year
+            if last_year_due is None and any(t in lk for t in ["prior", "last_year"]):
+                amt = normalize_amount(value)
+                if amt is not None:
+                    last_year_due = amt
 
-    for bill in bills:
-        if total_due is None:
-            for key in candidates_total:
-                if key in bill:
-                    total_due = normalize_amount(bill[key])
-                    break
-        if delinquent_due is None:
-            for key in candidates_delinquent:
-                if key in bill:
-                    delinquent_due = normalize_amount(bill[key])
-                    break
-        if last_year_due is None:
-            for key in candidates_last_year:
-                if key in bill:
-                    last_year_due = normalize_amount(bill[key])
-                    break
+        # Dive deeper into nested dicts/lists
+        for v in d.values():
+            if isinstance(v, dict):
+                search_dict(v)
+            elif isinstance(v, list):
+                for item in v:
+                    if isinstance(item, dict):
+                        search_dict(item)
 
+    search_dict(data)
     return total_due, delinquent_due, last_year_due
 
 
 def extract_amounts_from_html(html: str):
     """
-    Fallback: parse the bills page HTML and look for common labels
+    Fallback: parse the bills page HTML and look for amounts near labels
     like 'TOTAL AMOUNT DUE', 'DELINQUENT', 'PRIOR YEAR'.
     """
     soup = BeautifulSoup(html, "html.parser")
-    text = " ".join(soup.stripped_strings).upper()
+    full_text = " ".join(soup.stripped_strings).upper()
 
-    total_due = None
-    delinquent_due = None
-    last_year_due = None
+    import re
 
-    def find_amount_near(label):
-        idx = text.find(label)
-        if idx == -1:
-            return None
-        snippet = text[idx: idx + 160]
-        import re
-
-        m = re.search(r"\$?\d[\d,]*\.?\d*", snippet)
-        if m:
-            return normalize_amount(m.group(0))
+    def find_amount_near(labels):
+        for label in labels:
+            idx = full_text.find(label)
+            if idx == -1:
+                continue
+            snippet = full_text[idx: idx + 220]
+            m = re.search(r"\$?\d[\d,]*\.?\d*", snippet)
+            if m:
+                return normalize_amount(m.group(0))
         return None
 
-    # Try to grab amounts near common labels
-    if total_due is None:
-        total_due = find_amount_near("TOTAL AMOUNT DUE")
-    if total_due is None:
-        total_due = find_amount_near("TOTAL DUE")
+    total_due = find_amount_near(
+        ["TOTAL AMOUNT DUE", "TOTAL DUE", "CURRENT AMOUNT DUE"]
+    )
+    delinquent_due = find_amount_near(
+        ["DELINQUENT", "DELINQUENT AMOUNT", "DELINQUENT DUE"]
+    )
+    last_year_due = find_amount_near(
+        ["PRIOR YEAR", "PRIOR YEAR DUE", "PRIOR YEAR AMOUNT"]
+    )
 
-    if delinquent_due is None:
-        delinquent_due = find_amount_near("DELINQUENT")
-
-    if last_year_due is None:
-        last_year_due = find_amount_near("PRIOR YEAR")
+    # As a last resort, take the largest dollar amount we can see as total_due
+    if total_due is None:
+        amounts = []
+        for m in re.finditer(r"\$?\d[\d,]*\.?\d*", full_text):
+            amt = normalize_amount(m.group(0))
+            if amt is not None:
+                amounts.append(amt)
+        if amounts:
+            total_due = max(amounts)
 
     return total_due, delinquent_due, last_year_due
 
 
-def fetch_duval_bill_amounts(public_url: str):
+def fetch_duval_bill_amounts(public_url: str, debug: bool = False):
     """
     Given public_url from Algolia (like '/public/real_estate/parcels/.../bills?...'),
     try:
       1) JSON endpoint (by adding &format=json or ?format=json),
       2) fallback to HTML parse.
-    Returns (total_due, delinquent_due, last_year_due) as floats or None.
+    Returns (total_due, delinquent_due, last_year_due, debug_info)
     """
+    debug_info = {
+        "json_ok": False,
+        "html_ok": False,
+        "json_error": None,
+        "html_error": None,
+    }
+
     if not public_url:
-        return None, None, None
+        return None, None, None, debug_info
 
     if not public_url.startswith("/"):
         public_url = "/" + public_url
@@ -312,23 +296,29 @@ def fetch_duval_bill_amounts(public_url: str):
     try:
         rj = requests.get(json_url, timeout=15)
         if rj.ok:
+            debug_info["json_ok"] = True
             data = rj.json()
             total_due, delinquent_due, last_year_due = extract_amounts_from_json(data)
-    except Exception:
-        pass
+        else:
+            debug_info["json_error"] = f"status {rj.status_code}"
+    except Exception as e:
+        debug_info["json_error"] = str(e)
 
     # 2) If still nothing, try HTML
     if total_due is None and delinquent_due is None and last_year_due is None:
         try:
             rh = requests.get(html_url, timeout=15)
             if rh.ok:
+                debug_info["html_ok"] = True
                 total_due, delinquent_due, last_year_due = extract_amounts_from_html(
                     rh.text
                 )
-        except Exception:
-            pass
+            else:
+                debug_info["html_error"] = f"status {rh.status_code}"
+        except Exception as e:
+            debug_info["html_error"] = str(e)
 
-    return total_due, delinquent_due, last_year_due
+    return total_due, delinquent_due, last_year_due, debug_info
 
 
 # ------------------------------------------------------------------------------
@@ -369,66 +359,61 @@ def parcel_lookup():
         * returns the fresh rows
     """
     parcel_raw = request.args.get("parcel", "").strip()
+    debug_flag = request.args.get("debug", "0") == "1"
+
     if not parcel_raw:
         return jsonify(
             {"status": "error", "message": "Missing ?parcel= parameter"}
         ), 400
 
-    # Normalize parcel variations
+    # Normalize parcel formats we will try: no dash and with dash
     parcel_no_dash = parcel_raw.replace("-", "")
     parcel_dashed = (
-        f"{parcel_no_dash[:6]}-{parcel_no_dash[6:]}"
-        if len(parcel_no_dash) == 10
+        f"{parcel_no_dash[:-4]}-{parcel_no_dash[-4:]}"
+        if len(parcel_no_dash) > 4
         else parcel_raw
     )
 
-    # 1) CSV cache first (check by dashed form)
+    # 1) CSV cache first (we store parcel as dashed form)
     cached_rows = find_recent_csv_rows(parcel_dashed)
     if cached_rows:
-        return jsonify(
-            {
-                "status": "success",
-                "source": "csv",
-                "count": len(cached_rows),
-                "rows": cached_rows,
-                "debug": {
-                    "parcel_raw": parcel_raw,
-                    "parcel_no_dash": parcel_no_dash,
-                    "parcel_dashed": parcel_dashed,
-                },
+        resp = {
+            "status": "success",
+            "source": "csv",
+            "count": len(cached_rows),
+            "rows": cached_rows,
+        }
+        if debug_flag:
+            resp["debug"] = {
+                "parcel_raw": parcel_raw,
+                "parcel_no_dash": parcel_no_dash,
+                "parcel_dashed": parcel_dashed,
             }
-        )
+        return jsonify(resp)
 
-    # 2) Live Algolia lookup (Duval) - try no-dash then dashed
-    hits = []
-    last_error = None
-    for q in [parcel_no_dash, parcel_dashed]:
-        if not q:
-            continue
-        try_hits = search_duval_algolia(q)
-        if try_hits:
-            hits = try_hits
-            break
+    # 2) Live Algolia lookup (Duval), try both formats
+    hits = search_duval_algolia(parcel_no_dash)
+    if not hits:
+        hits = search_duval_algolia(parcel_dashed)
 
     if not hits:
-        return jsonify(
-            {
-                "status": "success",
-                "source": "none",
-                "count": 0,
-                "rows": [],
-                "debug": {
-                    "parcel_raw": parcel_raw,
-                    "parcel_no_dash": parcel_no_dash,
-                    "parcel_dashed": parcel_dashed,
-                    "tried_queries": [parcel_no_dash, parcel_dashed],
-                    "hits_found": 0,
-                    "last_error": last_error,
-                },
+        resp = {
+            "status": "success",
+            "source": "none",
+            "count": 0,
+            "rows": [],
+        }
+        if debug_flag:
+            resp["debug"] = {
+                "parcel_raw": parcel_raw,
+                "parcel_no_dash": parcel_no_dash,
+                "parcel_dashed": parcel_dashed,
+                "hits_found": 0,
             }
-        )
+        return jsonify(resp)
 
     out_rows = []
+    debug_amounts = []
 
     for hit in hits:
         # Basic identity fields
@@ -460,7 +445,22 @@ def parcel_lookup():
         public_url = custom_params.get("public_url", "")
 
         # 3) Fetch bill amounts via Duval API / HTML
-        total_due, delinquent_due, last_year_due = fetch_duval_bill_amounts(public_url)
+        total_due, delinquent_due, last_year_due, dbg = fetch_duval_bill_amounts(
+            public_url, debug=debug_flag
+        )
+        if debug_flag:
+            debug_amounts.append(
+                {
+                    "parcel": parcel_id,
+                    "public_url": public_url,
+                    "amounts": {
+                        "total_due": total_due,
+                        "delinquent_due": delinquent_due,
+                        "last_year_due": last_year_due,
+                    },
+                    "fetch_debug": dbg,
+                }
+            )
 
         row = {
             "parcel": parcel_id,
@@ -471,9 +471,9 @@ def parcel_lookup():
             "state": state,
             "zip": zip_code,
             "public_url": public_url,
-            "total_due": total_due,
-            "delinquent_due": delinquent_due,
-            "last_year_due": last_year_due,
+            "total_due": "" if total_due is None else total_due,
+            "delinquent_due": "" if delinquent_due is None else delinquent_due,
+            "last_year_due": "" if last_year_due is None else last_year_due,
             "source": "live_duval",
             "created_at": datetime.utcnow().isoformat(),
         }
@@ -483,20 +483,21 @@ def parcel_lookup():
             out_rows.append(row)
             save_row(row)
 
-    return jsonify(
-        {
-            "status": "success",
-            "source": "live_duval",
-            "count": len(out_rows),
-            "rows": out_rows,
-            "debug": {
-                "parcel_raw": parcel_raw,
-                "parcel_no_dash": parcel_no_dash,
-                "parcel_dashed": parcel_dashed,
-                "hits_found": len(hits),
-            },
+    resp = {
+        "status": "success",
+        "source": "live_duval",
+        "count": len(out_rows),
+        "rows": out_rows,
+    }
+    if debug_flag:
+        resp["debug"] = {
+            "parcel_raw": parcel_raw,
+            "parcel_no_dash": parcel_no_dash,
+            "parcel_dashed": parcel_dashed,
+            "hits_found": len(hits),
+            "amount_fetch": debug_amounts,
         }
-    )
+    return jsonify(resp)
 
 
 # ------------------------------------------------------------------------------
