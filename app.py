@@ -219,63 +219,42 @@ def extract_amounts_from_json(data: dict):
 
 def extract_amounts_from_html(html: str):
     """
-    Parse Duval bills HTML and try to extract:
-      - total amount due
-      - delinquent amount
-      - prior year amount
+    Parse the bills page HTML and grab the *largest* dollar amount.
+    On Duval pages, the biggest $X,XXX.XX on the screen is almost
+    always the "Total Amount Due".
 
-    Works directly on the raw HTML and is tolerant of different layouts.
-    If we can't find explicit labels, we fall back to the last currency
-    amount on the page as a best guess for total_due.
+    We keep it simple: scan all "$" amounts, convert to floats,
+    and return the maximum as total_due.
     """
+    soup = BeautifulSoup(html, "html.parser")
+
+    # Join all visible text
+    text = " ".join(soup.stripped_strings)
+
     import re
 
-    if not html:
+    # Find all patterns like $3,323.14 or $104.25
+    dollar_pattern = re.compile(r"\$\d[\d,]*\.?\d*")
+    matches = dollar_pattern.findall(text)
+
+    amounts = []
+    for m in matches:
+        val = normalize_amount(m)
+        # Ignore zero/negative/noise
+        if val is not None and val >= 0.01:
+            amounts.append(val)
+
+    if not amounts:
+        # Couldn’t find any dollar amounts
         return None, None, None
 
-    total_due = None
+    # Heuristic: the largest dollar amount on the page
+    # should be the total amount due.
+    total_due = max(amounts)
+
+    # For now we only reliably fill total_due
     delinquent_due = None
     last_year_due = None
-
-    # --- 1) Look for "Total Amount Due" label in the raw HTML -------------
-    label_patterns = [
-        r"TOTAL\s+AMOUNT\s+DUE",
-        r"Total\s+Amount\s+Due",
-    ]
-
-    for label in label_patterns:
-        m = re.search(label, html, flags=re.IGNORECASE)
-        if not m:
-            continue
-
-        # Take a chunk of HTML after the label and search for a money value
-        snippet = html[m.start(): m.start() + 800]
-        m_amt = re.search(r"\$?\s*\d[\d,]*\.?\d*", snippet)
-        if m_amt:
-            total_due = normalize_amount(m_amt.group(0))
-            break
-
-    # --- 2) Look for "Delinquent" label nearby a money value -------------
-    m_del = re.search(r"DELINQUENT", html, flags=re.IGNORECASE)
-    if m_del:
-        snippet = html[m_del.start(): m_del.start() + 400]
-        m_amt = re.search(r"\$?\s*\d[\d,]*\.?\d*", snippet)
-        if m_amt:
-            delinquent_due = normalize_amount(m_amt.group(0))
-
-    # --- 3) Look for "Prior Year" label nearby a money value -------------
-    m_prior = re.search(r"PRIOR\s+YEAR", html, flags=re.IGNORECASE)
-    if m_prior:
-        snippet = html[m_prior.start(): m_prior.start() + 400]
-        m_amt = re.search(r"\$?\s*\d[\d,]*\.?\d*", snippet)
-        if m_amt:
-            last_year_due = normalize_amount(m_amt.group(0))
-
-    # --- 4) Fallback: if still no total_due, use the last $ amount -------
-    if total_due is None:
-        all_amts = re.findall(r"\$?\s*\d[\d,]*\.?\d*", html)
-        if all_amts:
-            total_due = normalize_amount(all_amts[-1])
 
     return total_due, delinquent_due, last_year_due
 
