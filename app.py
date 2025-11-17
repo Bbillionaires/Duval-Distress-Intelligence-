@@ -310,18 +310,15 @@ def build_iframe_url_from_public(public_url: str) -> str | None:
 def fetch_duval_bill_amounts(public_url: str, debug: bool = False):
     """
     Given public_url from Algolia (like '/public/real_estate/parcels/.../bills?parcel=<GUID>'),
-    try several strategies to get the *Total Amount Due* that the UI shows.
+    try to get the Total Amount Due.
 
-      1) JSON endpoint (bills?format=json) – may or may not work.
-      2) HTML of the main bills page, looking specifically near the
-         'TOTAL AMOUNT DUE' / 'TOTAL PAST DUE' labels.
-      3) Fallback: the iframe 'load-amount-due' endpoint that the UI uses.
+      1) JSON endpoint (bills?format=json) – may or may not expose totals.
+      2) HTML of the main bills page – look near 'TOTAL AMOUNT DUE' or 'AMOUNT DUE'.
 
     Returns:
         total_due, delinquent_due, last_year_due, debug_info
     """
     import re
-    import base64
     from urllib.parse import urlparse, parse_qs
 
     debug_info = {
@@ -331,10 +328,6 @@ def fetch_duval_bill_amounts(public_url: str, debug: bool = False):
         "html_error": None,
         "html_length": None,
         "html_sample": None,
-        "load_ok": False,
-        "load_error": None,
-        "load_html_length": None,
-        "load_html_sample": None,
     }
 
     if not public_url:
@@ -344,50 +337,8 @@ def fetch_duval_bill_amounts(public_url: str, debug: bool = False):
     if not public_url.startswith("/"):
         public_url = "/" + public_url
 
-    # ---------- Helper: extract amount near TOTAL labels in HTML ----------
-
-    def find_amount_near_total_labels(html_text: str):
-        """
-        Look for labels like 'TOTAL AMOUNT DUE' or 'TOTAL PAST DUE' and grab
-        the nearest $X,XXX.XX on the same line or shortly after.
-        """
-        # Normalize whitespace
-        text = " ".join(html_text.split())
-
-        # We'll scan several slightly different label variants
-        label_variants = [
-            "TOTAL AMOUNT DUE",
-            "TOTAL PAST DUE",
-            "TOTAL DUE",
-            "TOTAL AMT DUE",
-        ]
-
-        # For each label, look at a small window of text after it
-        for label in label_variants:
-            idx = text.upper().find(label)
-            if idx == -1:
-                continue
-
-            # Take a window from the label forward; 200 chars is usually enough
-            snippet = text[idx : idx + 200]
-
-            # Look for a dollar amount in that window
-            m = re.search(r"\$?\d[\d,]*\.\d{2}", snippet)
-            if m:
-                s = m.group(0).replace("$", "").replace(",", "")
-                try:
-                    return float(s)
-                except ValueError:
-                    continue
-
-        # If nothing matched any label, return None
-        return None
-
-    # ---------- Build URLs we will try ----------
-
+    # Build URLs
     html_url = DUVAL_BASE_URL + public_url
-
-    # If a query string exists, append &format=json, otherwise ?format=json
     if "?" in public_url:
         json_url = DUVAL_BASE_URL + public_url + "&format=json"
     else:
@@ -397,25 +348,69 @@ def fetch_duval_bill_amounts(public_url: str, debug: bool = False):
     delinquent_due = None
     last_year_due = None
 
-    # ---------- 1) Try JSON endpoint (may or may not exist) ----------
+    # ---------- 1) Try JSON endpoint ----------
     try:
         rj = requests.get(json_url, timeout=10)
         if rj.ok:
-            debug_info["json_ok"] = True
             try:
                 data = rj.json()
-                # If county ever exposes a proper JSON amount field,
-                # you could parse it here:
-                # total_due, delinquent_due, last_year_due = extract_amounts_from_json(data)
-                # For now we just mark that JSON worked, but we don't rely on it.
+                debug_info["json_ok"] = True
             except Exception as e:
-                debug_info["json_error"] = str(e)
+                debug_info["json_error"] = f"json decode: {e}"
+            else:
+                # If they ever expose a clear total in JSON, grab it.
+                for key in ("total_due", "amount_due", "totalAmountDue"):
+                    if key in data:
+                        try:
+                            total_due = float(
+                                str(data[key]).replace("$", "").replace(",", "")
+                            )
+                            break
+                        except ValueError:
+                            pass
         else:
             debug_info["json_error"] = f"HTTP {rj.status_code}"
-    except Exceptiondebug_info["html_length"] = len(html_text)
+    except Exception as e:
+        debug_info["json_error"] = str(e)
+
+    # Helper: find a $xxx.xx value that appears near a label string
+    def find_amount_near_label(html_text: str, label: str):
+        text = " ".join(html_text.split())
+        upper = text.upper()
+        label_upper = label.upper()
+
+        pos = upper.find(label_upper)
+        if pos == -1:
+            return None
+
+        # Look in a window *after* the label
+        window = text[pos : pos + 220]
+        m = re.search(r"\$?\d[\d,]*\.\d{2}", window)
+        if not m:
+            return None
+
+        s = m.group(0).replace("$", "").replace(",", "")
+        try:
+            return float(s)
+        except ValueError:
+            return None
+
+    # ---------- 2) HTML of the main bills page ----------
+    if total_due is None:
+        try:
+            rh = requests.get(html_url, timeout=15)
+            if rh.ok:
+                html_text = rh.text
+                debug_info["html_ok"] = True
+                debug_info["html_length"] = len(html_text)
                 debug_info["html_sample"] = html_text[:400]
 
-                amt = find_amount_near_total_labels(html_text)
+                # First choice: explicit TOTAL AMOUNT DUE (multi-year view)
+                amt = find_amount_near_label(html_text, "TOTAL AMOUNT DUE")
+                if amt is None:
+                    # Fallback: single-year pages just show AMOUNT DUE
+                    amt = find_amount_near_label(html_text, "AMOUNT DUE")
+
                 if amt is not None:
                     total_due = amt
             else:
@@ -423,49 +418,10 @@ def fetch_duval_bill_amounts(public_url: str, debug: bool = False):
         except Exception as e:
             debug_info["html_error"] = str(e)
 
-    # ---------- 3) Fallback: iframe 'load-amount-due' endpoint ----------
-    if total_due is None:
-        try:
-            parsed = urlparse(public_url)
-            qs = parse_qs(parsed.query)
-            guid_vals = qs.get("parcel") or qs.get("id") or []
-            if guid_vals:
-                guid = guid_vals[0]
-                encoded_guid = base64.b64encode(guid.encode("utf-8")).decode("ascii")
-                load_url = (
-                    f"{DUVAL_BASE_URL}/iframe-taxsys/duval.county-taxes.com/"
-                    f"govhub/property-tax/{encoded_guid}/load-amount-due"
-                )
-                rl = requests.get(load_url, timeout=10)
-                if rl.ok:
-                    load_html = rl.text
-                    debug_info["load_ok"] = True
-                    debug_info["load_html_length"] = len(load_html)
-                    debug_info["load_html_sample"] = load_html[:400]
-
-                    amt = find_amount_near_total_labels(load_html)
-                    if amt is not None:
-                        total_due = amt
-                else:
-                    debug_info["load_error"] = f"HTTP {rl.status_code}"
-            else:
-                debug_info["load_error"] = "No GUID in public_url query"
-        except Exception as e:
-            debug_info["load_error"] = str(e)
-
     # We still don't have separate delinquent / last-year amounts;
-    # you can add more parsing logic later if you want.
-    return total_due, delinquent_due, last_year_due, debug_info as e:
-        debug_info["json_error"] = str(e)
-
-    # ---------- 2) HTML of the main bills page ----------
-    if total_due is None:
-        try:
-            rh = requests.get(html_url, timeout=10)
-            if rh.ok:
-                html_text = rh.text
-                debug_info["html_ok"] = True
-                
+    # you can extend parsing later if needed.
+    return total_due, delinquent_due, last_year_due, debug_info
+    
 @app.route("/")
 def root():
     return "Duval Distress Intelligence backend is online (Duval Algolia + CSV cache + amounts)."
