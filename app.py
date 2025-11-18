@@ -310,16 +310,16 @@ def build_iframe_url_from_public(public_url: str) -> str | None:
 def fetch_duval_bill_amounts(public_url: str, debug: bool = False):
     """
     Given public_url from Algolia (like '/public/real_estate/parcels/.../bills?parcel=<GUID>'),
-    try to get the Total Amount Due.
+    try to get the *displayed* "Total Amount Due" (or "Amount Due") for that parcel.
 
-      1) JSON endpoint (bills?format=json) – may or may not expose totals.
-      2) HTML of the main bills page – look near 'TOTAL AMOUNT DUE' or 'AMOUNT DUE'.
+    This version:
+      * DOES NOT guess by taking the biggest dollar amount.
+      * Only uses label-based scraping from the main bills HTML page.
 
     Returns:
         total_due, delinquent_due, last_year_due, debug_info
     """
     import re
-    from urllib.parse import urlparse, parse_qs
 
     debug_info = {
         "json_ok": False,
@@ -337,134 +337,68 @@ def fetch_duval_bill_amounts(public_url: str, debug: bool = False):
     if not public_url.startswith("/"):
         public_url = "/" + public_url
 
-    # Build URLs
     html_url = DUVAL_BASE_URL + public_url
-    if "?" in public_url:
-        json_url = DUVAL_BASE_URL + public_url + "&format=json"
-    else:
-        json_url = DUVAL_BASE_URL + public_url + "?format=json"
 
     total_due = None
     delinquent_due = None
     last_year_due = None
 
-    # ---------- 1) Try JSON endpoint ----------
     try:
-        rj = requests.get(json_url, timeout=10)
-        if rj.ok:
-            try:
-                data = rj.json()
-                debug_info["json_ok"] = True
-            except Exception as e:
-                debug_info["json_error"] = f"json decode: {e}"
+        rh = requests.get(html_url, timeout=15)
+        if rh.ok:
+            html_text = rh.text
+            debug_info["html_ok"] = True
+            debug_info["html_length"] = len(html_text)
+
+            # Try to capture a sample *around* the label so we can see it in debug
+            upper_html = html_text.upper()
+            label_idx = upper_html.find("TOTAL AMOUNT DUE")
+            if label_idx == -1:
+                label_idx = upper_html.find("AMOUNT DUE")
+
+            if label_idx != -1:
+                start = max(0, label_idx - 200)
+                end = min(len(html_text), label_idx + 400)
+                debug_info["html_sample"] = html_text[start:end]
             else:
-                # If they ever expose a clear total in JSON, grab it.
-                for key in ("total_due", "amount_due", "totalAmountDue"):
-                    if key in data:
-                        try:
-                            total_due = float(
-                                str(data[key]).replace("$", "").replace(",", "")
-                            )
-                            break
-                        except ValueError:
-                            pass
+                # fallback sample if we never see the label at all
+                debug_info["html_sample"] = html_text[:600]
+
+            # Strip HTML tags to make pattern matching easier
+            text_no_tags = re.sub(r"<[^>]+>", " ", html_text)
+            text_no_tags = " ".join(text_no_tags.split())
+
+            # 1) Look for "TOTAL AMOUNT DUE ... $X,XXX.XX"
+            m = re.search(
+                r"TOTAL\s+AMOUNT\s+DUE[^$]*\$(\d[\d,]*\.\d{2})",
+                text_no_tags,
+                re.IGNORECASE,
+            )
+
+            # 2) If that fails, look for generic "AMOUNT DUE ... $X,XXX.XX"
+            if not m:
+                m = re.search(
+                    r"AMOUNT\s+DUE[^$]*\$(\d[\d,]*\.\d{2})",
+                    text_no_tags,
+                    re.IGNORECASE,
+                )
+
+            if m:
+                amt_str = m.group(1).replace(",", "")
+                try:
+                    total_due = float(amt_str)
+                except ValueError:
+                    debug_info["html_error"] = f"Could not parse amount '{amt_str}'"
+            else:
+                debug_info["html_error"] = "Label-based search found no amount"
         else:
-            debug_info["json_error"] = f"HTTP {rj.status_code}"
+            debug_info["html_error"] = f"HTTP {rh.status_code}"
     except Exception as e:
-        debug_info["json_error"] = str(e)
+        debug_info["html_error"] = f"request error: {e}"
 
-    # Helper: find a $xxx.xx value that appears near a label string
-    def find_amount_near_label(html_text: str, label: str):
-        text = " ".join(html_text.split())
-        upper = text.upper()
-        label_upper = label.upper()
-
-        pos = upper.find(label_upper)
-        if pos == -1:
-            return None
-
-        # Look in a window *after* the label
-        window = text[pos : pos + 220]
-        m = re.search(r"\$?\d[\d,]*\.\d{2}", window)
-        if not m:
-            return None
-
-        s = m.group(0).replace("$", "").replace(",", "")
-        try:
-            return float(s)
-        except ValueError:
-            return None
-
-    # ---------- 2) HTML of the main bills page (label-based search) ----------
-    if total_due is None:
-        try:
-            rh = requests.get(html_url, timeout=15)
-            if rh.ok:
-                html_text = rh.text
-                debug_info["html_ok"] = True
-                debug_info["html_length"] = len(html_text)
-                debug_info["html_sample"] = html_text[:400]
-
-                amt = None
-
-                # Helper: find first money amount within a window AFTER a label
-                def amount_near_label(raw_html: str, label_regex: str):
-                    label_match = re.search(label_regex, raw_html, re.IGNORECASE)
-                    if not label_match:
-                        return None
-
-                    # Look in the next 600 characters after the label
-                    start = label_match.end()
-                    window = raw_html[start : start + 600]
-
-                    money_match = re.search(r"\$?\d[\d,]*\.\d{2}", window)
-                    if not money_match:
-                        return None
-
-                    s = money_match.group(0).replace("$", "").replace(",", "")
-                    try:
-                        return float(s)
-                    except ValueError:
-                        return None
-
-                # Try flexible label patterns to handle &nbsp; and weird spacing
-                label_patterns = [
-                    r"TOTAL(?:\s|&nbsp;)*AMOUNT(?:\s|&nbsp;)*DUE",
-                    r"AMOUNT(?:\s|&nbsp;)*DUE",
-                    r"TOTAL(?:\s|&nbsp;)*DUE",
-                ]
-
-                for lp in label_patterns:
-                    amt = amount_near_label(html_text, lp)
-                    if amt is not None:
-                        break
-
-                # FINAL FALLBACK: biggest money amount anywhere on the page
-                if amt is None:
-                    all_money = re.findall(r"\$?\d[\d,]*\.\d{2}", html_text)
-                    values = []
-                    for m in all_money:
-                        s = m.replace("$", "").replace(",", "")
-                        try:
-                            values.append(float(s))
-                        except ValueError:
-                            continue
-                    if values:
-                        amt = max(values)
-
-                if amt is not None:
-                    total_due = amt
-                else:
-                    debug_info["html_error"] = "No money amounts found near TOTAL label"
-
-            else:
-                debug_info["html_error"] = f"HTTP {rh.status_code}"
-        except Exception as e:
-            debug_info["html_error"] = str(e)
-
+    # delinquent_due / last_year_due still None until we decide how to parse them
     return total_due, delinquent_due, last_year_due, debug_info
-
-
+    
 @app.route("/api/health")
 def health():
     info = {
