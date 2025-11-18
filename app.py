@@ -395,7 +395,7 @@ def fetch_duval_bill_amounts(public_url: str, debug: bool = False):
         except ValueError:
             return None
 
-    # ---------- 2) HTML of the main bills page ----------
+    # ---------- 2) HTML of the main bills page (new robust logic) ----------
     if total_due is None:
         try:
             rh = requests.get(html_url, timeout=15)
@@ -405,21 +405,46 @@ def fetch_duval_bill_amounts(public_url: str, debug: bool = False):
                 debug_info["html_length"] = len(html_text)
                 debug_info["html_sample"] = html_text[:400]
 
-                # First choice: explicit TOTAL AMOUNT DUE (multi-year view)
-                amt = find_amount_near_label(html_text, "TOTAL AMOUNT DUE")
+                # NEW METHOD: search for $ near TOTAL lines
+                patterns = [
+                    r"TOTAL AMOUNT DUE[^$]*\$(\d[\d,]*\.\d{2})",
+                    r"AMOUNT DUE[^$]*\$(\d[\d,]*\.\d{2})",
+                    r"TOTAL[^$]*\$(\d[\d,]*\.\d{2})",
+                ]
+
+                amt = None
+                for p in patterns:
+                    m = re.search(p, html_text, re.IGNORECASE)
+                    if m:
+                        try:
+                            amt = float(m.group(1).replace(",", ""))
+                            break
+                        except:
+                            pass
+
+                # If still no match, fallback to largest-dollar-amount heuristic
                 if amt is None:
-                    # Fallback: single-year pages just show AMOUNT DUE
-                    amt = find_amount_near_label(html_text, "AMOUNT DUE")
+                    all_money = re.findall(r"\$(\d[\d,]*\.\d{2})", html_text)
+                    if all_money:
+                        cleaned = []
+                        for x in all_money:
+                            try:
+                                cleaned.append(float(x.replace(",", "")))
+                            except:
+                                pass
+                        if cleaned:
+                            amt = max(cleaned)
 
                 if amt is not None:
                     total_due = amt
+                else:
+                    debug_info["html_error"] = "No amount patterns matched"
+
             else:
                 debug_info["html_error"] = f"HTTP {rh.status_code}"
         except Exception as e:
             debug_info["html_error"] = str(e)
 
-    # We still don't have separate delinquent / last-year amounts;
-    # you can extend parsing later if needed.
     return total_due, delinquent_due, last_year_due, debug_info
     
 @app.route("/")
