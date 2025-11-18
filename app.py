@@ -395,7 +395,7 @@ def fetch_duval_bill_amounts(public_url: str, debug: bool = False):
         except ValueError:
             return None
 
-    # ---------- 2) HTML of the main bills page (new robust logic) ----------
+    # ---------- 2) HTML of the main bills page (label-based search) ----------
     if total_due is None:
         try:
             rh = requests.get(html_url, timeout=15)
@@ -405,40 +405,57 @@ def fetch_duval_bill_amounts(public_url: str, debug: bool = False):
                 debug_info["html_length"] = len(html_text)
                 debug_info["html_sample"] = html_text[:400]
 
-                # NEW METHOD: search for $ near TOTAL lines
-                patterns = [
-                    r"TOTAL AMOUNT DUE[^$]*\$(\d[\d,]*\.\d{2})",
-                    r"AMOUNT DUE[^$]*\$(\d[\d,]*\.\d{2})",
-                    r"TOTAL[^$]*\$(\d[\d,]*\.\d{2})",
+                amt = None
+
+                # Helper: find first money amount within a window AFTER a label
+                def amount_near_label(raw_html: str, label_regex: str):
+                    label_match = re.search(label_regex, raw_html, re.IGNORECASE)
+                    if not label_match:
+                        return None
+
+                    # Look in the next 600 characters after the label
+                    start = label_match.end()
+                    window = raw_html[start : start + 600]
+
+                    money_match = re.search(r"\$?\d[\d,]*\.\d{2}", window)
+                    if not money_match:
+                        return None
+
+                    s = money_match.group(0).replace("$", "").replace(",", "")
+                    try:
+                        return float(s)
+                    except ValueError:
+                        return None
+
+                # Try flexible label patterns to handle &nbsp; and weird spacing
+                label_patterns = [
+                    r"TOTAL(?:\s|&nbsp;)*AMOUNT(?:\s|&nbsp;)*DUE",
+                    r"AMOUNT(?:\s|&nbsp;)*DUE",
+                    r"TOTAL(?:\s|&nbsp;)*DUE",
                 ]
 
-                amt = None
-                for p in patterns:
-                    m = re.search(p, html_text, re.IGNORECASE)
-                    if m:
-                        try:
-                            amt = float(m.group(1).replace(",", ""))
-                            break
-                        except:
-                            pass
+                for lp in label_patterns:
+                    amt = amount_near_label(html_text, lp)
+                    if amt is not None:
+                        break
 
-                # If still no match, fallback to largest-dollar-amount heuristic
+                # FINAL FALLBACK: biggest money amount anywhere on the page
                 if amt is None:
-                    all_money = re.findall(r"\$(\d[\d,]*\.\d{2})", html_text)
-                    if all_money:
-                        cleaned = []
-                        for x in all_money:
-                            try:
-                                cleaned.append(float(x.replace(",", "")))
-                            except:
-                                pass
-                        if cleaned:
-                            amt = max(cleaned)
+                    all_money = re.findall(r"\$?\d[\d,]*\.\d{2}", html_text)
+                    values = []
+                    for m in all_money:
+                        s = m.replace("$", "").replace(",", "")
+                        try:
+                            values.append(float(s))
+                        except ValueError:
+                            continue
+                    if values:
+                        amt = max(values)
 
                 if amt is not None:
                     total_due = amt
                 else:
-                    debug_info["html_error"] = "No amount patterns matched"
+                    debug_info["html_error"] = "No money amounts found near TOTAL label"
 
             else:
                 debug_info["html_error"] = f"HTTP {rh.status_code}"
@@ -446,10 +463,6 @@ def fetch_duval_bill_amounts(public_url: str, debug: bool = False):
             debug_info["html_error"] = str(e)
 
     return total_due, delinquent_due, last_year_due, debug_info
-    
-@app.route("/")
-def root():
-    return "Duval Distress Intelligence backend is online (Duval Algolia + CSV cache + amounts)."
 
 
 @app.route("/api/health")
