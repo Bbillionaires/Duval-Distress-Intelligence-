@@ -309,15 +309,11 @@ def build_iframe_url_from_public(public_url: str) -> str | None:
 
 def fetch_duval_bill_amounts(public_url: str, debug: bool = False):
     """
-    Given public_url from Algolia (like '/public/real_estate/parcels/.../bills?parcel=<GUID>'),
-    try to get the *displayed* "Total Amount Due" (or "Amount Due") for that parcel.
-
-    This version:
-      * DOES NOT guess by taking the biggest dollar amount.
-      * Only uses label-based scraping from the main bills HTML page.
-
-    Returns:
-        total_due, delinquent_due, last_year_due, debug_info
+    Label-based scraping of Duval “Total Amount Due”.
+    This version ONLY looks for:
+        TOTAL AMOUNT DUE   $X.XX
+        AMOUNT DUE         $X.XX
+    Never guesses. Never takes largest/min smallest value. 
     """
     import re
 
@@ -333,7 +329,7 @@ def fetch_duval_bill_amounts(public_url: str, debug: bool = False):
     if not public_url:
         return None, None, None, debug_info
 
-    # Make sure URL starts with '/'
+    # normalize path
     if not public_url.startswith("/"):
         public_url = "/" + public_url
 
@@ -345,59 +341,60 @@ def fetch_duval_bill_amounts(public_url: str, debug: bool = False):
 
     try:
         rh = requests.get(html_url, timeout=15)
-        if rh.ok:
-            html_text = rh.text
-            debug_info["html_ok"] = True
-            debug_info["html_length"] = len(html_text)
+        if not rh.ok:
+            debug_info["html_error"] = f"HTTP {rh.status_code}"
+            return None, None, None, debug_info
 
-            # Try to capture a sample *around* the label so we can see it in debug
-            upper_html = html_text.upper()
-            label_idx = upper_html.find("TOTAL AMOUNT DUE")
-            if label_idx == -1:
-                label_idx = upper_html.find("AMOUNT DUE")
+        html_text = rh.text
+        debug_info["html_ok"] = True
+        debug_info["html_length"] = len(html_text)
 
-            if label_idx != -1:
-                start = max(0, label_idx - 200)
-                end = min(len(html_text), label_idx + 400)
-                debug_info["html_sample"] = html_text[start:end]
-            else:
-                # fallback sample if we never see the label at all
-                debug_info["html_sample"] = html_text[:600]
+        # Search window around “TOTAL AMOUNT DUE”
+        upper_html = html_text.upper()
+        label_idx = upper_html.find("TOTAL AMOUNT DUE")
+        if label_idx == -1:
+            label_idx = upper_html.find("AMOUNT DUE")
 
-            # Strip HTML tags to make pattern matching easier
-            text_no_tags = re.sub(r"<[^>]+>", " ", html_text)
-            text_no_tags = " ".join(text_no_tags.split())
+        if label_idx != -1:
+            start = max(0, label_idx - 200)
+            end = min(len(html_text), label_idx + 400)
+            debug_info["html_sample"] = html_text[start:end]
+        else:
+            debug_info["html_sample"] = html_text[:600]
 
-            # 1) Look for "TOTAL AMOUNT DUE ... $X,XXX.XX"
+        # Remove HTML tags for cleaner matching
+        text_strip = re.sub(r"<[^>]+>", " ", html_text)
+        text_strip = " ".join(text_strip.split())
+
+        # Pattern 1: TOTAL AMOUNT DUE … $X.XX
+        m = re.search(
+            r"TOTAL\s+AMOUNT\s+DUE[^$]*\$(\d[\d,]*\.\d{2})",
+            text_strip,
+            re.IGNORECASE,
+        )
+
+        # Pattern 2: fallback "AMOUNT DUE … $X.XX"
+        if not m:
             m = re.search(
-                r"TOTAL\s+AMOUNT\s+DUE[^$]*\$(\d[\d,]*\.\d{2})",
-                text_no_tags,
+                r"AMOUNT\s+DUE[^$]*\$(\d[\d,]*\.\d{2})",
+                text_strip,
                 re.IGNORECASE,
             )
 
-            # 2) If that fails, look for generic "AMOUNT DUE ... $X,XXX.XX"
-            if not m:
-                m = re.search(
-                    r"AMOUNT\s+DUE[^$]*\$(\d[\d,]*\.\d{2})",
-                    text_no_tags,
-                    re.IGNORECASE,
-                )
-
-            if m:
-                amt_str = m.group(1).replace(",", "")
-                try:
-                    total_due = float(amt_str)
-                except ValueError:
-                    debug_info["html_error"] = f"Could not parse amount '{amt_str}'"
-            else:
-                debug_info["html_error"] = "Label-based search found no amount"
+        if m:
+            amt_str = m.group(1).replace(",", "")
+            try:
+                total_due = float(amt_str)
+            except:
+                debug_info["html_error"] = f"could not parse {amt_str}"
         else:
-            debug_info["html_error"] = f"HTTP {rh.status_code}"
+            debug_info["html_error"] = "Label-based search found no amount"
+
     except Exception as e:
         debug_info["html_error"] = f"request error: {e}"
 
-    # delinquent_due / last_year_due still None until we decide how to parse them
     return total_due, delinquent_due, last_year_due, debug_info
+
     
 @app.route("/api/health")
 def health():
