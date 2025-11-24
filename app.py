@@ -610,6 +610,15 @@ def parcel_lookup():
             public_url
         )
 
+        # Normalize total_due into a numeric value and mark distressed status
+        try:
+        total_numeric = float(total_due) if total_due not in (None, "") else 0.0
+        except (TypeError, ValueError):
+        total_numeric = 0.0
+
+        # Example rule: distressed if they owe more than $0
+        is_distressed = total_numeric > 0
+        
         # For CSV, store empty string if the amount is None
         row = {
             "parcel": parcel_id,
@@ -623,6 +632,8 @@ def parcel_lookup():
             "total_due": total_due if total_due is not None else "",
             "delinquent_due": delinquent_due if delinquent_due is not None else "",
             "last_year_due": last_year_due if last_year_due is not None else "",
+            "total_due_numeric": total_numeric,
+            "is_distressed": is_distressed,
             "source": "live_duval",
             "created_at": datetime.utcnow().isoformat(),
         }
