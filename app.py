@@ -309,13 +309,19 @@ def build_iframe_url_from_public(public_url: str) -> str | None:
 
 def fetch_duval_bill_amounts(public_url: str, debug: bool = False):
     """
-    Label-based scraping of Duval “Total Amount Due”.
-    This version ONLY looks for:
-        TOTAL AMOUNT DUE   $X.XX
-        AMOUNT DUE         $X.XX
-    Never guesses. Never takes largest/min smallest value. 
+    Given public_url from Algolia (like '/public_.../bills?parcel=<GUID>'),
+    try several strategies to get the **Total Amount Due**:
+
+      1) JSON endpoint (bills?format=json) – usually empty, but harmless to try.
+      2) HTML of the main bills page.
+      3) Fallback: the iframe 'load-amount-due' endpoint that the UI uses.
+
+    Returns:
+        total_due, delinquent_due, last_year_due, debug_info
     """
     import re
+    import base64
+    from urllib.parse import urlparse, parse_qs
 
     debug_info = {
         "json_ok": False,
@@ -324,77 +330,144 @@ def fetch_duval_bill_amounts(public_url: str, debug: bool = False):
         "html_error": None,
         "html_length": None,
         "html_sample": None,
+        "load_ok": False,
+        "load_error": None,
+        "load_html_length": None,
+        "load_html_sample": None,
     }
 
     if not public_url:
         return None, None, None, debug_info
 
-    # normalize path
+    # Make sure URL starts with '/'
     if not public_url.startswith("/"):
         public_url = "/" + public_url
 
+    # ------------ Helper: find "TOTAL AMOUNT DUE ... $X.XX" in HTML ------------
+    def extract_labeled_total(html_text: str):
+        """
+        Look for labels like 'TOTAL AMOUNT DUE' or 'AMOUNT DUE' followed
+        shortly by a dollar amount. This avoids grabbing random larger numbers
+        elsewhere on the page (certificates, face amounts, etc.).
+        """
+        text = " ".join(html_text.split())
+
+        # Pattern 1: "TOTAL AMOUNT DUE ... $X.XX"
+        m = re.search(
+            r"TOTAL\s+AMOUNT\s+DUE[^$0-9]{0,60}\$?\s*([0-9][\d,]*\.\d{2})",
+            text,
+            re.IGNORECASE,
+        )
+        if m:
+            try:
+                return float(m.group(1).replace(",", ""))
+            except ValueError:
+                pass
+
+        # Pattern 2: fallback "AMOUNT DUE ... $X.XX"
+        m = re.search(
+            r"AMOUNT\s+DUE[^$0-9]{0,60}\$?\s*([0-9][\d,]*\.\d{2})",
+            text,
+            re.IGNORECASE,
+        )
+        if m:
+            try:
+                return float(m.group(1).replace(",", ""))
+            except ValueError:
+                pass
+
+        return None
+
+    # Build URLs we will try
     html_url = DUVAL_BASE_URL + public_url
+
+    if "?" in public_url:
+        json_url = DUVAL_BASE_URL + public_url + "&format=json"
+    else:
+        json_url = DUVAL_BASE_URL + public_url + "?format=json"
 
     total_due = None
     delinquent_due = None
     last_year_due = None
 
+    # ------------------------- 1) Try JSON endpoint ---------------------------
     try:
-        rh = requests.get(html_url, timeout=15)
-        if not rh.ok:
-            debug_info["html_error"] = f"HTTP {rh.status_code}"
-            return None, None, None, debug_info
-
-        html_text = rh.text
-        debug_info["html_ok"] = True
-        debug_info["html_length"] = len(html_text)
-
-        # Search window around “TOTAL AMOUNT DUE”
-        upper_html = html_text.upper()
-        label_idx = upper_html.find("TOTAL AMOUNT DUE")
-        if label_idx == -1:
-            label_idx = upper_html.find("AMOUNT DUE")
-
-        if label_idx != -1:
-            start = max(0, label_idx - 200)
-            end = min(len(html_text), label_idx + 400)
-            debug_info["html_sample"] = html_text[start:end]
-        else:
-            debug_info["html_sample"] = html_text[:600]
-
-        # Remove HTML tags for cleaner matching
-        text_strip = re.sub(r"<[^>]+>", " ", html_text)
-        text_strip = " ".join(text_strip.split())
-
-        # Pattern 1: TOTAL AMOUNT DUE … $X.XX
-        m = re.search(
-            r"TOTAL\s+AMOUNT\s+DUE[^$]*\$(\d[\d,]*\.\d{2})",
-            text_strip,
-            re.IGNORECASE,
-        )
-
-        # Pattern 2: fallback "AMOUNT DUE … $X.XX"
-        if not m:
-            m = re.search(
-                r"AMOUNT\s+DUE[^$]*\$(\d[\d,]*\.\d{2})",
-                text_strip,
-                re.IGNORECASE,
-            )
-
-        if m:
-            amt_str = m.group(1).replace(",", "")
+        rj = requests.get(json_url, timeout=15)
+        if rj.ok:
             try:
-                total_due = float(amt_str)
-            except:
-                debug_info["html_error"] = f"could not parse {amt_str}"
+                data = rj.json()
+                debug_info["json_ok"] = True
+                # If they ever expose totals here, use them.
+                for key in ["total_due", "amount_due", "totalAmountDue"]:
+                    if key in data:
+                        try:
+                            total_due = float(
+                                str(data[key]).replace("$", "").replace(",", "")
+                            )
+                            break
+                        except ValueError:
+                            pass
+            except Exception as e:
+                debug_info["json_error"] = str(e)
         else:
-            debug_info["html_error"] = "Label-based search found no amount"
-
+            debug_info["json_error"] = f"HTTP {rj.status_code}"
     except Exception as e:
-        debug_info["html_error"] = f"request error: {e}"
+        debug_info["json_error"] = str(e)
 
+    # -------------------- 2) Try HTML of the main bills page ------------------
+    if total_due is None:
+        try:
+            rh = requests.get(html_url, timeout=15)
+            if rh.ok:
+                debug_info["html_ok"] = True
+                debug_info["html_length"] = len(rh.text)
+                debug_info["html_sample"] = rh.text[:400]
+
+                amt = extract_labeled_total(rh.text)
+                if amt is not None:
+                    total_due = amt
+            else:
+                debug_info["html_error"] = f"HTTP {rh.status_code}"
+        except Exception as e:
+            debug_info["html_error"] = str(e)
+
+    # ------------------ 3) Fallback: iframe load-amount-due -------------------
+    # Browser hits:
+    #   https://county-taxes.net/iframe-taxsys/duval.county-taxes.com/
+    #       govhub/property-tax/<BASE64>/load-amount-due
+    if total_due is None:
+        try:
+            parsed = urlparse(public_url)
+            qs = parse_qs(parsed.query)
+            guid = qs.get("parcel", [None])[0]
+
+            if guid:
+                token_str = f"duval:real_estate:parents:{guid}"
+                token_b64 = base64.b64encode(token_str.encode("utf-8")).decode("utf-8")
+
+                load_url = (
+                    "https://county-taxes.net/iframe-taxsys/duval.county-taxes.com/"
+                    f"govhub/property-tax/{token_b64}/load-amount-due"
+                )
+
+                rl = requests.get(load_url, timeout=15)
+                if rl.ok:
+                    debug_info["load_ok"] = True
+                    debug_info["load_html_length"] = len(rl.text)
+                    debug_info["load_html_sample"] = rl.text[:400]
+
+                    amt = extract_labeled_total(rl.text)
+                    if amt is not None:
+                        total_due = amt
+                else:
+                    debug_info["load_error"] = f"HTTP {rl.status_code}"
+            else:
+                debug_info["load_error"] = "No GUID in public_url query"
+        except Exception as e:
+            debug_info["load_error"] = str(e)
+
+    # We still don't separate delinquent / last-year amounts yet.
     return total_due, delinquent_due, last_year_due, debug_info
-
     
 @app.route("/api/health")
 def health():
