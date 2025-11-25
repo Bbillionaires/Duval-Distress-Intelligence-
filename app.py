@@ -483,6 +483,126 @@ def health():
     }
     return jsonify(info)
 
+@app.route("/api/search_zip")
+def search_zip():
+    """
+    Bulk distress search by ZIP.
+
+    Query params:
+      - zip: required (e.g. 32209)
+      - min_due: optional, float (filter out properties that owe less)
+      - max_due: optional, float (filter out properties that owe more)
+
+    It:
+      * calls Algolia using the ZIP as the search query,
+      * filters hits whose entity zip matches exactly,
+      * fetches live bill amounts for each, like /api/parcel,
+      * returns many rows in the same shape as parcel_lookup.
+    """
+    zip_raw = request.args.get("zip", "").strip()
+    if not zip_raw:
+        return jsonify({"status": "error", "message": "Missing ?zip= parameter"}), 400
+
+    # Helper to parse optional floats
+    def parse_float(val, default=None):
+        if val is None or val == "":
+            return default
+        try:
+            return float(str(val))
+        except Exception:
+            return default
+
+    min_due = parse_float(request.args.get("min_due"))
+    max_due = parse_float(request.args.get("max_due"))
+
+    # 1) Search Algolia using the ZIP as the query
+    hits = search_duval_algolia(zip_raw)
+    results = []
+
+    for hit in hits or []:
+        # -----------------------------
+        # Basic identity fields (same style as parcel_lookup)
+        # -----------------------------
+        parcel_id = (
+            hit.get("external_id")
+            or hit.get("parcel")
+            or hit.get("objectID")
+        )
+
+        owner_name = ""
+        display_name = hit.get("display_name") or ""
+        address = ""
+        city = ""
+        state = ""
+        zip_code = ""
+
+        custom_params = hit.get("custom_parameters") or {}
+        entities = custom_params.get("entities") or []
+        if isinstance(entities, list) and entities:
+            first = entities[0]
+            owner_name = first.get("name", "") or display_name
+            address = first.get("address", "")
+            city = first.get("city", "")
+            state = first.get("state", "")
+            zip_code = first.get("zip", "")
+
+        # Only keep exact ZIP matches if we have a zip_code
+        if zip_code and zip_code != zip_raw:
+            continue
+
+        public_url = custom_params.get("public_url", "")
+
+        # -----------------------------
+        # Fetch bill amounts like parcel_lookup
+        # -----------------------------
+        total_due, delinquent_due, last_year_due, fetch_dbg = fetch_duval_bill_amounts(
+            public_url
+        )
+
+        # Normalize to numeric for filtering
+        try:
+            total_numeric = float(total_due) if total_due not in (None, "") else 0.0
+        except (TypeError, ValueError):
+            total_numeric = 0.0
+
+        # Apply min / max filters
+        if min_due is not None and total_numeric < min_due:
+            continue
+        if max_due is not None and total_numeric > max_due:
+            continue
+
+        is_distressed = total_numeric > 0
+
+        row = {
+            "parcel": parcel_id,
+            "owner_name": owner_name,
+            "display_name": display_name,
+            "address": address,
+            "city": city,
+            "state": state,
+            "zip": zip_code,
+            "public_url": public_url,
+            "total_due": total_due if total_due is not None else "",
+            "delinquent_due": delinquent_due if delinquent_due is not None else "",
+            "last_year_due": last_year_due if last_year_due is not None else "",
+            "total_due_numeric": total_numeric,
+            "is_distressed": is_distressed,
+            "source": "live_duval_zip",
+            "created_at": datetime.utcnow().isoformat(),
+        }
+
+        results.append(row)
+
+        # (Optional) save to CSV as well
+        save_row(row)
+
+    resp = {
+        "status": "success",
+        "source": "live_duval_zip",
+        "count": len(results),
+        "rows": results,
+    }
+    return jsonify(resp)
 
 @app.route("/api/parcel")
 def parcel_lookup():
@@ -612,9 +732,9 @@ def parcel_lookup():
 
         # Normalize total_due into a numeric value and mark distressed status
         try:
-        total_numeric = float(total_due) if total_due not in (None, "") else 0.0
+            total_numeric = float(total_due) if total_due not in (None, "") else 0.0
         except (TypeError, ValueError):
-        total_numeric = 0.0
+            total_numeric = 0.0
 
         # Example rule: distressed if they owe more than $0
         is_distressed = total_numeric > 0
