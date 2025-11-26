@@ -50,6 +50,8 @@ CSV_FIELDS = [
     "total_due",
     "delinquent_due",
     "last_year_due",
+    "total_due_numeric",  # NEW
+    "is_distressed",      # NEW
     "source",
     "created_at",
 ]
