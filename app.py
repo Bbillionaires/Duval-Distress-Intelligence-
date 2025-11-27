@@ -830,45 +830,44 @@ def parcel_lookup():
             public_url = custom_params.get("public_url", "")
 
             # -----------------------------
-            # Fetch bill amounts via Duval
-            # -----------------------------
-            total_due, delinquent_due, last_year_due, fetch_dbg = fetch_duval_bill_amounts(
-                public_url
-            )
+        # Fetch bill amounts via Duval
+        # -----------------------------
+        total_due, delinquent_due, last_year_due, fetch_dbg = fetch_duval_bill_amounts(
+            public_url
+        )
 
-            # Normalize total_due into a numeric value and mark distressed status
-            try:
-                total_numeric = float(total_due) if total_due not in (None, "") else 0.0
-            except (TypeError, ValueError):
-                total_numeric = 0.0
+        # Normalize total_due into a numeric value and mark distressed status
+        try:
+            total_numeric = float(total_due) if total_due not in (None, "") else 0.0
+        except (TypeError, ValueError):
+            total_numeric = 0.0
 
-            # Example rule: distressed if they owe more than $0
-            is_distressed = total_numeric > 0
+        # Example rule: distressed if they owe more than $0
+        is_distressed = total_numeric > 0
+        
+        # For CSV, store empty string if the amount is None
+        row = {
+            "parcel": parcel_id,
+            "owner_name": owner_name,
+            "display_name": display_name,
+            "address": address,
+            "city": city,
+            "state": state,
+            "zip": zip_code,
+            "public_url": public_url,
+            "total_due": total_due if total_due is not None else "",
+            "delinquent_due": delinquent_due if delinquent_due is not None else "",
+            "last_year_due": last_year_due if last_year_due is not None else "",
+            "total_due_numeric": total_numeric,
+            "is_distressed": is_distressed,
+            "source": "live_duval",
+            "created_at": datetime.utcnow().isoformat(),
+        }
 
-            # For CSV, store empty string if the amount is None
-            row = {
-                "parcel": parcel_id,
-                "owner_name": owner_name,
-                "display_name": display_name,
-                "address": address,
-                "city": city,
-                "state": state,
-                "zip": zip_code,
-                "public_url": public_url,
-                "total_due": total_due if total_due is not None else "",
-                "delinquent_due": delinquent_due if delinquent_due is not None else "",
-                "last_year_due": last_year_due if last_year_due is not None else "",
-                "total_due_numeric": total_numeric,
-                "is_distressed": is_distressed,
-                "source": "live_duval",
-                "created_at": datetime.utcnow().isoformat(),
-            }
-
-            # Avoid duplicates within this response
-            if not any(r["parcel"] == row["parcel"] for r in out_rows):
-                out_rows.append(row)
-                save_row(row)
-
+        # Avoid duplicates within this response
+        if not any(r["parcel"] == row["parcel"] for r in out_rows):
+            out_rows.append(row)
+            save_row(row)
             # Collect fetch-debug info per parcel if we are in debug mode
             amount_fetch_debug.append(
                 {
