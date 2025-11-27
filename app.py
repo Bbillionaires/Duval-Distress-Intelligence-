@@ -642,7 +642,6 @@ def search_zip():
         ), 500
 
 @app.route("/api/parcel")
-@app.route("/api/parcel")
 def parcel_lookup():
     """
     Main endpoint:
