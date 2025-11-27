@@ -681,19 +681,6 @@ def search_zip():
         csv_row = {k: row.get(k, "") for k in CSV_FIELDS}
         save_row(csv_row)
 
-            amount_fetch_debug.append(
-                {
-                    "parcel": parcel_id,
-                    "public_url": public_url,
-                    "amounts": {
-                        "total_due": total_due,
-                        "delinquent_due": delinquent_due,
-                        "last_year_due": last_year_due,
-                    },
-                    "fetch_debug": fetch_dbg,
-                }
-            )
-
         resp = {
             "status": "success",
             "source": "live_duval_zip",
