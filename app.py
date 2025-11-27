@@ -670,7 +670,7 @@ def search_zip():
             "total_due_numeric": total_numeric,
             "is_distressed": is_distressed,
 
-            )
+              }
             
 @app.route("/api/search_zip")
 def search_zip():
