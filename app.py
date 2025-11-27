@@ -669,8 +669,7 @@ def search_zip():
             "last_year_due": last_year_due if last_year_due is not None else "",
             "total_due_numeric": total_numeric,
             "is_distressed": is_distressed,
-
-              }
+             }
             
 @app.route("/api/search_zip")
 def search_zip():
