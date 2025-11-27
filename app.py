@@ -53,8 +53,14 @@ CSV_FIELDS = [
     "total_due",
     "delinquent_due",
     "last_year_due",
-    "total_due_numeric",  # NEW
-    "is_distressed",      # NEW
+    "total_due_numeric",
+    "is_distressed",
+    "years_behind",
+    "unpaid_years",
+    "delinquent_total",
+    "tax_deed_application",
+    "distress_level",
+    "distress_desc",
     "source",
     "created_at",
 ]
