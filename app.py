@@ -1,7 +1,10 @@
 import os
 import csv
 import json
+import re
+import base64
 from datetime import datetime, timedelta
+from urllib.parse import urlparse, parse_qs
 
 import requests
 from flask import Flask, jsonify, request
