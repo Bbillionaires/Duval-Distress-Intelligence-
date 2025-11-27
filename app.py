@@ -626,47 +626,60 @@ def search_zip():
 
             public_url = custom_params.get("public_url", "")
 
-            # -----------------------------
-            # Fetch bill amounts like parcel_lookup
-            # -----------------------------
-            total_due, delinquent_due, last_year_due, fetch_dbg = fetch_duval_bill_amounts(
-                public_url
-            )
+        # -----------------------------
+        # Fetch bill amounts like parcel_lookup
+        # -----------------------------
+        total_due, delinquent_due, last_year_due, fetch_dbg = fetch_duval_bill_amounts(
+            public_url
+        )
 
-            # Normalize to numeric for filtering
-            try:
-                total_numeric = float(total_due) if total_due not in (None, "") else 0.0
-            except (TypeError, ValueError):
-                total_numeric = 0.0
+        # Distress scoring for ZIP search
+        distress_meta = compute_distress(
+            total_due,
+            {
+                "years_behind": None,
+                "unpaid_years": [],
+                "delinquent_total": None,
+                "tax_deed_application": False,
+            },
+        )
 
-            # Apply min / max filters
-            if min_due is not None and total_numeric < min_due:
-                continue
-            if max_due is not None and total_numeric > max_due:
-                continue
+        total_numeric = distress_meta.get("delinquent_total") or 0.0
+        is_distressed = distress_meta.get("is_distressed", False)
+        distress_level = distress_meta.get("distress_level", 0)
+        distress_desc = distress_meta.get("distress_desc", "No Significant Distress")
 
-            is_distressed = total_numeric > 0
+        # Apply min / max filters based on the numeric total
+        if min_due is not None and total_numeric < min_due:
+            continue
+        if max_due is not None and total_numeric > max_due:
+            continue
 
-            row = {
-                "parcel": parcel_id,
-                "owner_name": owner_name,
-                "display_name": display_name,
-                "address": address,
-                "city": city,
-                "state": state,
-                "zip": zip_code,
-                "public_url": public_url,
-                "total_due": total_due if total_due is not None else "",
-                "delinquent_due": delinquent_due if delinquent_due is not None else "",
-                "last_year_due": last_year_due if last_year_due is not None else "",
-                "total_due_numeric": total_numeric,
-                "is_distressed": is_distressed,
-                "source": "live_duval_zip",
-                "created_at": datetime.utcnow().isoformat(),
-            }
+        row = {
+            "parcel": parcel_id,
+            "owner_name": owner_name,
+            "display_name": display_name,
+            "address": address,
+            "city": city,
+            "state": state,
+            "zip": zip_code,
+            "public_url": public_url,
+            "total_due": total_due if total_due is not None else "",
+            "delinquent_due": delinquent_due if delinquent_due is not None else "",
+            "last_year_due": last_year_due if last_year_due is not None else "",
+            "total_due_numeric": total_numeric,
+            "is_distressed": is_distressed,
+            "distress_level": distress_level,
+            "distress_desc": distress_desc,
+            "source": "live_duval_zip",
+            "created_at": datetime.utcnow().isoformat(),
+        }
 
-            results.append(row)
-            save_row(row)
+        results.append(row)
+
+        # Save only CSV-friendly subset
+        csv_row = {k: row.get(k, "") for k in CSV_FIELDS}
+        save_row(csv_row)
 
             amount_fetch_debug.append(
                 {
@@ -829,7 +842,7 @@ def parcel_lookup():
 
             public_url = custom_params.get("public_url", "")
 
-            # -----------------------------
+        # -----------------------------
         # Fetch bill amounts via Duval
         # -----------------------------
         total_due, delinquent_due, last_year_due, fetch_dbg = fetch_duval_bill_amounts(
@@ -868,6 +881,7 @@ def parcel_lookup():
         if not any(r["parcel"] == row["parcel"] for r in out_rows):
             out_rows.append(row)
             save_row(row)
+            
             # Collect fetch-debug info per parcel if we are in debug mode
             amount_fetch_debug.append(
                 {
