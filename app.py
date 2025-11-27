@@ -669,46 +669,91 @@ def search_zip():
             "last_year_due": last_year_due if last_year_due is not None else "",
             "total_due_numeric": total_numeric,
             "is_distressed": is_distressed,
-            "distress_level": distress_level,
-            "distress_desc": distress_desc,
-            "source": "live_duval_zip",
-            "created_at": datetime.utcnow().isoformat(),
-        }
+@app.route("/api/search_zip")
+def search_zip():
+    """
+    Bulk distress search by ZIP.
 
-        results.append(row)
+    Query params:
+      - zip: required (e.g. 32209)
+      - min_due: optional, float (filter out properties that owe less)
+      - max_due: optional, float (filter out properties that owe more)
 
-        # Save only CSV-friendly subset
-        csv_row = {k: row.get(k, "") for k in CSV_FIELDS}
-        save_row(csv_row)
+    It:
+      * calls Algolia using the ZIP as the search query,
+      * filters hits whose entity zip matches exactly,
+      * fetches live bill amounts for each (same logic as /api/parcel),
+      * computes a distress score,
+      * returns many rows.
+    """
+    zip_raw = request.args.get("zip", "").strip()
+    if not zip_raw:
+        return jsonify({"status": "error", "message": "Missing ?zip= parameter"}), 400
 
-        resp = {
-            "status": "success",
-            "source": "live_duval_zip",
-            "count": len(results),
-            "rows": results,
-        }
+    # Helper to parse optional floats
+    def parse_float(val, default=None):
+        if val is None or val == "":
+            return default
+        try:
+            return float(str(val))
+        except Exception:
+            return default
 
-        if debug_flag:
-            resp["debug"] = {
-                "zip": zip_raw,
-                "hits_found": len(hits or []),
-                "amount_fetch": amount_fetch_debug,
-            }
+    min_due = parse_float(request.args.get("min_due"))
+    max_due = parse_float(request.args.get("max_due"))
 
-        return jsonify(resp)
+    # 1) Search Algolia using the ZIP as the query
+    hits = search_duval_algolia(zip_raw)
+    results = []
 
-    except Exception as e:
-        # This is here specifically so you don't get a blank 500.
-        # You can remove or tighten this later.
-        return jsonify(
-            {
-                "status": "error",
-                "message": "Unhandled exception in /api/search_zip",
-                "error": str(e),
-            }
-        ), 500
+    for hit in hits or []:
+        # -----------------------------
+        # Basic identity fields (same style as parcel_lookup)
+        # -----------------------------
+        parcel_id = (
+            hit.get("external_id")
+            or hit.get("parcel")
+            or hit.get("objectID")
+        )
 
-@app.route("/api/parcel")
+        owner_name = ""
+        display_name = hit.get("display_name") or ""
+        address = ""
+        city = ""
+        state = ""
+        zip_code = ""
+
+        custom_params = hit.get("custom_parameters") or {}
+        entities = custom_params.get("entities") or []
+        if isinstance(entities, list) and entities:
+            first = entities[0]
+            owner_name = first.get("name", "") or display_name
+            address = first.get("address", "")
+            city = first.get("city", "")
+            state = first.get("state", "")
+            zip_code = first.get("zip", "")
+
+        # Only keep exact ZIP matches if we have a zip_code
+        if zip_code and zip_code != zip_raw:
+            continue
+
+        public_url = custom_params.get("public_url", "")
+
+        # -----------------------------
+        # Fetch bill amounts like parcel_lookup
+        # -----------------------------
+        total_due, delinquent_due, last_year_due, fetch_dbg = fetch_duval_bill_amounts(
+            public_url
+        )
+
+        # Normalize to numeric for filtering & scoring
+        try:
+            total_numeric = float(total_due) if total_due not in (None, "") else 0.0
+        except (TypeError, ValueError):
+            total_numeric = 0.0
+
+        # Apply min / max
+
 @app.route("/api/parcel")
 def parcel_lookup():
     """
