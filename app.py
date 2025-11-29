@@ -104,6 +104,109 @@ def find_recent_csv_rows(parcel: str):
             rows.append(row)
     return rows
 
+# ------------------------------------------------------------------------------
+# Tax certificate helpers (LienHub export)
+# ------------------------------------------------------------------------------
+
+_cert_cache = None
+_cert_cache_mtime = None
+
+
+def load_certificate_rows():
+    """
+    Load tax certificate rows from CERT_CSV_PATH into a dict keyed by account/parcel.
+
+    Expected columns (from LienHub export):
+      - "Account No."  (or similar)
+      - "Face Amount"
+      - "Avg. Months Outstanding"
+
+    We’re flexible about header spelling – we’ll look for substrings.
+    """
+    import os
+
+    global _cert_cache, _cert_cache_mtime
+
+    try:
+        mtime = os.path.getmtime(CERT_CSV_PATH)
+    except FileNotFoundError:
+        _cert_cache = {}
+        _cert_cache_mtime = None
+        return _cert_cache
+
+    # If we already loaded this version of the file, reuse it
+    if _cert_cache is not None and _cert_cache_mtime == mtime:
+        return _cert_cache
+
+    if not os.path.exists(CERT_CSV_PATH):
+        _cert_cache = {}
+        _cert_cache_mtime = None
+        return _cert_cache
+
+    with open(CERT_CSV_PATH, newline="", encoding="utf-8-sig") as f:
+        reader = csv.DictReader(f)
+        headers = [h.strip() for h in reader.fieldnames or []]
+
+        def find_col(*candidates):
+            for h in headers:
+                lower = h.lower()
+                for cand in candidates:
+                    if cand in lower:
+                        return h
+            return None
+
+        acct_col = find_col("account", "parcel")
+        face_col = find_col("face amount", "face")
+        months_col = find_col("avg. months", "months outstanding")
+
+        data = {}
+        for row in reader:
+            if not acct_col:
+                continue
+            acct_raw = (row.get(acct_col) or "").strip()
+            if not acct_raw:
+                continue
+
+            face_amt = normalize_amount(row.get(face_col)) if face_col else None
+            months_out = normalize_amount(row.get(months_col)) if months_col else None
+
+            years_behind = 0
+            if months_out is not None:
+                try:
+                    years_behind = int(float(months_out) // 12)
+                except Exception:
+                    years_behind = 0
+
+            # Use both dashed and no-dash forms for lookup
+            key1 = acct_raw.replace(" ", "")
+            key2 = key1.replace("-", "")
+
+            meta = {
+                "years_behind": years_behind,
+                "unpaid_years": [],  # unknown from this export
+                "delinquent_total": face_amt or 0.0,
+                "tax_deed_application": False,  # we’ll treat TDA separately later
+            }
+            data[key1] = meta
+            data[key2] = meta
+
+        _cert_cache = data
+        _cert_cache_mtime = mtime
+        return _cert_cache
+
+
+def get_certificate_meta(parcel_id: str):
+    """
+    Lookup certificate metadata for a given parcel/account id like '000006-0100'.
+    We try both dashed and no-dash versions.
+    """
+    if not parcel_id:
+        return None
+
+    certs = load_certificate_rows()
+    key1 = parcel_id.replace(" ", "")
+    key2 = key1.replace("-", "")
+    return certs.get(key1) or certs.get(key2)
 
 # ------------------------------------------------------------------------------
 # Duval Algolia search (live, no local data needed)
