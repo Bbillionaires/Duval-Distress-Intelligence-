@@ -780,8 +780,10 @@ def search_zip():
           "zip": zip_code,
           "public_url": public_url,
           "total_due": total_due if total_due is not None else "",
-          "delinquent_due": delinquent_due if delinquent_due is not None else "",
-          "last_year_due": last_year_due if last_year_due is not None else "",
+          "delinquent_due": delinquent_due if delinquent_due is not 
+        None else "",
+          "last_year_due": last_year_due if last_year_due is not None 
+        else "",
           "total_due_numeric": total_numeric,
           "is_distressed": distress["is_distressed"],
           "years_behind": distress["years_behind"],
@@ -794,7 +796,7 @@ def search_zip():
           "created_at": datetime.utcnow().isoformat(),
         }
 
-            results.append(row)
+        results.append(row)
 
             if debug_flag:
                 amount_fetch_debug.append(
