@@ -749,13 +749,26 @@ def search_zip():
                 continue
 
             # -----------------------------
-            # Compute distress
-            # For now we only know the total due, so feed that in
-            # -----------------------------
-            distress = compute_distress(
-                total_numeric,
-                {"delinquent_total": total_numeric}
-            )
+        # Compute distress
+        #   First, try to enrich with certificate data (18+ months export).
+        #   If we don’t find a certificate row, fall back to just total_due.
+        # -----------------------------
+        cert_meta = get_certificate_meta(parcel_id)
+
+        if cert_meta is None:
+            delinq_meta = {
+                "delinquent_total": total_numeric,
+            }
+        else:
+            delinq_meta = {
+                "years_behind": cert_meta.get("years_behind", 0),
+                "unpaid_years": cert_meta.get("unpaid_years", []),
+                "delinquent_total": (cert_meta.get("delinquent_total") or 0.0)
+                + total_numeric,
+                "tax_deed_application": cert_meta.get("tax_deed_application", False),
+            }
+
+        distress = compute_distress(total_numeric, delinq_meta)
 
             row = {
                 "parcel": parcel_id,
