@@ -770,29 +770,29 @@ def search_zip():
 
         distress = compute_distress(total_numeric, delinq_meta)
 
-            row = {
-                "parcel": parcel_id,
-                "owner_name": owner_name,
-                "display_name": display_name,
-                "address": address,
-                "city": city,
-                "state": state,
-                "zip": zip_code,
-                "public_url": public_url,
-                "total_due": total_due if total_due is not None else "",
-                "delinquent_due": delinquent_due if delinquent_due is not None else "",
-                "last_year_due": last_year_due if last_year_due is not None else "",
-                "total_due_numeric": total_numeric,
-                "is_distressed": distress["is_distressed"],
-                "years_behind": distress["years_behind"],
-                "unpaid_years": distress["unpaid_years"],
-                "delinquent_total": distress["delinquent_total"],
-                "tax_deed_application": distress["tax_deed_application"],
-                "distress_level": distress["distress_level"],
-                "distress_desc": distress["distress_desc"],
-                "source": "live_duval_zip",
-                "created_at": datetime.utcnow().isoformat(),
-            }
+        row = {
+          "parcel": parcel_id,
+          "owner_name": owner_name,
+          "display_name": display_name,
+          "address": address,
+          "city": city,
+          "state": state,
+          "zip": zip_code,
+          "public_url": public_url,
+          "total_due": total_due if total_due is not None else "",
+          "delinquent_due": delinquent_due if delinquent_due is not None else "",
+          "last_year_due": last_year_due if last_year_due is not None else "",
+          "total_due_numeric": total_numeric,
+          "is_distressed": distress["is_distressed"],
+          "years_behind": distress["years_behind"],
+          "unpaid_years": distress["unpaid_years"],
+          "delinquent_total": distress["delinquent_total"],
+          "tax_deed_application": distress["tax_deed_application"],
+          "distress_level": distress["distress_level"],
+          "distress_desc": distress["distress_desc"],
+          "source": "live_duval_zip",
+          "created_at": datetime.utcnow().isoformat(),
+        }
 
             results.append(row)
 
