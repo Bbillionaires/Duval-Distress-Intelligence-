@@ -482,10 +482,10 @@ def compute_distress(total_due, delinq_meta: dict | None = None):
             "tax_deed_application": bool
         }
 
-    Distress levels:
+    Distress levels (for now, until we wire real years / cert data):
       3 = Tax Deed Application Filed – Auction Imminent
-      2 = 2+ Years Behind AND delinquent_total >= 2000
-      1 = High Amount Owed (>=2000) OR >=1 year behind
+      2 = High Risk: 2+ years behind OR >= $2,000 owed
+      1 = Some Amount Owed (> 0) or at least 1 year behind
       0 = No significant distress
     """
     if delinq_meta is None:
@@ -493,10 +493,10 @@ def compute_distress(total_due, delinq_meta: dict | None = None):
 
     years_behind = delinq_meta.get("years_behind") or 0
     unpaid_years = delinq_meta.get("unpaid_years") or []
-    delinquent_total = delinq_meta.get("delinquent_total")
     tax_deed_application = bool(delinq_meta.get("tax_deed_application"))
 
     # Fallback: if delinquent_total is missing, use total_due
+    delinquent_total = delinq_meta.get("delinquent_total")
     if delinquent_total is None:
         try:
             delinquent_total = float(total_due) if total_due not in (None, "") else 0.0
@@ -509,13 +509,12 @@ def compute_distress(total_due, delinq_meta: dict | None = None):
     if tax_deed_application:
         level = 3
         desc = "Tax Deed Application Filed – Auction Imminent"
-    else:
-        if years_behind >= 2 and delinquent_total >= 2000:
-            level = 2
-            desc = "2+ Years Behind and Large Balance Due"
-        elif delinquent_total >= 2000 or years_behind >= 1:
-            level = 1
-            desc = "High Amount Owed but Under 2 Years Behind"
+    elif years_behind >= 2 or delinquent_total >= 2000:
+        level = 2
+        desc = "High Risk: 2+ Years Behind or ≥ $2,000 Owed"
+    elif delinquent_total > 0 or years_behind >= 1:
+        level = 1
+        desc = "Some Amount Owed or At Least 1 Year Behind"
 
     is_distressed = level >= 1
 
