@@ -470,7 +470,65 @@ def fetch_duval_bill_amounts(public_url: str, debug: bool = False):
 
     # We still don't separate delinquent / last-year amounts yet.
     return total_due, delinquent_due, last_year_due, debug_info
-    
+
+def compute_distress(total_due, delinq_meta: dict | None = None):
+    """
+    Compute distress metrics based on:
+      - total_due (current total amount due)
+      - delinq_meta: {
+            "years_behind": int,
+            "unpaid_years": [years...],
+            "delinquent_total": float,
+            "tax_deed_application": bool
+        }
+
+    Distress levels:
+      3 = Tax Deed Application Filed – Auction Imminent
+      2 = 2+ Years Behind AND delinquent_total >= 2000
+      1 = High Amount Owed (>=2000) OR >=1 year behind
+      0 = No significant distress
+    """
+    if delinq_meta is None:
+        delinq_meta = {}
+
+    years_behind = delinq_meta.get("years_behind") or 0
+    unpaid_years = delinq_meta.get("unpaid_years") or []
+    delinquent_total = delinq_meta.get("delinquent_total")
+    tax_deed_application = bool(delinq_meta.get("tax_deed_application"))
+
+    # Fallback: if delinquent_total is missing, use total_due
+    if delinquent_total is None:
+        try:
+            delinquent_total = float(total_due) if total_due not in (None, "") else 0.0
+        except (TypeError, ValueError):
+            delinquent_total = 0.0
+
+    level = 0
+    desc = "No Significant Distress"
+
+    if tax_deed_application:
+        level = 3
+        desc = "Tax Deed Application Filed – Auction Imminent"
+    else:
+        if years_behind >= 2 and delinquent_total >= 2000:
+            level = 2
+            desc = "2+ Years Behind and Large Balance Due"
+        elif delinquent_total >= 2000 or years_behind >= 1:
+            level = 1
+            desc = "High Amount Owed but Under 2 Years Behind"
+
+    is_distressed = level >= 1
+
+    return {
+        "years_behind": years_behind,
+        "unpaid_years": unpaid_years,
+        "delinquent_total": delinquent_total,
+        "tax_deed_application": tax_deed_application,
+        "distress_level": level,
+        "distress_desc": desc,
+        "is_distressed": is_distressed,
+    }
+
 @app.route("/api/health")
 def health():
     info = {
