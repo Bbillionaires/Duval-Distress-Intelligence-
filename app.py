@@ -27,6 +27,9 @@ CACHE_DAYS = int(os.getenv("CACHE_DAYS", "30"))
 # Base for Duval public site (bills page)
 DUVAL_BASE_URL = "https://county-taxes.net"
 
+# Tax certificate CSV exported from LienHub (18+ months, filtered by amount)
+CERT_CSV_PATH = os.getenv("CERT_CSV_PATH", "duval_certificates.csv")
+
 # ------------------------------------------------------------------------------
 # Flask app
 # ------------------------------------------------------------------------------
