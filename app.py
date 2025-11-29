@@ -492,24 +492,27 @@ def search_zip():
 
     Query params:
       - zip: required (e.g. 32209)
-      - min_due: optional, float (filter out properties that owe less)
-      - max_due: optional, float (filter out properties that owe more)
-      - debug: optional, "1" to include debug info
+      - min_due: optional float – only keep accounts with total_due >= this
+      - max_due: optional float – only keep accounts with total_due <= this
+      - debug: optional "1" to include debug info
 
-    It:
-      * calls Algolia using the ZIP as the search query,
-      * filters hits whose entity zip matches exactly,
-      * fetches live bill amounts for each, like /api/parcel,
-      * returns many rows in the same shape as parcel_lookup.
+    Flow:
+      * search Algolia using the ZIP as the query
+      * filter hits whose entity zip matches exactly
+      * for each hit, fetch live bill amounts
+      * compute distress
+      * apply min/max filters
+      * return the rows
     """
     try:
         zip_raw = request.args.get("zip", "").strip()
         debug_flag = request.args.get("debug") == "1"
 
         if not zip_raw:
-            return jsonify({"status": "error", "message": "Missing ?zip= parameter"}), 400
+            return jsonify(
+                {"status": "error", "message": "Missing ?zip= parameter"}
+            ), 400
 
-        # Helper to parse optional floats
         def parse_float(val, default=None):
             if val is None or val == "":
                 return default
@@ -521,10 +524,6 @@ def search_zip():
         min_due = parse_float(request.args.get("min_due"))
         max_due = parse_float(request.args.get("max_due"))
 
-        # If caller didn't pass min_due, default to only properties that owe > 0
-        if min_due is None:
-            min_due = 0.01
-        
         # 1) Search Algolia using the ZIP as the query
         hits = search_duval_algolia(zip_raw)
         results = []
@@ -532,7 +531,7 @@ def search_zip():
 
         for hit in hits or []:
             # -----------------------------
-            # Basic identity fields (same style as parcel_lookup)
+            # Basic identity fields
             # -----------------------------
             parcel_id = (
                 hit.get("external_id")
@@ -557,32 +556,43 @@ def search_zip():
                 state = first.get("state", "")
                 zip_code = first.get("zip", "")
 
-            # Only keep exact ZIP matches if we have a zip_code
+            # Only keep exact ZIP matches if a zip_code is present
             if zip_code and zip_code != zip_raw:
                 continue
 
             public_url = custom_params.get("public_url", "")
 
             # -----------------------------
-            # Fetch bill amounts like parcel_lookup
+            # Fetch bill amounts for THIS parcel
             # -----------------------------
-            total_due, delinquent_due, last_year_due, fetch_dbg = fetch_duval_bill_amounts(
-                public_url
+            total_due, delinquent_due, last_year_due, fetch_dbg = (
+                fetch_duval_bill_amounts(public_url)
             )
 
-            # Normalize to numeric for filtering
+            # Normalize to numeric for filtering & scoring
             try:
                 total_numeric = float(total_due) if total_due not in (None, "") else 0.0
             except (TypeError, ValueError):
                 total_numeric = 0.0
 
-            # Apply min / max filters
+            # Drop 0-amount accounts by default (you said we don't need them)
+            if total_numeric <= 0:
+                continue
+
+            # Apply optional min / max filters
             if min_due is not None and total_numeric < min_due:
                 continue
             if max_due is not None and total_numeric > max_due:
                 continue
 
-            is_distressed = total_numeric > 0
+            # -----------------------------
+            # Compute distress
+            # For now we only know the total due, so feed that in
+            # -----------------------------
+            distress = compute_distress(
+                total_numeric,
+                {"delinquent_total": total_numeric}
+            )
 
             row = {
                 "parcel": parcel_id,
@@ -597,28 +607,37 @@ def search_zip():
                 "delinquent_due": delinquent_due if delinquent_due is not None else "",
                 "last_year_due": last_year_due if last_year_due is not None else "",
                 "total_due_numeric": total_numeric,
-                "is_distressed": is_distressed,
+                "is_distressed": distress["is_distressed"],
+                "years_behind": distress["years_behind"],
+                "unpaid_years": distress["unpaid_years"],
+                "delinquent_total": distress["delinquent_total"],
+                "tax_deed_application": distress["tax_deed_application"],
+                "distress_level": distress["distress_level"],
+                "distress_desc": distress["distress_desc"],
                 "source": "live_duval_zip",
                 "created_at": datetime.utcnow().isoformat(),
             }
 
             results.append(row)
-            save_row(row)
 
-            amount_fetch_debug.append(
-                {
-                    "parcel": parcel_id,
-                    "public_url": public_url,
-                    "amounts": {
-                        "total_due": total_due,
-                        "delinquent_due": delinquent_due,
-                        "last_year_due": last_year_due,
-                    },
-                    "fetch_debug": fetch_dbg,
-                }
-            )
+            if debug_flag:
+                amount_fetch_debug.append(
+                    {
+                        "parcel": parcel_id,
+                        "public_url": public_url,
+                        "amounts": {
+                            "total_due": total_due,
+                            "delinquent_due": delinquent_due,
+                            "last_year_due": last_year_due,
+                        },
+                        "fetch_debug": fetch_dbg,
+                    }
+                )
 
-        resp = {
+        # -----------------------------
+        # Build final JSON response
+        # -----------------------------
+        response = {
             "status": "success",
             "source": "live_duval_zip",
             "count": len(results),
@@ -626,17 +645,15 @@ def search_zip():
         }
 
         if debug_flag:
-            resp["debug"] = {
+            response["debug"] = {
                 "zip": zip_raw,
                 "hits_found": len(hits or []),
                 "amount_fetch": amount_fetch_debug,
             }
 
-        return jsonify(resp)
+        return jsonify(response)
 
     except Exception as e:
-        # This is here specifically so you don't get a blank 500.
-        # You can remove or tighten this later.
         return jsonify(
             {
                 "status": "error",
