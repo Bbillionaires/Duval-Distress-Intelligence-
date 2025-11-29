@@ -521,6 +521,10 @@ def search_zip():
         min_due = parse_float(request.args.get("min_due"))
         max_due = parse_float(request.args.get("max_due"))
 
+        # If caller didn't pass min_due, default to only properties that owe > 0
+        if min_due is None:
+            min_due = 0.01
+        
         # 1) Search Algolia using the ZIP as the query
         hits = search_duval_algolia(zip_raw)
         results = []
