@@ -694,9 +694,9 @@ def search_zip():
         max_due = parse_float(request.args.get("max_due"))
 
         # 1) Search Algolia using the ZIP as the query
-        hits = search_duval_algolia(zip_raw)
-        results = []
-        amount_fetch_debug = []
+        # Ask for many hits so we don't miss heavily delinquent parcels.
+    hits = search_duval_algolia(zip_raw, hits_per_page=500)
+    results = []
 
         for hit in hits or []:
             # -----------------------------
