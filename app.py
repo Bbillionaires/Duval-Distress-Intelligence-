@@ -634,20 +634,6 @@ def compute_distress(total_due, delinq_meta: dict | None = None):
         "is_distressed": is_distressed,
     }
 
-@app.route("/api/health")
-def health():
-    info = {
-        "status": "ok",
-        "duval_alg_app_id": DUVAL_ALG_APP_ID,
-        "duval_alg_index": DUVAL_ALG_INDEX,
-        "using_duval_algolia": True,
-        "csv_path": CSV_PATH,
-        "csv_exists": csv_exists(),
-        "csv_size": len(load_csv_rows()) if csv_exists() else 0,
-        "cache_days": CACHE_DAYS,
-    }
-    return jsonify(info)
-
 @app.route("/api/search_zip")
 def search_zip():
     """
@@ -658,14 +644,6 @@ def search_zip():
       - min_due: optional float – only keep accounts with total_due >= this
       - max_due: optional float – only keep accounts with total_due <= this
       - debug: optional "1" to include debug info
-
-    Flow:
-      * search Algolia using the ZIP as the query
-      * filter hits whose entity zip matches exactly
-      * for each hit, fetch live bill amounts
-      * compute distress
-      * apply min/max filters
-      * return the rows
     """
     try:
         zip_raw = request.args.get("zip", "").strip()
@@ -748,66 +726,69 @@ def search_zip():
             if max_due is not None and total_numeric > max_due:
                 continue
 
-        # -----------------------------
-        # Compute distress (inside loop!)
-        # -----------------------------
-        cert_meta = get_certificate_meta(parcel_id)
+            # -----------------------------
+            # Compute distress (inside loop!)
+            # -----------------------------
+            cert_meta = get_certificate_meta(parcel_id)
 
-        if cert_meta is None:
-            delinq_meta = {
-                "delinquent_total": total_numeric,
-            }
-        else:
-            delinq_meta = {
-                "years_behind": cert_meta.get("years_behind", 0),
-                "unpaid_years": cert_meta.get("unpaid_years", []),
-                "delinquent_total": (cert_meta.get("delinquent_total") or 0.0) + total_numeric,
-                "tax_deed_application": cert_meta.get("tax_deed_application", False),
-            }
-
-        distress = compute_distress(total_numeric, delinq_meta)
-
-        row = {
-               "parcel": parcel_id,
-               "owner_name": owner_name,
-               "display_name": display_name,
-               "address": address,
-               "city": city,
-               "state": state,
-               "zip": zip_code,
-               "public_url": public_url,
-               "total_due": total_due if total_due is not None else "",
-               "delinquent_due": delinquent_due if delinquent_due 
-        is not None else "",
-               "last_year_due": last_year_due if last_year_due is not 
-        None else "",
-               "total_due_numeric": total_numeric,
-               "is_distressed": distress["is_distressed"],
-               "years_behind": distress["years_behind"],
-               "unpaid_years": distress["unpaid_years"],
-               "delinquent_total": distress["delinquent_total"],
-               "tax_deed_application": distress["tax_deed_application"],
-               "distress_level": distress["distress_level"],
-               "distress_desc": distress["distress_desc"],
-               "source": "live_duval_zip",
-               "created_at": datetime.utcnow().isoformat(),
-            }
-
-        results.append(row)
-
-        if debug_flag:
-            amount_fetch_debug.append(
-                {
-                    "parcel": parcel_id,
-                    "public_url": public_url,
-                    "amounts": {
-                        "total_due": total_due,
-                        "delinquent_due": delinquent_due,
-                        "last_year_due": last_year_due,
-                    },
-                    "fetch_debug": fetch_dbg,
+            if cert_meta is None:
+                delinq_meta = {
+                    "delinquent_total": total_numeric,
                 }
-            )
+            else:
+                delinq_meta = {
+                    "years_behind": cert_meta.get("years_behind", 0),
+                    "unpaid_years": cert_meta.get("unpaid_years", []),
+                    "delinquent_total": (cert_meta.get("delinquent_total") or 0.0)
+                                       + total_numeric,
+                    "tax_deed_application": cert_meta.get("tax_deed_application", False),
+                }
+
+            distress = compute_distress(total_numeric, delinq_meta)
+
+            row = {
+                "parcel": parcel_id,
+                "owner_name": owner_name,
+                "display_name": display_name,
+                "address": address,
+                "city": city,
+                "state": state,
+                "zip": zip_code,
+                "public_url": public_url,
+                "total_due": total_due if total_due is not None else "",
+                "delinquent_due": (
+                    delinquent_due if delinquent_due is not None else ""
+                ),
+                "last_year_due": (
+                    last_year_due if last_year_due is not None else ""
+                ),
+                "total_due_numeric": total_numeric,
+                "is_distressed": distress["is_distressed"],
+                "years_behind": distress["years_behind"],
+                "unpaid_years": distress["unpaid_years"],
+                "delinquent_total": distress["delinquent_total"],
+                "tax_deed_application": distress["tax_deed_application"],
+                "distress_level": distress["distress_level"],
+                "distress_desc": distress["distress_desc"],
+                "source": "live_duval_zip",
+                "created_at": datetime.utcnow().isoformat(),
+            }
+
+            results.append(row)
+
+            if debug_flag:
+                amount_fetch_debug.append(
+                    {
+                        "parcel": parcel_id,
+                        "public_url": public_url,
+                        "amounts": {
+                            "total_due": total_due,
+                            "delinquent_due": delinquent_due,
+                            "last_year_due": last_year_due,
+                        },
+                        "fetch_debug": fetch_dbg,
+                    }
+                )
 
         # -----------------------------
         # Build final JSON response
