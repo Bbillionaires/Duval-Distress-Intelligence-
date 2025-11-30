@@ -634,6 +634,24 @@ def compute_distress(total_due, delinq_meta: dict | None = None):
         "is_distressed": is_distressed,
     }
 
+@app.route("/api/health")
+def health():
+    """
+    Simple health check so you can confirm the backend is alive
+    and see some config info.
+    """
+    info = {
+        "status": "ok",
+        "duval_alg_app_id": DUVAL_ALG_APP_ID,
+        "duval_alg_index": DUVAL_ALG_INDEX,
+        "using_duval_algolia": True,
+        "csv_path": CSV_PATH,
+        "csv_exists": csv_exists(),
+        "csv_size": len(load_csv_rows()) if csv_exists() else 0,
+        "cache_days": CACHE_DAYS,
+    }
+    return jsonify(info)
+
 @app.route("/api/search_zip")
 def search_zip():
     """
