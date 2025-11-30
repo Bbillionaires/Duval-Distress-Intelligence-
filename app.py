@@ -212,9 +212,19 @@ def get_certificate_meta(parcel_id: str):
 # Duval Algolia search (live, no local data needed)
 # ------------------------------------------------------------------------------
 
-def search_duval_algolia(parcel: str):
+# ------------------------------------------------------------------------------
+# Duval Algolia search (live, no local data needed)
+# ------------------------------------------------------------------------------
+
+def search_duval_algolia(query: str, hits_per_page: int = 20):
     """
-    Call Duval's public Algolia index for a parcel / external_id.
+    Call Duval's public Algolia index.
+
+    `query` can be:
+      - a parcel id (for /api/parcel), or
+      - a ZIP code / name (for /api/search_zip).
+
+    `hits_per_page` controls how many matches Algolia returns.
     """
     headers = {
         "x-algolia-application-id": DUVAL_ALG_APP_ID,
@@ -231,7 +241,7 @@ def search_duval_algolia(parcel: str):
         "requests": [
             {
                 "indexName": DUVAL_ALG_INDEX,
-                "params": f"hitsPerPage=20&query={parcel}",
+                "params": f"hitsPerPage={hits_per_page}&page=0&query={query}",
             }
         ]
     }
