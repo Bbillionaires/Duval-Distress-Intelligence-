@@ -758,7 +758,7 @@ def search_zip():
                 "delinquent_total": total_numeric,
             }
         else:
-        delinq_meta = {
+            delinq_meta = {
                 "years_behind": cert_meta.get("years_behind", 0),
                 "unpaid_years": cert_meta.get("unpaid_years", []),
                 "delinquent_total": (cert_meta.get("delinquent_total") or 0.0) + total_numeric,
