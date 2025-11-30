@@ -912,9 +912,9 @@ def parcel_lookup():
         # 2) Live Algolia lookup (Duval)
         #    We'll try both "no dash" and "dashed" forms to be safe.
         # ------------------------------------------------------------------
-        hits = search_duval_algolia(parcel_no_dash)
-        if not hits:
-            hits = search_duval_algolia(parcel_dashed)
+        hits = search_duval_algolia(parcel_no_dash, hits_per_page=20)
+if not hits:
+    hits = search_duval_algolia(parcel_dashed, hits_per_page=20)
 
         if not hits:
             response = {
