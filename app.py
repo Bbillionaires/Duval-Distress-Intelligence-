@@ -1,12 +1,13 @@
 import os
 import csv
 import json
+import base64
 from datetime import datetime, timedelta
+from urllib.parse import urlparse, parse_qs
 
 import requests
 from flask import Flask, jsonify, request
 from flask_cors import CORS
-from bs4 import BeautifulSoup
 
 # ------------------------------------------------------------------------------
 # Config
@@ -50,8 +51,8 @@ CSV_FIELDS = [
     "total_due",
     "delinquent_due",
     "last_year_due",
-    "total_due_numeric",  # NEW
-    "is_distressed",      # NEW
+    "total_due_numeric",
+    "is_distressed",
     "source",
     "created_at",
 ]
@@ -148,166 +149,8 @@ def search_duval_algolia(parcel: str):
 
 
 # ------------------------------------------------------------------------------
-# Amount parsing helpers
+# Bill amount fetching
 # ------------------------------------------------------------------------------
-
-def normalize_amount(val):
-    """
-    Turn strings like '$1,234.56' into float 1234.56.
-    Returns None if it can't parse.
-    """
-    if val is None:
-        return None
-    if isinstance(val, (int, float)):
-        return float(val)
-    s = str(val).strip()
-    if not s:
-        return None
-    s = s.replace("$", "").replace(",", "")
-    try:
-        return float(s)
-    except ValueError:
-        return None
-
-
-def extract_amounts_from_json(data: dict):
-    """
-    Try to pull useful amount fields from a JSON response.
-    Walks nested dicts/lists and looks for keys that smell like totals,
-    delinquent, prior year, etc.
-    """
-    total_due = None
-    delinquent_due = None
-    last_year_due = None
-
-    def search_dict(d):
-        nonlocal total_due, delinquent_due, last_year_due
-        if not isinstance(d, dict):
-            return
-
-        for key, value in d.items():
-            lk = key.lower()
-
-            # total / current
-            if total_due is None and any(t in lk for t in ["total", "current"]):
-                amt = normalize_amount(value)
-                if amt is not None:
-                    total_due = amt
-
-            # delinquent
-            if delinquent_due is None and "delinquent" in lk:
-                amt = normalize_amount(value)
-                if amt is not None:
-                    delinquent_due = amt
-
-            # prior / last year
-            if last_year_due is None and any(t in lk for t in ["prior", "last_year"]):
-                amt = normalize_amount(value)
-                if amt is not None:
-                    last_year_due = amt
-
-        # Dive deeper into nested dicts/lists
-        for v in d.values():
-            if isinstance(v, dict):
-                search_dict(v)
-            elif isinstance(v, list):
-                for item in v:
-                    if isinstance(item, dict):
-                        search_dict(item)
-
-    search_dict(data)
-    return total_due, delinquent_due, last_year_due
-
-
-def extract_amounts_from_html(html: str, dbg: dict | None = None):
-    """
-    Very defensive HTML parser for Duval's bill page.
-
-    Strategy:
-    - Find *all* currency-looking values in the HTML.
-    - Convert them to floats.
-    - Heuristic: treat the *smallest positive* amount as "total_due"
-      (this matches your examples where the real amount due is much
-       smaller than the big tax / value numbers).
-    - We leave delinquent + last_year as None for now.
-    - We also push the full list of amounts into dbg["html_amounts"]
-      so we can refine later if needed.
-    """
-    import re
-
-    if dbg is not None:
-        dbg.setdefault("html_ok", True)
-        dbg["html_length"] = len(html)
-        dbg["html_sample"] = html[:400]
-
-    # Find all currency-like patterns, e.g. $1,234.56 or 104.00
-    raw_amounts = re.findall(r"\$?\d[\d,]*\.\d{2}", html)
-    amounts: list[float] = []
-
-    for m in raw_amounts:
-        s = m.replace("$", "").replace(",", "")
-        try:
-            val = float(s)
-            if val > 0:
-                amounts.append(val)
-        except ValueError:
-            continue
-
-    if dbg is not None:
-        dbg["html_amounts"] = amounts
-
-    if not amounts:
-        # Nothing found we trust
-        return None, None, None
-
-    # Heuristic:
-    # - Real "amount due" on your examples is the *smallest* positive value on the page.
-    # - Big numbers (millions / tens of thousands) are usually assessments, etc.
-    total_due = min(amounts)
-
-    # For now, we don't try to split delinquent vs last_year
-    delinquent_due = None
-    last_year_due = None
-
-    return total_due, delinquent_due, last_year_due
-
-def build_iframe_url_from_public(public_url: str) -> str | None:
-    """
-    Given Duval's public bills URL like:
-      /public/real_estate/parcels/030147-0432/bills?parcel=1573c4fe-...
-    build the corresponding iframe load-amount-due URL, which looks like:
-
-      https://county-taxes.net/iframe-taxsys/duval.county-taxes.com/govhub/property-tax/
-      ZHV2YWw6cmVhbF9lc3RhdGU6cGFyZW50czoxNTczYzRmZS1mYjVjLTExZWItODdkYS03ZTgwMmU0NmVlNTg=
-      /load-amount-due
-
-    The middle part is base64("duval:real_estate:parents:<parcel-guid>").
-    """
-    try:
-        if not public_url:
-            return None
-
-        # Ensure leading slash
-        if not public_url.startswith("/"):
-            public_url = "/" + public_url
-
-        parsed = urlparse(public_url)
-        qs = parse_qs(parsed.query)
-        guid_list = qs.get("parcel") or []
-        if not guid_list:
-            return None
-
-        guid = guid_list[0]
-        raw_key = f"duval:real_estate:parents:{guid}"
-        encoded = base64.b64encode(raw_key.encode("utf-8")).decode("utf-8")
-
-        return (
-            f"{DUVAL_BASE_URL}"
-            f"/iframe-taxsys/duval.county-taxes.com/govhub/property-tax/"
-            f"{encoded}/load-amount-due"
-        )
-    except Exception:
-        return None
 
 def fetch_duval_bill_amounts(public_url: str, debug: bool = False):
     """
@@ -322,8 +165,6 @@ def fetch_duval_bill_amounts(public_url: str, debug: bool = False):
         total_due, delinquent_due, last_year_due, debug_info
     """
     import re
-    import base64
-    from urllib.parse import urlparse, parse_qs
 
     debug_info = {
         "json_ok": False,
@@ -434,9 +275,6 @@ def fetch_duval_bill_amounts(public_url: str, debug: bool = False):
             debug_info["html_error"] = str(e)
 
     # ------------------ 3) Fallback: iframe load-amount-due -------------------
-    # Browser hits:
-    #   https://county-taxes.net/iframe-taxsys/duval.county-taxes.com/
-    #       govhub/property-tax/<BASE64>/load-amount-due
     if total_due is None:
         try:
             parsed = urlparse(public_url)
@@ -468,9 +306,13 @@ def fetch_duval_bill_amounts(public_url: str, debug: bool = False):
         except Exception as e:
             debug_info["load_error"] = str(e)
 
-    # We still don't separate delinquent / last-year amounts yet.
     return total_due, delinquent_due, last_year_due, debug_info
-    
+
+
+# ------------------------------------------------------------------------------
+# API Routes
+# ------------------------------------------------------------------------------
+
 @app.route("/api/health")
 def health():
     info = {
@@ -485,163 +327,7 @@ def health():
     }
     return jsonify(info)
 
-@app.route("/api/search_zip")
-def search_zip():
-    """
-    Bulk distress search by ZIP.
 
-    Query params:
-      - zip: required (e.g. 32209)
-      - min_due: optional, float (filter out properties that owe less)
-      - max_due: optional, float (filter out properties that owe more)
-      - debug: optional, "1" to include debug info
-
-    It:
-      * calls Algolia using the ZIP as the search query,
-      * filters hits whose entity zip matches exactly,
-      * fetches live bill amounts for each, like /api/parcel,
-      * returns many rows in the same shape as parcel_lookup.
-    """
-    try:
-        zip_raw = request.args.get("zip", "").strip()
-        debug_flag = request.args.get("debug") == "1"
-
-        if not zip_raw:
-            return jsonify({"status": "error", "message": "Missing ?zip= parameter"}), 400
-
-        # Helper to parse optional floats
-        def parse_float(val, default=None):
-            if val is None or val == "":
-                return default
-            try:
-                return float(str(val))
-            except Exception:
-                return default
-
-        min_due = parse_float(request.args.get("min_due"))
-        max_due = parse_float(request.args.get("max_due"))
-
-        # 1) Search Algolia using the ZIP as the query
-        hits = search_duval_algolia(zip_raw)
-        results = []
-        amount_fetch_debug = []
-
-        for hit in hits or []:
-            # -----------------------------
-            # Basic identity fields (same style as parcel_lookup)
-            # -----------------------------
-            parcel_id = (
-                hit.get("external_id")
-                or hit.get("parcel")
-                or hit.get("objectID")
-            )
-
-            owner_name = ""
-            display_name = hit.get("display_name") or ""
-            address = ""
-            city = ""
-            state = ""
-            zip_code = ""
-
-            custom_params = hit.get("custom_parameters") or {}
-            entities = custom_params.get("entities") or []
-            if isinstance(entities, list) and entities:
-                first = entities[0]
-                owner_name = first.get("name", "") or display_name
-                address = first.get("address", "")
-                city = first.get("city", "")
-                state = first.get("state", "")
-                zip_code = first.get("zip", "")
-
-            # Only keep exact ZIP matches if we have a zip_code
-            if zip_code and zip_code != zip_raw:
-                continue
-
-            public_url = custom_params.get("public_url", "")
-
-            # -----------------------------
-            # Fetch bill amounts like parcel_lookup
-            # -----------------------------
-            total_due, delinquent_due, last_year_due, fetch_dbg = fetch_duval_bill_amounts(
-                public_url
-            )
-
-            # Normalize to numeric for filtering
-            try:
-                total_numeric = float(total_due) if total_due not in (None, "") else 0.0
-            except (TypeError, ValueError):
-                total_numeric = 0.0
-
-            # Apply min / max filters
-            if min_due is not None and total_numeric < min_due:
-                continue
-            if max_due is not None and total_numeric > max_due:
-                continue
-
-            is_distressed = total_numeric > 0
-
-            row = {
-                "parcel": parcel_id,
-                "owner_name": owner_name,
-                "display_name": display_name,
-                "address": address,
-                "city": city,
-                "state": state,
-                "zip": zip_code,
-                "public_url": public_url,
-                "total_due": total_due if total_due is not None else "",
-                "delinquent_due": delinquent_due if delinquent_due is not None else "",
-                "last_year_due": last_year_due if last_year_due is not None else "",
-                "total_due_numeric": total_numeric,
-                "is_distressed": is_distressed,
-                "source": "live_duval_zip",
-                "created_at": datetime.utcnow().isoformat(),
-            }
-
-            results.append(row)
-            save_row(row)
-
-            amount_fetch_debug.append(
-                {
-                    "parcel": parcel_id,
-                    "public_url": public_url,
-                    "amounts": {
-                        "total_due": total_due,
-                        "delinquent_due": delinquent_due,
-                        "last_year_due": last_year_due,
-                    },
-                    "fetch_debug": fetch_dbg,
-                }
-            )
-
-        resp = {
-            "status": "success",
-            "source": "live_duval_zip",
-            "count": len(results),
-            "rows": results,
-        }
-
-        if debug_flag:
-            resp["debug"] = {
-                "zip": zip_raw,
-                "hits_found": len(hits or []),
-                "amount_fetch": amount_fetch_debug,
-            }
-
-        return jsonify(resp)
-
-    except Exception as e:
-        # This is here specifically so you don't get a blank 500.
-        # You can remove or tighten this later.
-        return jsonify(
-            {
-                "status": "error",
-                "message": "Unhandled exception in /api/search_zip",
-                "error": str(e),
-            }
-        ), 500
-
-@app.route("/api/parcel")
 @app.route("/api/parcel")
 def parcel_lookup():
     """
@@ -846,42 +532,56 @@ def parcel_lookup():
             }
         ), 500
 
-        # ------------------------------------------------------------------
-        # 2) Live Algolia lookup (Duval)
-        #    We'll try both "no dash" and "dashed" forms to be safe.
-        # ------------------------------------------------------------------
-        hits = search_duval_algolia(parcel_no_dash)
-        if not hits:
-            hits = search_duval_algolia(parcel_dashed)
 
-        if not hits:
-            response = {
-                "status": "success",
-                "source": "none",
-                "count": 0,
-                "rows": [],
-            }
-            if debug_flag:
-                response["debug"] = {
-                    "parcel_raw": parcel_raw,
-                    "parcel_no_dash": parcel_no_dash,
-                    "parcel_dashed": parcel_dashed,
-                    "hits_found": 0,
-                }
-            return jsonify(response)
+@app.route("/api/search_zip")
+def search_zip():
+    """
+    Bulk distress search by ZIP.
 
-        out_rows = []
+    Query params:
+      - zip: required (e.g. 32209)
+      - min_due: optional, float (filter out properties that owe less)
+      - max_due: optional, float (filter out properties that owe more)
+      - debug: optional, "1" to include debug info
+
+    It:
+      * calls Algolia using the ZIP as the search query,
+      * filters hits whose entity zip matches exactly,
+      * fetches live bill amounts for each, like /api/parcel,
+      * returns many rows in the same shape as parcel_lookup.
+    """
+    try:
+        zip_raw = request.args.get("zip", "").strip()
+        debug_flag = request.args.get("debug") == "1"
+
+        if not zip_raw:
+            return jsonify({"status": "error", "message": "Missing ?zip= parameter"}), 400
+
+        # Helper to parse optional floats
+        def parse_float(val, default=None):
+            if val is None or val == "":
+                return default
+            try:
+                return float(str(val))
+            except Exception:
+                return default
+
+        min_due = parse_float(request.args.get("min_due"))
+        max_due = parse_float(request.args.get("max_due"))
+
+        # 1) Search Algolia using the ZIP as the query
+        hits = search_duval_algolia(zip_raw)
+        results = []
         amount_fetch_debug = []
 
-        for hit in hits:
+        for hit in hits or []:
             # -----------------------------
-            # Basic identity fields
+            # Basic identity fields (same style as parcel_lookup)
             # -----------------------------
             parcel_id = (
                 hit.get("external_id")
                 or hit.get("parcel")
                 or hit.get("objectID")
-                or parcel_dashed
             )
 
             owner_name = ""
@@ -891,7 +591,6 @@ def parcel_lookup():
             state = ""
             zip_code = ""
 
-            # Try to pull address info from custom_parameters.entities
             custom_params = hit.get("custom_parameters") or {}
             entities = custom_params.get("entities") or []
             if isinstance(entities, list) and entities:
@@ -902,25 +601,33 @@ def parcel_lookup():
                 state = first.get("state", "")
                 zip_code = first.get("zip", "")
 
+            # Only keep exact ZIP matches if we have a zip_code
+            if zip_code and zip_code != zip_raw:
+                continue
+
             public_url = custom_params.get("public_url", "")
 
             # -----------------------------
-            # Fetch bill amounts via Duval
+            # Fetch bill amounts like parcel_lookup
             # -----------------------------
             total_due, delinquent_due, last_year_due, fetch_dbg = fetch_duval_bill_amounts(
                 public_url
             )
 
-            # Normalize total_due into a numeric value and mark distressed status
+            # Normalize to numeric for filtering
             try:
                 total_numeric = float(total_due) if total_due not in (None, "") else 0.0
             except (TypeError, ValueError):
                 total_numeric = 0.0
 
-            # Example rule: distressed if they owe more than $0
+            # Apply min / max filters
+            if min_due is not None and total_numeric < min_due:
+                continue
+            if max_due is not None and total_numeric > max_due:
+                continue
+
             is_distressed = total_numeric > 0
 
-            # For CSV, store empty string if the amount is None
             row = {
                 "parcel": parcel_id,
                 "owner_name": owner_name,
@@ -935,16 +642,13 @@ def parcel_lookup():
                 "last_year_due": last_year_due if last_year_due is not None else "",
                 "total_due_numeric": total_numeric,
                 "is_distressed": is_distressed,
-                "source": "live_duval",
+                "source": "live_duval_zip",
                 "created_at": datetime.utcnow().isoformat(),
             }
 
-            # Avoid duplicates within this response
-            if not any(r["parcel"] == row["parcel"] for r in out_rows):
-                out_rows.append(row)
-                save_row(row)
+            results.append(row)
+            save_row(row)
 
-            # Collect fetch-debug info per parcel if we are in debug mode
             amount_fetch_debug.append(
                 {
                     "parcel": parcel_id,
@@ -958,144 +662,30 @@ def parcel_lookup():
                 }
             )
 
-        # -----------------------------
-        # Build final JSON response
-        # -----------------------------
-        response = {
+        resp = {
             "status": "success",
-            "source": "live_duval",
-            "count": len(out_rows),
-            "rows": out_rows,
+            "source": "live_duval_zip",
+            "count": len(results),
+            "rows": results,
         }
 
         if debug_flag:
-            response["debug"] = {
-                "parcel_raw": parcel_raw,
-                "parcel_no_dash": parcel_no_dash,
-                "parcel_dashed": parcel_dashed,
-                "hits_found": len(hits),
+            resp["debug"] = {
+                "zip": zip_raw,
+                "hits_found": len(hits or []),
                 "amount_fetch": amount_fetch_debug,
             }
 
-        return jsonify(response)
+        return jsonify(resp)
 
     except Exception as e:
         return jsonify(
             {
                 "status": "error",
-                "message": "Unhandled exception in /api/parcel",
+                "message": "Unhandled exception in /api/search_zip",
                 "error": str(e),
             }
         ), 500
-
-    out_rows = []
-    amount_fetch_debug = []
-
-    for hit in hits:
-        # -----------------------------
-        # Basic identity fields
-        # -----------------------------
-        parcel_id = (
-            hit.get("external_id")
-            or hit.get("parcel")
-            or hit.get("objectID")
-            or parcel_dashed
-        )
-
-        owner_name = ""
-        display_name = hit.get("display_name") or ""
-        address = ""
-        city = ""
-        state = ""
-        zip_code = ""
-
-        # Try to pull address info from custom_parameters.entities
-        custom_params = hit.get("custom_parameters") or {}
-        entities = custom_params.get("entities") or []
-        if isinstance(entities, list) and entities:
-            first = entities[0]
-            owner_name = first.get("name", "") or display_name
-            address = first.get("address", "")
-            city = first.get("city", "")
-            state = first.get("state", "")
-            zip_code = first.get("zip", "")
-
-        public_url = custom_params.get("public_url", "")
-
-        # -----------------------------
-        # Fetch bill amounts via Duval
-        # -----------------------------
-        total_due, delinquent_due, last_year_due, fetch_dbg = fetch_duval_bill_amounts(
-            public_url
-        )
-
-        # Normalize total_due into a numeric value and mark distressed status
-        try:
-            total_numeric = float(total_due) if total_due not in (None, "") else 0.0
-        except (TypeError, ValueError):
-            total_numeric = 0.0
-
-        # Example rule: distressed if they owe more than $0
-        is_distressed = total_numeric > 0
-        
-        # For CSV, store empty string if the amount is None
-        row = {
-            "parcel": parcel_id,
-            "owner_name": owner_name,
-            "display_name": display_name,
-            "address": address,
-            "city": city,
-            "state": state,
-            "zip": zip_code,
-            "public_url": public_url,
-            "total_due": total_due if total_due is not None else "",
-            "delinquent_due": delinquent_due if delinquent_due is not None else "",
-            "last_year_due": last_year_due if last_year_due is not None else "",
-            "total_due_numeric": total_numeric,
-            "is_distressed": is_distressed,
-            "source": "live_duval",
-            "created_at": datetime.utcnow().isoformat(),
-        }
-
-        # Avoid duplicates within this response
-        if not any(r["parcel"] == row["parcel"] for r in out_rows):
-            out_rows.append(row)
-            save_row(row)
-
-        # Collect fetch-debug info per parcel if we are in debug mode
-        amount_fetch_debug.append(
-            {
-                "parcel": parcel_id,
-                "public_url": public_url,
-                "amounts": {
-                    "total_due": total_due,
-                    "delinquent_due": delinquent_due,
-                    "last_year_due": last_year_due,
-                },
-                "fetch_debug": fetch_dbg,
-            }
-        )
-
-    # -----------------------------
-    # Build final JSON response
-    # -----------------------------
-    response = {
-        "status": "success",
-        "source": "live_duval",
-        "count": len(out_rows),
-        "rows": out_rows,
-    }
-
-    if debug_flag:
-        response["debug"] = {
-            "parcel_raw": parcel_raw,
-            "parcel_no_dash": parcel_no_dash,
-            "parcel_dashed": parcel_dashed,
-            "hits_found": len(hits),
-            "amount_fetch": amount_fetch_debug,
-        }
-
-    return jsonify(response)
 
 
 # ------------------------------------------------------------------------------
