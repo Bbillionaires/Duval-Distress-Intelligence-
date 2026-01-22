@@ -4,7 +4,7 @@ services:
     runtime: python
     plan: starter
     buildCommand: pip install -r requirements.txt
-    startCommand: gunicorn app_multi_county:app --bind 0.0.0.0:$PORT
+    startCommand: gunicorn app_saas_automated:app --bind 0.0.0.0:$PORT
     envVars:
       - key: PYTHON_VERSION
         value: "3.11"
@@ -25,7 +25,7 @@ jobs:
     runtime: python
     schedule: "0 2 * * *"
     buildCommand: pip install -r requirements.txt
-    startCommand: python automated_scraper_multi.py --county duval
+    startCommand: python app_saas_automated --county duval
     envVars:
       - key: DATABASE_URL
         sync: false
