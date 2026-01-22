@@ -1,0 +1,128 @@
+# -*- coding: utf-8 -*-
+import csv
+from datetime import datetime, timedelta
+from pathlib import Path
+
+import requests
+from bs4 import BeautifulSoup
+
+
+BASE_URL = "https://or.duvalclerk.com"
+SEARCH_URL = BASE_URL + "/search/SearchTypeDocType?Length=6"
+GRID_URL = BASE_URL + "/Search/PartialGrid"
+
+
+def build_form_defaults(html: str) -> dict:
+    """
+    Grab all existing form fields and their default values
+    so we can post a valid search.
+    """
+    soup = BeautifulSoup(html, "lxml")
+    form = soup.find("form", id="schfrm")
+    data = {}
+    if not form:
+        return data
+
+    for tag in form.find_all(["input", "textarea", "select"]):
+        name = tag.get("name")
+        if not name:
+            continue
+
+        if tag.name == "textarea":
+            value = tag.text or tag.get("value", "")
+        else:
+            value = tag.get("value", "")
+
+        # Avoid overwriting later
+        if name not in data:
+            data[name] = value or ""
+
+    return data
+
+
+def fetch_ntd_rows(start_mmddyyyy: str, end_mmddyyyy: str):
+    """
+    Fetch NOTICE OF TAX DEED SALE (NTD) rows between start and end dates.
+    Returns a list of dicts (one per grid row).
+    """
+    sess = requests.Session()
+
+    # 1) Initial GET for cookies + form
+    r = sess.get(SEARCH_URL, timeout=30)
+    r.raise_for_status()
+    form_data = build_form_defaults(r.text)
+
+    # 2) Override key fields for NTD search
+    # DocTypes value "149" came from the combo box datasource
+    form_data["DocTypes"] = "149"
+    form_data["DocTypesDisplay"] = "NOTICE OF TAX DEED SALE (NTD)"
+    # Force custom date range
+    form_data["DateRangeList"] = " "
+    form_data["RecordDateFrom"] = start_mmddyyyy
+    form_data["RecordDateTo"] = end_mmddyyyy
+
+    # 3) POST search
+    r = sess.post(SEARCH_URL, data=form_data, timeout=60)
+    r.raise_for_status()
+
+    # 4) Fetch the grid HTML for the current search
+    r = sess.get(GRID_URL, timeout=60)
+    r.raise_for_status()
+    soup = BeautifulSoup(r.text, "lxml")
+
+    table = soup.find("table")
+    if not table:
+        print("No grid table found in PartialGrid HTML")
+        return []
+
+    # header cells -> column names
+    headers = [th.get_text(strip=True) for th in table.find_all("th")]
+    rows = []
+
+    for tr in table.find_all("tr"):
+        tds = tr.find_all("td")
+        if len(tds) != len(headers):
+            continue
+
+        row = {}
+        for h, td in zip(headers, tds):
+            # collapse inner text, keep spaces between pieces
+            row[h] = td.get_text(" ", strip=True)
+        rows.append(row)
+
+    return rows
+
+
+def main():
+    # Last 150 days window
+    today = datetime.today()
+    start = today - timedelta(days=150)
+
+    start_str = start.strftime("%m/%d/%Y")
+    end_str = today.strftime("%m/%d/%Y")
+
+    print(f"Fetching NTD rows from {start_str} to {end_str} ...")
+
+    rows = fetch_ntd_rows(start_str, end_str)
+    if not rows:
+        print("NO ROWS RETURNED")
+        return
+
+    snapshots_dir = Path("snapshots")
+    snapshots_dir.mkdir(exist_ok=True)
+
+    out_name = f"duval_clerk_ntd_{today.strftime('%Y-%m-%d')}.csv"
+    out_path = snapshots_dir / out_name
+
+    fieldnames = list(rows[0].keys())
+
+    with out_path.open("w", newline="", encoding="utf-8") as f:
+        writer = csv.DictWriter(f, fieldnames=fieldnames)
+        writer.writeheader()
+        writer.writerows(rows)
+
+    print(f"WROTE {len(rows)} rows -> {out_path}")
+
+
+if __name__ == "__main__":
+    main()

@@ -1,147 +1,60 @@
-<!DOCTYPE html>
-<html lang="en">
+﻿<!doctype html>
+<html>
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Distress Intelligence · Login</title>
-
-  <!-- Tailwind CSS -->
-  <script src="https://cdn.tailwindcss.com"></script>
-
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <title>Login - Distress Intelligence</title>
   <style>
-    body {
-      background-color: #0f172a; /* slate-950 */
-      color: #f8fafc; /* slate-100 */
-      font-family: 'Inter', sans-serif;
-    }
+    body{font-family:Arial;display:flex;justify-content:center;align-items:center;min-height:100vh;background:#f6f7fb;margin:0}
+    .box{width:360px;background:#fff;border:1px solid #e5e7eb;border-radius:14px;padding:18px;box-shadow:0 10px 30px rgba(0,0,0,.06)}
+    h2{margin:0 0 12px 0}
+    label{display:block;font-size:12px;color:#444;margin-top:10px}
+    input{width:100%;padding:10px;border:1px solid #ddd;border-radius:10px;margin-top:6px}
+    button{width:100%;padding:10px;border:0;border-radius:10px;background:#111;color:#fff;margin-top:14px;cursor:pointer}
+    .muted{font-size:12px;color:#666;margin-top:10px}
+    .err{color:#b00020;font-size:12px;margin-top:10px;white-space:pre-wrap}
+    .row{display:flex;gap:8px;margin-top:10px}
+    .row button{width:50%;background:#333}
+    .row button.secondary{background:#666}
   </style>
 </head>
+<body>
+  <div class="box">
+    <h2>Admin Login</h2>
+    <div class="muted">Use your Render ENV: ADMIN_EMAIL + ADMIN_PASSWORD</div>
 
-<body class="min-h-screen flex items-center justify-center">
-  <div class="w-full max-w-md mx-auto px-4">
-    <div class="bg-slate-900/80 border border-slate-800 rounded-2xl p-6 shadow-xl">
-      <div class="flex items-center gap-3 mb-4">
-        <div class="h-10 w-10 rounded-full bg-emerald-400 flex items-center justify-center font-bold text-slate-900">
-          DI
-        </div>
-        <div>
-          <h1 class="text-lg font-semibold">Distress Intelligence</h1>
-          <p class="text-xs text-slate-400">Sign in to access Duval distress data</p>
-        </div>
-      </div>
+    <label>Email</label>
+    <input id="email" placeholder="admin@local" />
 
-      <div class="space-y-3">
-        <div>
-          <label class="text-xs text-slate-400 block mb-1">Email</label>
-          <input id="emailInput"
-                 type="email"
-                 placeholder="you@example.com"
-                 class="w-full rounded-xl bg-slate-950 border border-slate-700 px-3 py-2 text-sm outline-none focus:border-emerald-400">
-        </div>
-        <div>
-          <label class="text-xs text-slate-400 block mb-1">Password</label>
-          <input id="passwordInput"
-                 type="password"
-                 placeholder="••••••••"
-                 class="w-full rounded-xl bg-slate-950 border border-slate-700 px-3 py-2 text-sm outline-none focus:border-emerald-400">
-        </div>
-      </div>
+    <label>Password</label>
+    <input id="pw" type="password" placeholder="••••••••" />
 
-      <div class="mt-4 space-y-2">
-        <button id="loginBtn"
-                class="w-full rounded-full bg-emerald-400 text-slate-900 text-sm font-medium py-2 hover:bg-emerald-300">
-          Log In
-        </button>
-        <button id="signupBtn"
-                class="w-full rounded-full bg-slate-800 text-slate-100 text-sm py-2 border border-slate-600 hover:bg-slate-700">
-          Create New Account
-        </button>
-      </div>
+    <button onclick="login()">Login</button>
 
-      <p id="statusText" class="mt-3 text-xs text-slate-400 min-h-[1.2rem] text-center"></p>
-
-      <p class="mt-4 text-[11px] text-slate-500 text-center">
-        By continuing you agree not to scrape, resell, or abuse this data source.
-      </p>
+    <div class="row">
+      <button class="secondary" onclick="location.href='/'">Home</button>
+      <button onclick="location.href='/admin'">Admin</button>
     </div>
+
+    <div id="out" class="err"></div>
   </div>
 
-  <!-- ✅ Firebase SDKs (Compat version) -->
-  <script src="https://www.gstatic.com/firebasejs/11.0.1/firebase-app-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/11.0.1/firebase-auth-compat.js"></script>
-
-  <!-- 🔑 Firebase Config -->
-  <script>
-    const firebaseConfig = {
-      apiKey: "AIzaSyDTMTNQceT5sbzJVnZknWOWF27G0KzYgPE",
-      authDomain: "duval-distress-intelligence.firebaseapp.com",
-      projectId: "duval-distress-intelligence",
-      storageBucket: "duval-distress-intelligence.firebasestorage.app",
-      messagingSenderId: "374769856603",
-      appId: "1:374769856603:web:342062e92ef5d1c289cf7e"
-    };
-
-    if (!firebase.apps.length) {
-      firebase.initializeApp(firebaseConfig);
-      console.log("✅ Firebase initialized");
-    } else {
-      console.log("⚠️ Firebase already initialized");
-    }
-  </script>
-
-  <!-- 🧠 Login Logic -->
-  <script>
-    document.addEventListener("DOMContentLoaded", () => {
-      const emailInput = document.getElementById("emailInput");
-      const passwordInput = document.getElementById("passwordInput");
-      const loginBtn = document.getElementById("loginBtn");
-      const signupBtn = document.getElementById("signupBtn");
-      const statusText = document.getElementById("statusText");
-
-      function setStatus(msg) {
-        statusText.textContent = msg;
-      }
-
-      // Redirect if already logged in
-      firebase.auth().onAuthStateChanged((user) => {
-        if (user) {
-          console.log("Logged in as:", user.email);
-          window.location.href = "/";
-        }
-      });
-
-      // Log In handler
-      loginBtn.onclick = async () => {
-        const email = emailInput.value.trim();
-        const pass = passwordInput.value;
-        if (!email || !pass) return setStatus("Enter email and password");
-        setStatus("Signing in...");
-        try {
-          await firebase.auth().signInWithEmailAndPassword(email, pass);
-          setStatus("Login successful. Redirecting...");
-          window.location.href = "/";
-        } catch (err) {
-          console.error(err);
-          setStatus(err.message);
-        }
-      };
-
-      // Create Account handler
-      signupBtn.onclick = async () => {
-        const email = emailInput.value.trim();
-        const pass = passwordInput.value;
-        if (!email || !pass) return setStatus("Enter email and password");
-        setStatus("Creating account...");
-        try {
-          await firebase.auth().createUserWithEmailAndPassword(email, pass);
-          setStatus("Account created! Redirecting...");
-          window.location.href = "/";
-        } catch (err) {
-          console.error(err);
-          setStatus(err.message);
-        }
-      };
-    });
-  </script>
+<script>
+async function login(){
+  const email = (document.getElementById("email").value || "admin@local").trim();
+  const password = (document.getElementById("pw").value || "").trim();
+  const res = await fetch("/api/login", {
+    method:"POST",
+    headers: {"Content-Type":"application/json"},
+    body: JSON.stringify({email,password})
+  });
+  const txt = await res.text();
+  if(res.ok){
+    location.href="/admin";
+    return;
+  }
+  document.getElementById("out").textContent = txt;
+}
+</script>
 </body>
 </html>

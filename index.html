@@ -1,0 +1,95 @@
+﻿<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <title>Distress Intelligence</title>
+  <style>
+    body{font-family:Arial;margin:20px;max-width:1200px}
+    .top{display:flex;gap:10px;align-items:center;justify-content:space-between}
+    .card{border:1px solid #ddd;border-radius:10px;padding:12px;margin:10px 0}
+    table{border-collapse:collapse;width:100%}
+    th,td{border:1px solid #ddd;padding:6px;font-size:12px}
+    input,select,button{padding:8px}
+    button{cursor:pointer}
+    .row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+    .muted{color:#666;font-size:12px}
+  </style>
+</head>
+<body>
+  <div class="top">
+    <h2>Distress Intelligence</h2>
+    <div class="row">
+      <button onclick="goLogin()">Login</button>
+      <button onclick="goAdmin()">Admin</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="row">
+      <div><b>Delinquent Leads</b> <span class="muted" id="meta"></span></div>
+    </div>
+    <div class="row" style="margin-top:10px">
+      <label>page <input id="page" type="number" value="1" min="1" style="width:80px"></label>
+      <label>size <input id="size" type="number" value="25" min="1" max="500" style="width:90px"></label>
+      <label>still
+        <select id="still">
+          <option value="">(any)</option>
+          <option value="true">true</option>
+          <option value="false">false</option>
+        </select>
+      </label>
+      <label>min_due <input id="min_due" placeholder="0" style="width:120px"></label>
+      <label>q <input id="q" placeholder="parcel / address / zip" style="width:240px"></label>
+      <button onclick="load()">Load</button>
+    </div>
+
+    <table style="margin-top:10px">
+      <thead>
+        <tr>
+          <th>Parcel</th><th>Address</th><th>Zip</th><th>Face</th><th>Live Due</th><th>Still</th>
+        </tr>
+      </thead>
+      <tbody id="tb"></tbody>
+    </table>
+  </div>
+
+<script>
+function goLogin(){ location.href="/login"; }
+function goAdmin(){ location.href="/admin"; }
+
+async function load(){
+  const page = document.getElementById("page").value || 1;
+  const size = document.getElementById("size").value || 25;
+  const still = document.getElementById("still").value;
+  const min_due = document.getElementById("min_due").value;
+  const q = document.getElementById("q").value;
+
+  let url = `/api/delinquent?page=${page}&page_size=${size}`;
+  if(still) url += `&still_delinquent=${encodeURIComponent(still)}`;
+  if(min_due) url += `&min_due=${encodeURIComponent(min_due)}`;
+  if(q) url += `&q=${encodeURIComponent(q)}`;
+
+  const res = await fetch(url);
+  const data = await res.json();
+
+  document.getElementById("meta").textContent = `total=${data.total} returned=${data.returned}`;
+  const tb = document.getElementById("tb");
+  tb.innerHTML = "";
+  (data.rows||[]).forEach(r=>{
+    const tr = document.createElement("tr");
+    tr.innerHTML = `
+      <td>${r.lienhub_account_no||""}</td>
+      <td>${r.lienhub_situs_address||""}</td>
+      <td>${(r.lienhub_situs_zip||"")}</td>
+      <td>${r.lienhub_face_amount||""}</td>
+      <td>${r.live_total_due||""}</td>
+      <td>${r.still_delinquent||""}</td>
+    `;
+    tb.appendChild(tr);
+  });
+}
+load();
+</script>
+</body>
+</html>

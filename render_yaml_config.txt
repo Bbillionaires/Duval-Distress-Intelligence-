@@ -1,0 +1,66 @@
+# render.yaml - Automated Deployment Configuration
+# This configures your app with scheduled scraping on Render.com
+
+services:
+  # Main web app
+  - type: web
+    name: duval-tax-leads
+    runtime: python
+    plan: starter  # $7/month - upgrade to standard for more resources
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn app_saas_automated:app
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11
+      - key: APP_SECRET
+        generateValue: true
+      - key: ADMIN_EMAIL
+        value: admin@yourdomain.com
+      - key: ADMIN_PASSWORD
+        generateValue: true  # Change this in Render dashboard after deploy
+      - key: DATABASE_URL
+        fromDatabase:
+          name: duval-db
+          property: connectionString
+  
+  # PostgreSQL Database
+  - type: pserv
+    name: duval-db
+    runtime: postgres
+    plan: starter  # $7/month
+    ipAllowList: []  # Allow all IPs (web service needs access)
+
+# Scheduled Jobs (Cron Jobs)
+# These run your scraper automatically
+cronjobs:
+  # Daily scrape at 2 AM EST
+  - type: job
+    name: daily-scrape
+    runtime: python
+    schedule: "0 2 * * *"  # Every day at 2 AM
+    buildCommand: pip install -r requirements.txt
+    startCommand: python automated_scraper.py
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: duval-db
+          property: connectionString
+  
+  # Weekly full scrape on Sundays at 3 AM EST
+  - type: job
+    name: weekly-scrape
+    runtime: python
+    schedule: "0 3 * * 0"  # Every Sunday at 3 AM
+    buildCommand: pip install -r requirements.txt
+    startCommand: python automated_scraper.py
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: duval-db
+          property: connectionString
+
+# Alternative: Use Render's built-in cron (simpler)
+# Just create one web service and add these cron jobs in the Render dashboard:
+#
+# Daily:    0 2 * * *  → python automated_scraper.py
+# Weekly:   0 3 * * 0  → python automated_scraper.py
