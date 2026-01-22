@@ -1,0 +1,31 @@
+services:
+  - type: web
+    name: real-estate-intel
+    runtime: python
+    plan: starter
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn app_multi_county:app --bind 0.0.0.0:$PORT
+    envVars:
+      - key: PYTHON_VERSION
+        value: "3.11"
+      - key: PORT
+        value: "10000"
+      - key: APP_SECRET
+        generateValue: true
+      - key: DATABASE_URL
+        sync: false
+      - key: ADMIN_EMAIL
+        value: admin@yourcompany.com
+      - key: ADMIN_PASSWORD
+        value: ChangeMe123!
+
+jobs:
+  - type: cron
+    name: scrape-duval-daily
+    runtime: python
+    schedule: "0 2 * * *"
+    buildCommand: pip install -r requirements.txt
+    startCommand: python automated_scraper_multi.py --county duval
+    envVars:
+      - key: DATABASE_URL
+        sync: false

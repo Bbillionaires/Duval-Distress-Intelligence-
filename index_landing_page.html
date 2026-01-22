@@ -1,0 +1,269 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Duval Tax Leads - Sweet Spot Property Finder</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            color: white;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 40px 20px;
+        }
+
+        header {
+            text-align: center;
+            padding: 60px 0;
+        }
+
+        header h1 {
+            font-size: 56px;
+            margin-bottom: 20px;
+            text-shadow: 0 4px 12px rgba(0,0,0,0.2);
+        }
+
+        header p {
+            font-size: 24px;
+            opacity: 0.95;
+            margin-bottom: 40px;
+        }
+
+        .cta-buttons {
+            display: flex;
+            gap: 20px;
+            justify-content: center;
+            flex-wrap: wrap;
+        }
+
+        .btn {
+            padding: 16px 40px;
+            border-radius: 8px;
+            border: none;
+            font-size: 18px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+            text-decoration: none;
+            display: inline-block;
+        }
+
+        .btn-primary {
+            background: white;
+            color: #667eea;
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 10px 30px rgba(255,255,255,0.3);
+        }
+
+        .btn-secondary {
+            background: rgba(255,255,255,0.2);
+            color: white;
+            border: 2px solid white;
+        }
+
+        .btn-secondary:hover {
+            background: rgba(255,255,255,0.3);
+        }
+
+        .features {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 30px;
+            margin: 80px 0;
+        }
+
+        .feature-card {
+            background: rgba(255,255,255,0.15);
+            backdrop-filter: blur(10px);
+            border-radius: 12px;
+            padding: 40px 30px;
+            text-align: center;
+            transition: all 0.3s;
+        }
+
+        .feature-card:hover {
+            background: rgba(255,255,255,0.25);
+            transform: translateY(-5px);
+        }
+
+        .feature-card .icon {
+            font-size: 60px;
+            margin-bottom: 20px;
+        }
+
+        .feature-card h3 {
+            font-size: 24px;
+            margin-bottom: 15px;
+        }
+
+        .feature-card p {
+            font-size: 16px;
+            opacity: 0.9;
+            line-height: 1.6;
+        }
+
+        .stats {
+            background: rgba(255,255,255,0.2);
+            backdrop-filter: blur(10px);
+            border-radius: 12px;
+            padding: 50px;
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 40px;
+            text-align: center;
+            margin: 60px 0;
+        }
+
+        .stat h2 {
+            font-size: 48px;
+            margin-bottom: 10px;
+        }
+
+        .stat p {
+            font-size: 16px;
+            opacity: 0.9;
+        }
+
+        footer {
+            text-align: center;
+            padding: 40px 0;
+            margin-top: 80px;
+            border-top: 1px solid rgba(255,255,255,0.2);
+        }
+
+        @media (max-width: 768px) {
+            header h1 {
+                font-size: 36px;
+            }
+
+            header p {
+                font-size: 18px;
+            }
+
+            .btn {
+                width: 100%;
+            }
+
+            .features {
+                grid-template-columns: 1fr;
+            }
+
+            .stats {
+                padding: 30px 20px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🏠 Duval Tax Leads</h1>
+            <p>Find the Sweet Spot: Properties 6-24 Months Into Tax Delinquency</p>
+            <div class="cta-buttons">
+                <a href="/login" class="btn btn-primary">Get Started</a>
+                <a href="/admin" class="btn btn-secondary">Admin Dashboard</a>
+            </div>
+        </header>
+
+        <div class="stats" id="liveStats">
+            <div class="stat">
+                <h2 id="sweetSpotCount">-</h2>
+                <p>Sweet Spot Leads</p>
+            </div>
+            <div class="stat">
+                <h2 id="totalProperties">-</h2>
+                <p>Total Properties</p>
+            </div>
+            <div class="stat">
+                <h2 id="totalValue">-</h2>
+                <p>Total Value</p>
+            </div>
+        </div>
+
+        <div class="features">
+            <div class="feature-card">
+                <div class="icon">🎯</div>
+                <h3>Sweet Spot Targeting</h3>
+                <p>Automatically identifies properties 6-24 months into tax delinquency - the optimal window for engagement before tax deed auction.</p>
+            </div>
+
+            <div class="feature-card">
+                <div class="icon">🔄</div>
+                <h3>Daily Updates</h3>
+                <p>Automated daily scraping verifies current delinquent status, ensuring you're working with the most up-to-date information.</p>
+            </div>
+
+            <div class="feature-card">
+                <div class="icon">📊</div>
+                <h3>Complete Pipeline</h3>
+                <p>Track properties from tax certificate sale through tax deed notices to auction - see every stage of the distress cycle.</p>
+            </div>
+
+            <div class="feature-card">
+                <div class="icon">⚡</div>
+                <h3>Live Verification</h3>
+                <p>Real-time amount verification from Duval County's tax system ensures accuracy down to the penny.</p>
+            </div>
+
+            <div class="feature-card">
+                <div class="icon">🚨</div>
+                <h3>Tax Deed Alerts</h3>
+                <p>Get notified when properties receive tax deed notices - know exactly when they're exiting the sweet spot.</p>
+            </div>
+
+            <div class="feature-card">
+                <div class="icon">📈</div>
+                <h3>Historical Tracking</h3>
+                <p>Monitor how amounts owed change over time. Identify patterns and opportunities in property payment behavior.</p>
+            </div>
+        </div>
+
+        <footer>
+            <p>© 2026 Duval Tax Leads. Powered by automated data collection.</p>
+            <p style="margin-top: 10px; opacity: 0.8; font-size: 14px;">
+                Data sources: Duval County Tax Collector, Clerk of Courts, LienHub
+            </p>
+        </footer>
+    </div>
+
+    <script>
+        // Load live stats
+        async function loadStats() {
+            try {
+                const response = await fetch('/api/stats');
+                const data = await response.json();
+
+                if (data.ok) {
+                    const sweetSpot = data.by_stage.find(s => s.stage === 'sweet_spot')?.count || 0;
+                    const total = data.overall.total_properties || 0;
+                    const totalDue = parseFloat(data.overall.total_amount_due) || 0;
+
+                    document.getElementById('sweetSpotCount').textContent = sweetSpot.toLocaleString();
+                    document.getElementById('totalProperties').textContent = total.toLocaleString();
+                    document.getElementById('totalValue').textContent = '$' + (totalDue / 1000000).toFixed(1) + 'M';
+                }
+            } catch (error) {
+                console.log('Stats unavailable');
+            }
+        }
+
+        // Load stats on page load
+        loadStats();
+    </script>
+</body>
+</html>
