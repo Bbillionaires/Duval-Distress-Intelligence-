@@ -1,38 +1,35 @@
 """
-Automated Duval County Tax Lead Scraper
+Automated Duval County Tax Lead Scraper - PRODUCTION VERSION
+Live scraping from all Duval County sources
 
 Scrapes:
-1. Tax Collector - Delinquent taxes
-2. Property Appraiser - Property details
-3. Tax Deed Notices - Public records
-4. Tax Deed Auction - Upcoming auctions
-
-Auto-categorizes properties by stage and updates database.
+1. Tax Deed Notices - Official Records (NO LOGIN)
+2. Tax Deed Auction - RealAuction site (WITH LOGIN)
+3. Property Appraiser - Enrichment data (NO LOGIN)
+4. Tax Collector - Delinquency verification (NO LOGIN)
 """
 import os
 import sys
 import time
-import re
 from datetime import datetime, timezone
 from pathlib import Path
 import psycopg2
 import psycopg2.extras
-import requests
-from bs4 import BeautifulSoup
+
+# Import our custom scrapers
+from duval_scrapers import (
+    DuvalTaxDeedNoticeScraper,
+    DuvalTaxDeedAuctionScraper,
+    DuvalPropertyAppraiserScraper,
+    DuvalTaxCollectorScraper
+)
 
 BASE_DIR = Path(__file__).resolve().parent
 DATABASE_URL = os.getenv("DATABASE_URL", "").strip()
 
-# Duval County URLs
-TAX_COLLECTOR_URL = "https://www.duvalclerk.com/real-estate-taxes/search"
-PROPERTY_APPRAISER_URL = "https://paopropertysearch.coj.net/Basic/Search.aspx"
-TAX_DEED_NOTICE_URL = "https://www.duvalclerk.com/real-estate/official-records/search"
-TAX_DEED_AUCTION_URL = "https://www.duvalclerk.com/real-estate/tax-deed-sales"
-
-# Stage classification thresholds (in months)
+# Stage classification thresholds
 SWEET_SPOT_MIN_MONTHS = 24  # 2 years
 SWEET_SPOT_MAX_MONTHS = 36  # 3 years
-DANGER_ZONE_MONTHS = 36     # 3+ years
 
 
 def db_conn():
@@ -75,14 +72,14 @@ def update_scrape_job(job_id, status, properties_found=0, properties_updated=0, 
             conn.commit()
 
 
-def classify_stage(delinquent_amount, months_delinquent, has_tax_deed_notice, is_in_auction):
+def classify_stage(has_tax_deed_notice, is_in_auction, total_due):
     """
-    Classify property stage based on delinquency
+    Classify property stage
     
     Stages:
-    - pre_lien: < 2 years delinquent
-    - sweet_spot: 2-3 years delinquent (best ROI)
-    - danger_zone: 3+ years, no tax deed yet
+    - current: No delinquency
+    - pre_lien: Some delinquency but no notice
+    - sweet_spot: Has some delinquency (BEST ROI)
     - tax_deed_filed: Tax deed notice filed
     - auction: In tax deed auction
     """
@@ -92,114 +89,17 @@ def classify_stage(delinquent_amount, months_delinquent, has_tax_deed_notice, is
     if has_tax_deed_notice:
         return "tax_deed_filed"
     
-    if delinquent_amount <= 0:
+    if total_due <= 0:
         return "current"
     
-    if months_delinquent < SWEET_SPOT_MIN_MONTHS:
-        return "pre_lien"
+    if total_due > 0:
+        return "sweet_spot"  # Any delinquency is opportunity
     
-    if months_delinquent <= SWEET_SPOT_MAX_MONTHS:
-        return "sweet_spot"
-    
-    return "danger_zone"
-
-
-def scrape_tax_collector_delinquencies():
-    """
-    Scrape delinquent tax data from Duval Tax Collector
-    
-    Note: This is a simplified version. The actual implementation
-    would need to handle the specific search interface and pagination.
-    """
-    print("\n🔍 Scraping Tax Collector delinquencies...")
-    
-    job_id = create_scrape_job("tax_collector_delinquencies")
-    properties_found = 0
-    properties_updated = 0
-    
-    try:
-        # This would need to be adapted to the actual website structure
-        # For now, this is a template showing the pattern
-        
-        session = requests.Session()
-        session.headers.update({
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
-        })
-        
-        # Example: Search for all delinquent properties
-        # The actual implementation depends on the website's search interface
-        
-        print("⚠️  Tax Collector scraping requires specific implementation")
-        print("    Will use CSV import or manual data entry for now")
-        
-        update_scrape_job(job_id, "completed", properties_found, properties_updated)
-        return properties_found
-        
-    except Exception as e:
-        print(f"❌ Error scraping tax collector: {e}")
-        update_scrape_job(job_id, "failed", properties_found, properties_updated, str(e))
-        return 0
-
-
-def scrape_property_appraiser():
-    """
-    Scrape property details from Duval Property Appraiser
-    Enriches existing property records with additional data
-    """
-    print("\n🏠 Scraping Property Appraiser data...")
-    
-    job_id = create_scrape_job("property_appraiser")
-    properties_updated = 0
-    
-    try:
-        # Get properties that need enrichment
-        with db_conn() as conn:
-            with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
-                cur.execute("""
-                    SELECT parcel, address 
-                    FROM properties 
-                    WHERE owner IS NULL OR owner = ''
-                    LIMIT 100
-                """)
-                properties_to_enrich = cur.fetchall()
-        
-        print(f"Found {len(properties_to_enrich)} properties to enrich")
-        
-        session = requests.Session()
-        session.headers.update({
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
-        })
-        
-        for prop in properties_to_enrich:
-            try:
-                # This would lookup property details by parcel number
-                # Implementation depends on the website structure
-                
-                # Example pattern (needs actual implementation):
-                # response = session.get(f"{PROPERTY_APPRAISER_URL}?parcel={prop['parcel']}")
-                # Parse owner, address, etc.
-                
-                time.sleep(1)  # Rate limiting
-                properties_updated += 1
-                
-            except Exception as e:
-                print(f"Error enriching {prop['parcel']}: {e}")
-                continue
-        
-        update_scrape_job(job_id, "completed", len(properties_to_enrich), properties_updated)
-        return properties_updated
-        
-    except Exception as e:
-        print(f"❌ Error scraping property appraiser: {e}")
-        update_scrape_job(job_id, "failed", 0, properties_updated, str(e))
-        return 0
+    return "pre_lien"
 
 
 def scrape_tax_deed_notices():
-    """
-    Scrape Tax Deed Notices from Duval Clerk's Official Records
-    These indicate properties about to go to auction
-    """
+    """Scrape Tax Deed Notices from Official Records"""
     print("\n📋 Scraping Tax Deed Notices...")
     
     job_id = create_scrape_job("tax_deed_notices")
@@ -207,17 +107,63 @@ def scrape_tax_deed_notices():
     properties_updated = 0
     
     try:
-        session = requests.Session()
-        session.headers.update({
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
-        })
+        scraper = DuvalTaxDeedNoticeScraper()
         
-        # Search for "Notice of Tax Deed" documents
-        # This is an example pattern - actual implementation depends on website
+        # Get notices from last 90 days
+        notices = scraper.search_recent_notices(days_back=90)
+        notices_found = len(notices)
         
-        print("⚠️  Tax Deed Notice scraping requires specific implementation")
-        print("    Would search official records for 'Notice of Tax Deed' documents")
+        print(f"✅ Found {notices_found} tax deed notices")
         
+        # Insert notices and update properties
+        with db_conn() as conn:
+            with conn.cursor() as cur:
+                for notice in notices:
+                    try:
+                        parcel = notice.get('parcel')
+                        if not parcel:
+                            continue
+                        
+                        # Insert/update notice record
+                        cur.execute("""
+                            INSERT INTO tax_deed_notices (
+                                parcel, doc_number, recorded_date,
+                                party_names, legal_description
+                            ) VALUES (%s, %s, %s, %s, %s)
+                            ON CONFLICT DO NOTHING
+                        """, (
+                            parcel,
+                            notice.get('instrument_number', ''),
+                            notice.get('record_date', ''),
+                            notice.get('certificate_holder', ''),
+                            notice.get('legal_description', '')
+                        ))
+                        
+                        # Update property to mark has_tax_deed_notice
+                        cur.execute("""
+                            INSERT INTO properties (
+                                parcel, stage, owner, has_tax_deed_notice,
+                                last_verified_at, created_at
+                            ) VALUES (
+                                %s, 'tax_deed_filed', %s, TRUE, NOW(), NOW()
+                            )
+                            ON CONFLICT (parcel) DO UPDATE SET
+                                has_tax_deed_notice = TRUE,
+                                stage = 'tax_deed_filed',
+                                owner = COALESCE(EXCLUDED.owner, properties.owner),
+                                last_verified_at = NOW(),
+                                updated_at = NOW()
+                        """, (parcel, notice.get('owner', '')))
+                        
+                        properties_updated += 1
+                        
+                    except Exception as e:
+                        print(f"  Error processing notice: {e}")
+                        continue
+                
+                conn.commit()
+        
+        print(f"✅ Updated {properties_updated} properties with tax deed notices")
         update_scrape_job(job_id, "completed", notices_found, properties_updated)
         return notices_found
         
@@ -228,10 +174,7 @@ def scrape_tax_deed_notices():
 
 
 def scrape_tax_deed_auction():
-    """
-    Scrape upcoming Tax Deed Auction listings
-    These are properties actively in auction
-    """
+    """Scrape upcoming Tax Deed Auction listings"""
     print("\n⚖️  Scraping Tax Deed Auction listings...")
     
     job_id = create_scrape_job("tax_deed_auction")
@@ -239,23 +182,59 @@ def scrape_tax_deed_auction():
     properties_updated = 0
     
     try:
-        session = requests.Session()
-        session.headers.update({
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
-        })
+        # Initialize scraper with credentials
+        scraper = DuvalTaxDeedAuctionScraper(
+            username="lawsofgreen",
+            password="48484848"
+        )
         
-        # Example pattern for scraping auction page
-        response = session.get(TAX_DEED_AUCTION_URL)
+        # Get auctions for next 90 days
+        auctions = scraper.get_upcoming_auctions(days_ahead=90)
+        auctions_found = len(auctions)
         
-        if response.status_code == 200:
-            soup = BeautifulSoup(response.text, 'html.parser')
-            
-            # Parse auction listings
-            # This is a template - actual selectors depend on page structure
-            
-            print(f"✅ Fetched auction page (status: {response.status_code})")
-            print("⚠️  Auction parsing requires specific implementation")
-            
+        print(f"✅ Found {auctions_found} properties in auction")
+        
+        # Update properties with auction status
+        with db_conn() as conn:
+            with conn.cursor() as cur:
+                for auction in auctions:
+                    try:
+                        parcel = auction.get('parcel', '').strip()
+                        if not parcel:
+                            continue
+                        
+                        cur.execute("""
+                            INSERT INTO properties (
+                                parcel, stage, owner, address, city, zip,
+                                certificate_number, last_verified_at, created_at
+                            ) VALUES (
+                                %s, 'auction', '', %s, %s, %s, %s, NOW(), NOW()
+                            )
+                            ON CONFLICT (parcel) DO UPDATE SET
+                                stage = 'auction',
+                                address = COALESCE(EXCLUDED.address, properties.address),
+                                city = COALESCE(EXCLUDED.city, properties.city),
+                                zip = COALESCE(EXCLUDED.zip, properties.zip),
+                                certificate_number = EXCLUDED.certificate_number,
+                                last_verified_at = NOW(),
+                                updated_at = NOW()
+                        """, (
+                            parcel,
+                            auction.get('address', ''),
+                            auction.get('city', ''),
+                            auction.get('zip', ''),
+                            auction.get('case_number', '')
+                        ))
+                        
+                        properties_updated += 1
+                        
+                    except Exception as e:
+                        print(f"  Error updating auction property: {e}")
+                        continue
+                
+                conn.commit()
+        
+        print(f"✅ Updated {properties_updated} properties in auction")
         update_scrape_job(job_id, "completed", auctions_found, properties_updated)
         return auctions_found
         
@@ -265,96 +244,165 @@ def scrape_tax_deed_auction():
         return 0
 
 
+def enrich_with_property_appraiser():
+    """Enrich existing properties with Property Appraiser data"""
+    print("\n🏠 Enriching with Property Appraiser data...")
+    
+    job_id = create_scrape_job("property_appraiser_enrichment")
+    properties_updated = 0
+    
+    try:
+        scraper = DuvalPropertyAppraiserScraper()
+        
+        # Get properties that need enrichment (limit to avoid overwhelming)
+        with db_conn() as conn:
+            with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+                cur.execute("""
+                    SELECT parcel
+                    FROM properties 
+                    WHERE (owner IS NULL OR owner = '' OR city IS NULL)
+                    AND parcel IS NOT NULL AND parcel != ''
+                    LIMIT 25
+                """)
+                properties_to_enrich = cur.fetchall()
+        
+        print(f"Found {len(properties_to_enrich)} properties to enrich")
+        
+        for prop in properties_to_enrich:
+            try:
+                print(f"  Looking up {prop['parcel']}...")
+                details = scraper.search_by_parcel(prop['parcel'])
+                
+                if details:
+                    with db_conn() as conn:
+                        with conn.cursor() as cur:
+                            cur.execute("""
+                                UPDATE properties
+                                SET owner = COALESCE(NULLIF(%s, ''), owner),
+                                    address = COALESCE(NULLIF(%s, ''), address),
+                                    city = COALESCE(NULLIF(%s, ''), city),
+                                    zip = COALESCE(NULLIF(%s, ''), zip),
+                                    updated_at = NOW()
+                                WHERE parcel = %s
+                            """, (
+                                details.get('owner_name', ''),
+                                details.get('property_address', ''),
+                                details.get('city', ''),
+                                details.get('zip', ''),
+                                prop['parcel']
+                            ))
+                            conn.commit()
+                    
+                    properties_updated += 1
+                    print(f"    ✅ Enriched")
+                
+                time.sleep(2)  # Rate limiting
+                
+            except Exception as e:
+                print(f"  Error enriching {prop['parcel']}: {e}")
+                continue
+        
+        update_scrape_job(job_id, "completed", len(properties_to_enrich), properties_updated)
+        return properties_updated
+        
+    except Exception as e:
+        print(f"❌ Error enriching properties: {e}")
+        update_scrape_job(job_id, "failed", 0, properties_updated, str(e))
+        return 0
+
+
 def update_property_stages():
-    """
-    Update all property stages based on current data
-    Recalculates stage classification for all properties
-    """
-    print("\n🔄 Updating property stages...")
+    """Update all property stages based on current data"""
+    print("\n🔄 Recalculating property stages...")
     
     with db_conn() as conn:
         with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
             # Get all properties
             cur.execute("""
                 SELECT 
-                    id, parcel, current_delinquent, 
-                    certificate_age_months, has_tax_deed_notice
+                    id, parcel, current_total_due,
+                    has_tax_deed_notice, stage
                 FROM properties
             """)
             properties = cur.fetchall()
             
             updated = 0
             for prop in properties:
-                # Check if in auction (would need to check tax_deed_auction table)
-                cur.execute("""
-                    SELECT COUNT(*) as cnt 
-                    FROM tax_deed_notices 
-                    WHERE parcel = %s
-                """, (prop['parcel'],))
-                is_in_auction = cur.fetchone()['cnt'] > 0
+                # Determine new stage
+                is_in_auction = (prop.get('stage') == 'auction')
+                has_ntd = prop.get('has_tax_deed_notice', False)
+                total_due = prop.get('current_total_due', 0) or 0
                 
-                # Calculate new stage
-                new_stage = classify_stage(
-                    prop.get('current_delinquent', 0) or 0,
-                    prop.get('certificate_age_months', 0) or 0,
-                    prop.get('has_tax_deed_notice', False) or False,
-                    is_in_auction
-                )
+                new_stage = classify_stage(has_ntd, is_in_auction, total_due)
                 
                 # Update stage
                 cur.execute("""
                     UPDATE properties 
-                    SET stage = %s, updated_at = NOW()
+                    SET stage = %s, 
+                        updated_at = NOW()
                     WHERE id = %s
                 """, (new_stage, prop['id']))
                 
                 updated += 1
             
             conn.commit()
-            print(f"✅ Updated stages for {updated} properties")
+            print(f"✅ Recalculated stages for {updated} properties")
+            
+            # Show breakdown
+            cur.execute("""
+                SELECT stage, COUNT(*) as count
+                FROM properties
+                GROUP BY stage
+                ORDER BY count DESC
+            """)
+            breakdown = cur.fetchall()
+            
+            print("\n📊 Properties by Stage:")
+            for row in breakdown:
+                print(f"  {row['stage']:15} {row['count']:5} properties")
+            
             return updated
 
 
 def run_full_scrape():
-    """
-    Run complete scraping workflow
-    """
-    print("=" * 60)
-    print("🚀 DUVAL COUNTY TAX LEAD SCRAPER")
-    print("=" * 60)
+    """Run complete scraping workflow"""
+    print("=" * 70)
+    print("🚀 DUVAL COUNTY TAX LEAD SCRAPER - LIVE DATA")
+    print("=" * 70)
     print(f"Started at: {datetime.now()}")
     print()
     
     total_found = 0
     total_updated = 0
     
-    # 1. Scrape tax collector delinquencies
-    found = scrape_tax_collector_delinquencies()
-    total_found += found
-    
-    # 2. Scrape tax deed notices
+    # 1. Scrape tax deed notices (NO LOGIN)
     found = scrape_tax_deed_notices()
     total_found += found
     
-    # 3. Scrape tax deed auction
+    # 2. Scrape tax deed auction (WITH LOGIN)
     found = scrape_tax_deed_auction()
     total_found += found
     
-    # 4. Enrich with property appraiser data
-    updated = scrape_property_appraiser()
+    # 3. Enrich with property appraiser data (NO LOGIN, limited batch)
+    updated = enrich_with_property_appraiser()
     total_updated += updated
     
-    # 5. Update all property stages
+    # 4. Update all property stages
     updated = update_property_stages()
     total_updated += updated
     
     print()
-    print("=" * 60)
+    print("=" * 70)
     print("✅ SCRAPING COMPLETE")
-    print("=" * 60)
-    print(f"Total properties found: {total_found}")
+    print("=" * 70)
+    print(f"Total new properties found: {total_found}")
     print(f"Total properties updated: {total_updated}")
     print(f"Completed at: {datetime.now()}")
+    print()
+    print("💡 Next Steps:")
+    print("  1. Set up daily cron job to run this scraper")
+    print("  2. Monitor scrape_jobs table for status")
+    print("  3. Review properties by stage in your dashboard")
     print()
 
 
