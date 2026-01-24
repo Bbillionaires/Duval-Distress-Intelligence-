@@ -341,8 +341,8 @@
         <!-- Header -->
         <div class="header">
             <div class="header-left">
-                <h1>🏘️ Real Estate Intelligence</h1>
-                <p class="tagline">Multi-County Tax Lead Platform</p>
+                <h1>🏘️ <span id="countyBrandName">Real Estate</span> Intelligence</h1>
+                <p class="tagline">Tax Lead Platform</p>
             </div>
             <div class="header-actions">
                 <span id="userEmail" style="color: #718096; font-size: 14px;"></span>
@@ -355,19 +355,19 @@
             <h2>Select County</h2>
             <div class="county-tabs" id="countyTabs">
                 <div class="county-tab active" data-county="duval">
-                    <span>🏛️ Duval County, FL</span>
+                    <span>🏛️ Duval Intelligence</span>
                     <span class="badge">$49/mo</span>
                 </div>
                 <div class="county-tab disabled" data-county="miami-dade">
-                    <span>🌴 Miami-Dade County, FL</span>
+                    <span>🌴 Miami-Dade Intelligence</span>
                     <span class="badge">Coming Soon</span>
                 </div>
                 <div class="county-tab disabled" data-county="broward">
-                    <span>🏖️ Broward County, FL</span>
+                    <span>🏖️ Broward Intelligence</span>
                     <span class="badge">Coming Soon</span>
                 </div>
                 <div class="county-tab disabled" data-county="palm-beach">
-                    <span>🌊 Palm Beach County, FL</span>
+                    <span>🌊 Palm Beach Intelligence</span>
                     <span class="badge">Coming Soon</span>
                 </div>
             </div>
@@ -641,6 +641,33 @@
         function logout() {
             window.location.href = '/login';
         }
+    </script>
+    
+    <script>
+        // Update branding based on selected county
+        function updateBranding(countyCode) {
+            const countyNames = {
+                'duval': 'Duval',
+                'miami-dade': 'Miami-Dade',
+                'broward': 'Broward',
+                'palm-beach': 'Palm Beach'
+            };
+            
+            const brandName = countyNames[countyCode] || 'Real Estate';
+            document.getElementById('countyBrandName').textContent = brandName;
+            document.title = `${brandName} Intelligence - Admin Dashboard`;
+        }
+
+        // Call when county changes
+        document.querySelectorAll('.county-tab:not(.disabled)').forEach(tab => {
+            tab.addEventListener('click', () => {
+                const county = tab.dataset.county;
+                updateBranding(county);
+            });
+        });
+
+        // Set initial branding
+        updateBranding('duval');
     </script>
 </body>
 </html>
