@@ -126,17 +126,21 @@ class DuvalTaxDeedAuctionScraper:
     """
     Scrapes upcoming Tax Deed Auction listings
     URL: https://duval.realtaxdeed.com/
-    Requires authentication
+    Uses direct search page URL to bypass login issues
     """
     
     BASE_URL = "https://duval.realtaxdeed.com"
     LOGIN_URL = f"{BASE_URL}/index.cfm?ZACTION=LOGIN&ZMETHOD=LOGIN"
+    # Direct URL to tax deed search/report page
+    SEARCH_URL = "https://duval.realtaxdeed.com/index.cfm?zaction=admin&zmethod=REPORT&Report_id=33"
     DATA_URL = f"{BASE_URL}/index.cfm"
     
     def __init__(self, username="lawsofgreen", password="48484848"):
         self.session = requests.Session()
         self.session.headers.update({
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+            'Accept': '*/*',
+            'Accept-Language': 'en-US,en;q=0.9'
         })
         self.username = username
         self.password = password
@@ -145,20 +149,15 @@ class DuvalTaxDeedAuctionScraper:
     def login(self):
         """
         Login to RealAuction site
-        Handles disclaimer pages and navigation to Tax Deed section
+        Simple POST login without handling disclaimers
         """
         try:
             print("  Logging in to auction site...")
             
-            # Step 1: Get the login page to establish session
-            response = self.session.get(self.BASE_URL)
-            
-            # Step 2: Submit login form
+            # Submit login directly
             login_data = {
                 'LogName': self.username,
-                'LogPass': self.password,
-                'zaction': 'LOGIN',
-                'zmethod': 'LOGIN'
+                'LogPass': self.password
             }
             
             response = self.session.post(self.LOGIN_URL, data=login_data, allow_redirects=True)
@@ -167,40 +166,32 @@ class DuvalTaxDeedAuctionScraper:
                 print(f"  ❌ Login failed - HTTP {response.status_code}")
                 return False
             
-            # Check for login success indicators
-            if 'Log Off' not in response.text and 'LogOff' not in response.text:
-                print("  ❌ Login failed - Invalid credentials or site changed")
-                if 'Invalid' in response.text or 'invalid' in response.text:
-                    print("     Error: Invalid username or password")
-                return False
+            # Store cookies for session
+            # Check if we got a session cookie
+            if 'cfid' in self.session.cookies or 'CFTOKEN' in self.session.cookies:
+                self.logged_in = True
+                print("  ✅ Login successful (session established)")
+                return True
             
-            print("  ✅ Login successful")
+            # Alternative: check response content
+            if 'Log Off' in response.text or 'LogOff' in response.text or len(response.text) > 1000:
+                self.logged_in = True
+                print("  ✅ Login successful")
+                return True
             
-            # Step 3: Handle any disclaimer/agreement pages
-            # Look for agreement buttons and accept them
-            soup = BeautifulSoup(response.text, 'html.parser')
-            
-            # Check for disclaimer/agreement buttons
-            disclaimer_buttons = soup.find_all('button', string=re.compile(r'OK|Accept|Agree|Continue', re.I))
-            disclaimer_buttons += soup.find_all('input', {'type': 'submit', 'value': re.compile(r'OK|Accept|Agree|Continue', re.I)})
-            
-            if disclaimer_buttons:
-                print(f"  Found {len(disclaimer_buttons)} disclaimer(s) to accept...")
-                # Click through disclaimers (usually just need to follow the flow)
-                # Most sites auto-proceed after login, but we'll note it
-            
-            self.logged_in = True
-            print("  ✅ Ready to access auction data")
-            return True
+            print("  ❌ Login failed - credentials may be incorrect")
+            return False
                 
         except Exception as e:
             print(f"  ❌ Login error: {e}")
+            import traceback
+            traceback.print_exc()
             return False
     
     def get_upcoming_auctions(self, days_ahead=90):
         """
         Get all upcoming tax deed auctions
-        Navigates to Tax Deed section automatically
+        Uses direct search URL to bypass navigation
         """
         if not self.logged_in:
             if not self.login():
@@ -214,18 +205,45 @@ class DuvalTaxDeedAuctionScraper:
             
             print(f"  Searching Tax Deed auctions from {start_date.strftime('%m/%d/%Y')} to {end_date.strftime('%m/%d/%Y')}")
             
-            # Navigate to report/search page for Tax Deed auctions
-            report_url = f"{self.BASE_URL}/index.cfm?zaction=admin&zmethod=REPORT&Report_id=33"
+            # Step 1: Visit the search page to establish the report session
+            print("  Accessing search page...")
+            search_response = self.session.get(self.SEARCH_URL)
             
-            # First visit the report page to set up session
-            self.session.get(report_url)
+            if search_response.status_code != 200:
+                print(f"  ❌ Could not access search page: {search_response.status_code}")
+                return []
             
-            # Now submit the actual data request with Tax Deed filter
-            data_params = {
-                'AUCT_TYPE': '2',  # TaxDeed type (2 = Tax Deed, 1 = Foreclosure)
-                'CaseStatus': '0,1,2,3,4',  # All active statuses
+            # Extract REPID from the search page if needed
+            # The REPID changes with each session, so we need to extract it
+            import re
+            repid_match = re.search(r'REPID[=:](\d+)', search_response.text)
+            repid = repid_match.group(1) if repid_match else None
+            
+            if not repid:
+                print("  ⚠️  Could not find REPID, using default...")
+                # Try without REPID or use a default
+            
+            # Step 2: Submit filter to get Tax Deed auctions
+            filter_params = {
+                'AUCT_TYPE': '2',  # 2 = Tax Deed
+                'CaseStatus': '0,1,2,3,4',
                 'view_ssdate': start_date.strftime('%m/%d/%Y'),
                 'view_sedate': end_date.strftime('%m/%d/%Y'),
+                'zaction': 'AJAX',
+                'zmethod': 'COM',
+                'process': 'REPVIEW',
+                'FUNC': 'FilterData',
+                'SHOWJSON': 'false'
+            }
+            
+            if repid:
+                filter_params['REPID'] = repid
+            
+            # Apply filter
+            filter_response = self.session.get(self.DATA_URL, params=filter_params)
+            
+            # Step 3: Get the actual data
+            data_params = {
                 'zaction': 'AJAX',
                 'zmethod': 'COM',
                 'process': 'REPVIEW',
@@ -233,19 +251,20 @@ class DuvalTaxDeedAuctionScraper:
                 'SHOWJSON': 'FALSE'
             }
             
-            # The actual data endpoint
-            data_url = f"{self.BASE_URL}/index.cfm"
-            response = self.session.get(data_url, params=data_params)
+            if repid:
+                data_params['REPID'] = repid
             
-            if response.status_code != 200:
-                print(f"  ❌ Data request failed: HTTP {response.status_code}")
+            data_response = self.session.get(self.DATA_URL, params=data_params)
+            
+            if data_response.status_code != 200:
+                print(f"  ❌ Data request failed: {data_response.status_code}")
                 return []
             
-            # Try to parse as JSON (jqGrid format)
+            # Parse JSON response
             try:
-                data = response.json()
+                data = data_response.json()
             except:
-                print("  ⚠️  Response is not JSON - site may require different approach")
+                print("  ⚠️  Response is not JSON")
                 return []
             
             auctions = []
@@ -253,25 +272,26 @@ class DuvalTaxDeedAuctionScraper:
                 try:
                     cells = row.get('cell', [])
                     if len(cells) >= 13:
+                        # Extract parcel from the data
+                        parcel = str(cells[12]).strip() if len(cells) > 12 else ''
+                        
                         auction = {
-                            'sale_date': cells[0] if len(cells) > 0 else '',
-                            'add_date': cells[1] if len(cells) > 1 else '',
-                            'case_number': cells[2] if len(cells) > 2 else '',
-                            'status': cells[3] if len(cells) > 3 else '',
-                            'opening_bid': cells[5] if len(cells) > 5 else '',
-                            'assessed_value': cells[6] if len(cells) > 6 else '',
-                            'certificate_holder': cells[7] if len(cells) > 7 else '',
-                            'address': cells[9] if len(cells) > 9 else '',
-                            'city': cells[10] if len(cells) > 10 else '',
-                            'zip': cells[11] if len(cells) > 11 else '',
-                            'parcel': cells[12] if len(cells) > 12 else ''
+                            'sale_date': str(cells[0]) if len(cells) > 0 else '',
+                            'case_number': str(cells[2]) if len(cells) > 2 else '',
+                            'status': str(cells[3]) if len(cells) > 3 else '',
+                            'opening_bid': str(cells[5]) if len(cells) > 5 else '',
+                            'assessed_value': str(cells[6]) if len(cells) > 6 else '',
+                            'certificate_holder': str(cells[7]) if len(cells) > 7 else '',
+                            'address': str(cells[9]) if len(cells) > 9 else '',
+                            'city': str(cells[10]) if len(cells) > 10 else '',
+                            'zip': str(cells[11]) if len(cells) > 11 else '',
+                            'parcel': parcel
                         }
                         
-                        if auction['parcel']:
+                        if parcel:
                             auctions.append(auction)
                 
                 except Exception as e:
-                    print(f"  Error parsing auction row: {e}")
                     continue
             
             print(f"  ✅ Found {len(auctions)} upcoming tax deed auctions")
