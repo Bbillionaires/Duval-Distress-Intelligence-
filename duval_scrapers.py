@@ -126,12 +126,11 @@ class DuvalTaxDeedAuctionScraper:
     """
     Scrapes upcoming Tax Deed Auction listings
     URL: https://duval.realtaxdeed.com/
-    Uses direct search page URL to bypass login issues
+    Uses AJAX login with correct parameters
     """
     
     BASE_URL = "https://duval.realtaxdeed.com"
-    LOGIN_URL = f"{BASE_URL}/index.cfm?ZACTION=LOGIN&ZMETHOD=LOGIN"
-    # Direct URL to tax deed search/report page
+    LOGIN_URL = f"{BASE_URL}/index.cfm"  # AJAX login endpoint
     SEARCH_URL = "https://duval.realtaxdeed.com/index.cfm?zaction=admin&zmethod=REPORT&Report_id=33"
     DATA_URL = f"{BASE_URL}/index.cfm"
     
@@ -140,7 +139,8 @@ class DuvalTaxDeedAuctionScraper:
         self.session.headers.update({
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
             'Accept': '*/*',
-            'Accept-Language': 'en-US,en;q=0.9'
+            'Accept-Language': 'en-US,en;q=0.9',
+            'X-Requested-With': 'XMLHttpRequest'
         })
         self.username = username
         self.password = password
@@ -148,40 +148,111 @@ class DuvalTaxDeedAuctionScraper:
     
     def login(self):
         """
-        Login to RealAuction site
-        Simple POST login without handling disclaimers
+        Login to RealAuction site using AJAX login method
+        Uses correct parameters: ZACTION=AJAX, ZMETHOD=LOGIN, USERNAME, USERPASS
         """
         try:
             print("  Logging in to auction site...")
+            print(f"  Using username: {self.username}")
             
-            # Submit login directly
-            login_data = {
-                'LogName': self.username,
-                'LogPass': self.password
-            }
+            # Step 1: Get the home page first to establish cookies and session
+            print("  Step 1: Getting home page...")
+            home_response = self.session.get(self.BASE_URL, allow_redirects=True)
             
-            response = self.session.post(self.LOGIN_URL, data=login_data, allow_redirects=True)
-            
-            if response.status_code != 200:
-                print(f"  ❌ Login failed - HTTP {response.status_code}")
+            if home_response.status_code != 200:
+                print(f"  ❌ Could not access home page: {home_response.status_code}")
                 return False
             
-            # Store cookies for session
-            # Check if we got a session cookie
-            if 'cfid' in self.session.cookies or 'CFTOKEN' in self.session.cookies:
+            # Step 2: Submit AJAX login with correct parameters
+            print("  Step 2: Submitting AJAX login...")
+            login_data = {
+                'ZACTION': 'AJAX',
+                'ZMETHOD': 'LOGIN',
+                'func': 'LOGIN',
+                'USERNAME': self.username,
+                'USERPASS': self.password
+            }
+            
+            # Post login
+            response = self.session.post(
+                self.LOGIN_URL, 
+                data=login_data, 
+                allow_redirects=True,
+                timeout=15
+            )
+            
+            if response.status_code != 200:
+                print(f"  ❌ Login request failed - HTTP {response.status_code}")
+                return False
+            
+            # Step 3: Check login response
+            try:
+                # The AJAX login returns JSON
+                result = response.json()
+                print(f"  Login response: {result}")
+                
+                # Check for success in JSON response
+                if isinstance(result, dict):
+                    success = result.get('SUCCESS', False) or result.get('success', False)
+                    if success or result.get('LOGGEDIN') or result.get('logged_in'):
+                        self.logged_in = True
+                        print("  ✅ Login successful (JSON confirmed)!")
+                        return True
+                    
+                    # Check for error message
+                    error = result.get('ERROR') or result.get('error') or result.get('MESSAGE')
+                    if error:
+                        print(f"  ❌ Login failed - {error}")
+                        return False
+                
+            except:
+                # Not JSON, check text response
+                pass
+            
+            # Check session cookies
+            cookies = self.session.cookies.get_dict()
+            has_session = 'cfid' in cookies and 'cftoken' in cookies
+            
+            # Debug info
+            print(f"  Response size: {len(response.text)} bytes")
+            print(f"  Session cookies: {has_session}")
+            print(f"  Cookies: {list(cookies.keys())}")
+            
+            # Check response content for success indicators
+            response_lower = response.text.lower()
+            has_success = any(x in response_lower for x in [
+                'success', 'logged in', 'welcome', 'logout'
+            ])
+            has_error = any(x in response_lower for x in [
+                'invalid', 'incorrect', 'failed', 'denied'
+            ])
+            
+            print(f"  Has success indicator: {has_success}")
+            print(f"  Has error indicator: {has_error}")
+            
+            if has_error:
+                print("  ❌ Login failed - Error detected in response")
+                return False
+            
+            # Success if we have session cookies and no error
+            if has_session and not has_error:
                 self.logged_in = True
-                print("  ✅ Login successful (session established)")
+                print("  ✅ Login successful!")
                 return True
             
-            # Alternative: check response content
-            if 'Log Off' in response.text or 'LogOff' in response.text or len(response.text) > 1000:
+            # If we got this far and have cookies, try to proceed
+            if has_session:
+                print("  ⚠️  Login status unclear but have session - attempting to continue...")
                 self.logged_in = True
-                print("  ✅ Login successful")
                 return True
             
-            print("  ❌ Login failed - credentials may be incorrect")
+            print("  ❌ Login failed - No session established")
+            print(f"  Response preview: {response.text[:200]}")
             return False
                 
+        except requests.Timeout:
+            print("  ❌ Login timeout - site may be slow or down")
+            return False
         except Exception as e:
             print(f"  ❌ Login error: {e}")
             import traceback
@@ -215,7 +286,6 @@ class DuvalTaxDeedAuctionScraper:
             
             # Extract REPID from the search page if needed
             # The REPID changes with each session, so we need to extract it
-            import re
             repid_match = re.search(r'REPID[=:](\d+)', search_response.text)
             repid = repid_match.group(1) if repid_match else None
             
