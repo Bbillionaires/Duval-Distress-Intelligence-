@@ -464,6 +464,59 @@ def verify_tax_delinquency(min_years=2, min_amount=1000, limit=50):
             return updated
 
 
+def update_property_stages():
+    """Update all property stages based on current data"""
+    print("\n🔄 Recalculating property stages...")
+    
+    with db_conn() as conn:
+        with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+            # Get all properties
+            cur.execute("""
+                SELECT 
+                    id, parcel, current_total_due,
+                    has_tax_deed_notice, stage
+                FROM properties
+            """)
+            properties = cur.fetchall()
+            
+            updated = 0
+            for prop in properties:
+                # Determine new stage
+                is_in_auction = (prop.get('stage') == 'auction')
+                has_ntd = prop.get('has_tax_deed_notice', False)
+                total_due = prop.get('current_total_due', 0) or 0
+                
+                new_stage = classify_stage(has_ntd, is_in_auction, total_due)
+                
+                # Update stage
+                cur.execute("""
+                    UPDATE properties 
+                    SET stage = %s, 
+                        updated_at = NOW()
+                    WHERE id = %s
+                """, (new_stage, prop['id']))
+                
+                updated += 1
+            
+            conn.commit()
+            print(f"✅ Recalculated stages for {updated} properties")
+            
+            # Show breakdown
+            cur.execute("""
+                SELECT stage, COUNT(*) as count
+                FROM properties
+                GROUP BY stage
+                ORDER BY count DESC
+            """)
+            breakdown = cur.fetchall()
+            
+            print("\n📊 Properties by Stage:")
+            for row in breakdown:
+                print(f"  {row['stage']:15} {row['count']:5} properties")
+            
+            return updated
+
+
 def run_full_scrape(min_delinquent_years=2, min_delinquent_amount=1000):
     """
     Run complete scraping workflow

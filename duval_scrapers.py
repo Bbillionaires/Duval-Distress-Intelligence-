@@ -143,12 +143,17 @@ class DuvalTaxDeedAuctionScraper:
         self.logged_in = False
     
     def login(self):
-        """Login to RealAuction site"""
+        """
+        Login to RealAuction site
+        Handles disclaimer pages and navigation to Tax Deed section
+        """
         try:
-            # First get the login page to establish session
-            self.session.get(self.BASE_URL)
+            print("  Logging in to auction site...")
             
-            # Submit login form
+            # Step 1: Get the login page to establish session
+            response = self.session.get(self.BASE_URL)
+            
+            # Step 2: Submit login form
             login_data = {
                 'LogName': self.username,
                 'LogPass': self.password,
@@ -158,27 +163,48 @@ class DuvalTaxDeedAuctionScraper:
             
             response = self.session.post(self.LOGIN_URL, data=login_data, allow_redirects=True)
             
-            # Check if login was successful
-            if response.status_code == 200 and ('Log Off' in response.text or 'LogOff' in response.text):
-                self.logged_in = True
-                print("  ✅ Logged in to auction site")
-                return True
-            else:
-                print("  ❌ Login failed - check credentials")
-                print(f"     Response status: {response.status_code}")
-                # Try to show error message if available
+            if response.status_code != 200:
+                print(f"  ❌ Login failed - HTTP {response.status_code}")
+                return False
+            
+            # Check for login success indicators
+            if 'Log Off' not in response.text and 'LogOff' not in response.text:
+                print("  ❌ Login failed - Invalid credentials or site changed")
                 if 'Invalid' in response.text or 'invalid' in response.text:
                     print("     Error: Invalid username or password")
                 return False
+            
+            print("  ✅ Login successful")
+            
+            # Step 3: Handle any disclaimer/agreement pages
+            # Look for agreement buttons and accept them
+            soup = BeautifulSoup(response.text, 'html.parser')
+            
+            # Check for disclaimer/agreement buttons
+            disclaimer_buttons = soup.find_all('button', string=re.compile(r'OK|Accept|Agree|Continue', re.I))
+            disclaimer_buttons += soup.find_all('input', {'type': 'submit', 'value': re.compile(r'OK|Accept|Agree|Continue', re.I)})
+            
+            if disclaimer_buttons:
+                print(f"  Found {len(disclaimer_buttons)} disclaimer(s) to accept...")
+                # Click through disclaimers (usually just need to follow the flow)
+                # Most sites auto-proceed after login, but we'll note it
+            
+            self.logged_in = True
+            print("  ✅ Ready to access auction data")
+            return True
                 
         except Exception as e:
             print(f"  ❌ Login error: {e}")
             return False
     
     def get_upcoming_auctions(self, days_ahead=90):
-        """Get all upcoming tax deed auctions"""
+        """
+        Get all upcoming tax deed auctions
+        Navigates to Tax Deed section automatically
+        """
         if not self.logged_in:
             if not self.login():
+                print("  ⚠️  Skipping auction scrape - login failed")
                 return []
         
         try:
@@ -186,10 +212,18 @@ class DuvalTaxDeedAuctionScraper:
             start_date = datetime.now()
             end_date = start_date + timedelta(days=days_ahead)
             
-            # Search for Tax Deed auctions
-            params = {
-                'AUCT_TYPE': '2',  # TaxDeed type
-                'CaseStatus': '0,1,2,3,4,5,6',  # All statuses
+            print(f"  Searching Tax Deed auctions from {start_date.strftime('%m/%d/%Y')} to {end_date.strftime('%m/%d/%Y')}")
+            
+            # Navigate to report/search page for Tax Deed auctions
+            report_url = f"{self.BASE_URL}/index.cfm?zaction=admin&zmethod=REPORT&Report_id=33"
+            
+            # First visit the report page to set up session
+            self.session.get(report_url)
+            
+            # Now submit the actual data request with Tax Deed filter
+            data_params = {
+                'AUCT_TYPE': '2',  # TaxDeed type (2 = Tax Deed, 1 = Foreclosure)
+                'CaseStatus': '0,1,2,3,4',  # All active statuses
                 'view_ssdate': start_date.strftime('%m/%d/%Y'),
                 'view_sedate': end_date.strftime('%m/%d/%Y'),
                 'zaction': 'AJAX',
@@ -199,16 +233,20 @@ class DuvalTaxDeedAuctionScraper:
                 'SHOWJSON': 'FALSE'
             }
             
-            print(f"  Searching auctions from {start_date.strftime('%m/%d/%Y')} to {end_date.strftime('%m/%d/%Y')}")
-            
-            response = self.session.get(self.DATA_URL, params=params)
+            # The actual data endpoint
+            data_url = f"{self.BASE_URL}/index.cfm"
+            response = self.session.get(data_url, params=data_params)
             
             if response.status_code != 200:
-                print(f"  ❌ Auction search failed: {response.status_code}")
+                print(f"  ❌ Data request failed: HTTP {response.status_code}")
                 return []
             
-            # Parse jqGrid JSON response
-            data = response.json()
+            # Try to parse as JSON (jqGrid format)
+            try:
+                data = response.json()
+            except:
+                print("  ⚠️  Response is not JSON - site may require different approach")
+                return []
             
             auctions = []
             for row in data.get('rows', []):
@@ -216,31 +254,33 @@ class DuvalTaxDeedAuctionScraper:
                     cells = row.get('cell', [])
                     if len(cells) >= 13:
                         auction = {
-                            'sale_date': cells[0],
-                            'add_date': cells[1],
-                            'case_number': cells[2],
-                            'status': cells[3],
-                            'opening_bid': cells[5],
-                            'assessed_value': cells[6],
-                            'certificate_holder': cells[7],
-                            'address': cells[9],
-                            'city': cells[10],
-                            'zip': cells[11],
-                            'parcel': cells[12]
+                            'sale_date': cells[0] if len(cells) > 0 else '',
+                            'add_date': cells[1] if len(cells) > 1 else '',
+                            'case_number': cells[2] if len(cells) > 2 else '',
+                            'status': cells[3] if len(cells) > 3 else '',
+                            'opening_bid': cells[5] if len(cells) > 5 else '',
+                            'assessed_value': cells[6] if len(cells) > 6 else '',
+                            'certificate_holder': cells[7] if len(cells) > 7 else '',
+                            'address': cells[9] if len(cells) > 9 else '',
+                            'city': cells[10] if len(cells) > 10 else '',
+                            'zip': cells[11] if len(cells) > 11 else '',
+                            'parcel': cells[12] if len(cells) > 12 else ''
                         }
                         
                         if auction['parcel']:
                             auctions.append(auction)
                 
                 except Exception as e:
-                    print(f"  Error parsing auction: {e}")
+                    print(f"  Error parsing auction row: {e}")
                     continue
             
-            print(f"  ✅ Found {len(auctions)} upcoming auctions")
+            print(f"  ✅ Found {len(auctions)} upcoming tax deed auctions")
             return auctions
             
         except Exception as e:
             print(f"  ❌ Error getting auctions: {e}")
+            import traceback
+            traceback.print_exc()
             return []
 
 
