@@ -285,35 +285,38 @@ class DuvalTaxDeedAuctionScraper:
                 return []
             
             # Extract REPID from the search page
-            # The REPID changes with each session and appears in multiple places
-            repid_match = re.search(r'REPID[=:](\d{13,})', search_response.text)
+            # The REPID is a timestamp - try to find it in the page
+            repid_match = re.search(r'REPID[=:"\s]+(\d{13,})', search_response.text, re.IGNORECASE)
             if not repid_match:
-                # Try to find it in script tags or data attributes
-                repid_match = re.search(r'["\']REPID["\']\s*:\s*["\']?(\d{13,})', search_response.text)
+                # REPID might be in JavaScript or as a timestamp
+                repid_match = re.search(r'["\']?REPID["\']?\s*[:=]\s*["\']?(\d{13,})', search_response.text, re.IGNORECASE)
+            if not repid_match:
+                # Try to find any 13-digit number (timestamp format)
+                repid_match = re.search(r'\b(\d{13})\b', search_response.text)
             
             repid = repid_match.group(1) if repid_match else None
             
-            if repid:
-                print(f"  Found REPID: {repid}")
+            # If still no REPID, generate one using current timestamp
+            if not repid:
+                import time
+                repid = str(int(time.time() * 1000))  # JavaScript timestamp (milliseconds)
+                print(f"  Generated REPID from timestamp: {repid}")
             else:
-                print("  ⚠️  Could not find REPID - may not get data")
-                # Try to proceed anyway
+                print(f"  Found REPID: {repid}")
             
             # Step 2: Submit filter to get Tax Deed auctions
             filter_params = {
                 'AUCT_TYPE': '2',  # 2 = Tax Deed
-                'CaseStatus': '0,1,2,3,4',
+                'CaseStatus': '0,1,2,3,4,5,6',  # All statuses
                 'view_ssdate': start_date.strftime('%m/%d/%Y'),
                 'view_sedate': end_date.strftime('%m/%d/%Y'),
                 'zaction': 'AJAX',
                 'zmethod': 'COM',
-                'process': 'REPVIEW',
+                'Process': 'REPVIEW',  # Capital P
                 'FUNC': 'FilterData',
-                'SHOWJSON': 'false'
+                'SHOWJSON': 'FALSE',
+                'REPID': repid
             }
-            
-            if repid:
-                filter_params['REPID'] = repid
             
             # Apply filter
             filter_response = self.session.get(self.DATA_URL, params=filter_params)
@@ -322,13 +325,12 @@ class DuvalTaxDeedAuctionScraper:
             data_params = {
                 'zaction': 'AJAX',
                 'zmethod': 'COM',
-                'process': 'REPVIEW',
+                'Process': 'REPVIEW',  # Capital P to match browser
                 'FUNC': 'LoadData',
-                'SHOWJSON': 'FALSE'
+                'SHOWJSON': 'FALSE',
+                'REPID': repid,
+                'func': 'LoadData'  # Also lowercase for compatibility
             }
-            
-            if repid:
-                data_params['REPID'] = repid
             
             # Form data for jqGrid pagination
             form_data = {
@@ -353,38 +355,52 @@ class DuvalTaxDeedAuctionScraper:
             # Parse JSON response
             try:
                 data = data_response.json()
-            except:
-                print("  ⚠️  Response is not JSON")
+                print(f"  Response: {data.get('records', 0)} total records")
+            except Exception as e:
+                print(f"  ⚠️  Response is not JSON: {e}")
+                print(f"  Response text preview: {data_response.text[:200]}")
                 return []
             
             auctions = []
             for row in data.get('rows', []):
                 try:
                     cells = row.get('cell', [])
-                    if len(cells) >= 13:
-                        # Extract parcel from the data
-                        parcel = str(cells[12]).strip() if len(cells) > 12 else ''
-                        
-                        auction = {
-                            'sale_date': str(cells[0]) if len(cells) > 0 else '',
-                            'case_number': str(cells[2]) if len(cells) > 2 else '',
-                            'status': str(cells[3]) if len(cells) > 3 else '',
-                            'opening_bid': str(cells[5]) if len(cells) > 5 else '',
-                            'assessed_value': str(cells[6]) if len(cells) > 6 else '',
-                            'certificate_holder': str(cells[7]) if len(cells) > 7 else '',
-                            'address': str(cells[9]) if len(cells) > 9 else '',
-                            'city': str(cells[10]) if len(cells) > 10 else '',
-                            'zip': str(cells[11]) if len(cells) > 11 else '',
-                            'parcel': parcel
-                        }
-                        
-                        if parcel:
-                            auctions.append(auction)
+                    if len(cells) < 13:
+                        continue
+                    
+                    # Extract data from cell array
+                    # Based on actual response: [sale_date, add_date, case_num, status, opening_bid?, cert_amt?, assessed, holder, ?, address, city, zip, parcel, ?, ?]
+                    parcel = str(cells[12]).strip() if len(cells) > 12 else ''
+                    
+                    # Clean up case number (remove HTML tags)
+                    case_num_raw = str(cells[2]) if len(cells) > 2 else ''
+                    case_num_match = re.search(r'>([^<]+)</A>', case_num_raw)
+                    case_number = case_num_match.group(1) if case_num_match else case_num_raw
+                    
+                    auction = {
+                        'sale_date': str(cells[0]) if len(cells) > 0 else '',
+                        'add_date': str(cells[1]) if len(cells) > 1 else '',
+                        'case_number': case_number,
+                        'status': str(cells[3]) if len(cells) > 3 else '',
+                        'opening_bid': str(cells[4]) if len(cells) > 4 else '',
+                        'certificate_amount': str(cells[5]) if len(cells) > 5 else '',
+                        'assessed_value': str(cells[6]) if len(cells) > 6 else '',
+                        'certificate_holder': str(cells[7]) if len(cells) > 7 else '',
+                        'address': str(cells[9]) if len(cells) > 9 else '',
+                        'city': str(cells[10]) if len(cells) > 10 else '',
+                        'zip': str(cells[11]) if len(cells) > 11 else '',
+                        'parcel': parcel
+                    }
+                    
+                    if parcel and parcel != '':
+                        auctions.append(auction)
+                        print(f"    Found: {parcel} - {case_number} - {auction['status']}")
                 
                 except Exception as e:
+                    print(f"    Error parsing row: {e}")
                     continue
             
-            print(f"  ✅ Found {len(auctions)} upcoming tax deed auctions")
+            print(f"  ✅ Found {len(auctions)} upcoming tax deed auctions with parcels")
             return auctions
             
         except Exception as e:
