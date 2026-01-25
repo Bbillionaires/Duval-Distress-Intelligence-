@@ -317,38 +317,79 @@ class DuvalTaxDeedAuctionScraper:
                 title_match = re.search(r'<title>([^<]+)</title>', search_response.text)
                 if title_match:
                     print(f"     {title_match.group(1)}")
-                print("  First 500 chars:")
-                print(search_response.text[:500])
-            # Step 2: Generate a fresh REPID and set up the report filter
-            # Use Report_id=33 which is the Tax Deed report
-            import time
-            repid = str(int(time.time() * 1000))
-            print(f"  Step 2: Setting up report with REPID={repid}")
             
-            # First, initialize the report view
-            init_params = {
-                'zaction': 'admin',
-                'zmethod': 'REPORT',
-                'Report_id': '33'
-            }
-            init_response = self.session.get(self.DATA_URL, params=init_params)
+            # Try to extract REPID from the actual page
+            repid = None
+            repid_patterns = [
+                r'REPID["\']?\s*[:=]\s*["\']?(\d{13,})',
+                r'repid["\']?\s*[:=]\s*["\']?(\d{13,})',
+                r'var\s+REPID\s*=\s*["\']?(\d{13,})',
+                r'REPID=(\d{13,})',
+                r'["\'](\d{13})["\']'  # Any 13-digit number in quotes
+            ]
+            
+            for pattern in repid_patterns:
+                matches = re.findall(pattern, search_response.text, re.IGNORECASE)
+                if matches:
+                    # Take the first match
+                    repid = matches[0]
+                    print(f"  Found REPID in page HTML: {repid}")
+                    break
+            # Step 2: Generate/extract REPID for the report session
+            import time
+            
+            if not repid:
+                # Try to get REPID by initializing the report
+                print("  Step 2: Initializing report to get REPID...")
+                init_params = {
+                    'zaction': 'admin',
+                    'zmethod': 'REPORT',
+                    'Report_id': '33'
+                }
+                init_response = self.session.get(self.DATA_URL, params=init_params)
+                
+                # Try to extract REPID from this response
+                for pattern in repid_patterns:
+                    matches = re.findall(pattern, init_response.text, re.IGNORECASE)
+                    if matches:
+                        repid = matches[0]
+                        print(f"  Found REPID from init: {repid}")
+                        break
+            
+            # If still no REPID, generate from timestamp
+            if not repid:
+                repid = str(int(time.time() * 1000))
+                print(f"  Generated REPID from timestamp: {repid}")
             
             # Wait for session to establish
             time.sleep(1)
             
             # Step 3: Apply the Tax Deed filter
             print("  Step 3: Applying Tax Deed filter...")
+            
+            # Format dates without leading zeros (like browser: 1/25/2026)
+            start_date_str = f"{start_date.month}/{start_date.day}/{start_date.year}"
+            end_date_str = f"{end_date.month}/{end_date.day}/{end_date.year}"
+            
             filter_params = {
                 'AUCT_TYPE': '2',  # 2 = Tax Deed
+                'CaseNumber': '',
+                'view_ssdate': start_date_str,
+                'view_sedate': end_date_str,
+                'ParcelID': '',
+                'PrimaryPlaintiffTD': '',
+                'Address': '',
+                'City': '',
+                'Zip': '',
+                'My_bids': 'null',
                 'CaseStatus': '0,1,2,3,4,5,6',  # All statuses
-                'view_ssdate': start_date.strftime('%m/%d/%Y'),
-                'view_sedate': end_date.strftime('%m/%d/%Y'),
                 'zaction': 'AJAX',
                 'zmethod': 'COM',
-                'Process': 'REPVIEW',
+                'process': 'REPVIEW',  # lowercase p!
                 'FUNC': 'FilterData',
-                'SHOWJSON': 'FALSE',
-                'REPID': repid
+                'SHOWJSON': 'false',
+                'REPID': repid,
+                '_': str(int(time.time() * 1000))  # Cache-busting timestamp
             }
             
             # Apply filter
