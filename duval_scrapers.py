@@ -305,6 +305,7 @@ class DuvalTaxDeedAuctionScraper:
                 print(f"  Found REPID: {repid}")
             
             # Step 2: Submit filter to get Tax Deed auctions
+            print("  Step 2: Applying Tax Deed filter...")
             filter_params = {
                 'AUCT_TYPE': '2',  # 2 = Tax Deed
                 'CaseStatus': '0,1,2,3,4,5,6',  # All statuses
@@ -318,18 +319,24 @@ class DuvalTaxDeedAuctionScraper:
                 'REPID': repid
             }
             
-            # Apply filter
+            # Apply filter - this is a GET request
             filter_response = self.session.get(self.DATA_URL, params=filter_params)
             
-            # Step 3: Get the actual data with proper form data
+            if filter_response.status_code != 200:
+                print(f"  ⚠️  Filter request failed: {filter_response.status_code}")
+            
+            # Wait a moment for filter to apply
+            time.sleep(1)
+            
+            # Step 3: Get the actual data with POST and form data
+            print("  Step 3: Loading auction data...")
             data_params = {
                 'zaction': 'AJAX',
                 'zmethod': 'COM',
                 'Process': 'REPVIEW',  # Capital P to match browser
-                'FUNC': 'LoadData',
                 'SHOWJSON': 'FALSE',
                 'REPID': repid,
-                'func': 'LoadData'  # Also lowercase for compatibility
+                'func': 'LoadData'
             }
             
             # Form data for jqGrid pagination
@@ -352,13 +359,24 @@ class DuvalTaxDeedAuctionScraper:
                 print(f"  ❌ Data request failed: {data_response.status_code}")
                 return []
             
+            # Debug: Check content type
+            content_type = data_response.headers.get('Content-Type', '')
+            print(f"  Response Content-Type: {content_type}")
+            print(f"  Response length: {len(data_response.text)} bytes")
+            
             # Parse JSON response
             try:
                 data = data_response.json()
                 print(f"  Response: {data.get('records', 0)} total records")
             except Exception as e:
                 print(f"  ⚠️  Response is not JSON: {e}")
-                print(f"  Response text preview: {data_response.text[:200]}")
+                print(f"  Response text (first 500 chars):")
+                print(data_response.text[:500])
+                
+                # Try to see if we got redirected or need to re-login
+                if 'login' in data_response.text.lower() or 'username' in data_response.text.lower():
+                    print("  ⚠️  Appears to be login page - session may have expired")
+                
                 return []
             
             auctions = []
