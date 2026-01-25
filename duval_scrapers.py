@@ -345,14 +345,22 @@ class DuvalTaxDeedAuctionScraper:
                 'page': '1',
                 'sidx': 'vw.startdatetime',
                 'sord': 'asc',
-                '_search': 'false'
+                '_search': 'false',
+                'nd': str(int(time.time() * 1000)),  # Timestamp to prevent caching
+                'search': 'false'
             }
+            
+            print(f"  Requesting with REPID={repid}")
             
             # POST request with both params and form data
             data_response = self.session.post(
                 self.DATA_URL, 
                 params=data_params,
-                data=form_data
+                data=form_data,
+                headers={
+                    'X-Requested-With': 'XMLHttpRequest',
+                    'Accept': 'application/json, text/javascript, */*; q=0.01'
+                }
             )
             
             if data_response.status_code != 200:
@@ -367,7 +375,14 @@ class DuvalTaxDeedAuctionScraper:
             # Parse JSON response
             try:
                 data = data_response.json()
-                print(f"  Response: {data.get('records', 0)} total records")
+                total_records = data.get('records', 0)
+                total_rows = len(data.get('rows', []))
+                print(f"  JSON Response - Records: {total_records}, Rows returned: {total_rows}")
+                
+                if total_rows == 0:
+                    print(f"  ⚠️  No rows in response. Full JSON:")
+                    print(f"  {data}")
+                    
             except Exception as e:
                 print(f"  ⚠️  Response is not JSON: {e}")
                 print(f"  Response text (first 500 chars):")
