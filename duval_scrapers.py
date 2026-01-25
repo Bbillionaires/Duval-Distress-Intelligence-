@@ -277,45 +277,67 @@ class DuvalTaxDeedAuctionScraper:
             print(f"  Searching Tax Deed auctions from {start_date.strftime('%m/%d/%Y')} to {end_date.strftime('%m/%d/%Y')}")
             
             # Step 1: Visit the search page to establish the report session
-            print("  Accessing search page...")
+            print("  Step 1: Accessing search page...")
             search_response = self.session.get(self.SEARCH_URL)
             
             if search_response.status_code != 200:
                 print(f"  ❌ Could not access search page: {search_response.status_code}")
                 return []
             
+            # Check if we hit a disclaimer/notice page
+            if 'Notice and alert page' in search_response.text or 'disclaimer' in search_response.text.lower():
+                print("  ⚠️  Hit disclaimer page - attempting to accept and continue...")
+                
+                # Look for any forms or buttons to accept
+                # Try to find the continue/accept URL
+                accept_match = re.search(r'href=["\']([^"\']*accept[^"\']*)["\']', search_response.text, re.IGNORECASE)
+                if not accept_match:
+                    accept_match = re.search(r'href=["\']([^"\']*continue[^"\']*)["\']', search_response.text, re.IGNORECASE)
+                
+                if accept_match:
+                    accept_url = accept_match.group(1)
+                    if not accept_url.startswith('http'):
+                        accept_url = self.BASE_URL + ('/' if not accept_url.startswith('/') else '') + accept_url
+                    
+                    print(f"  Accepting disclaimer: {accept_url}")
+                    search_response = self.session.get(accept_url)
+                    
+                    # Wait a moment
+                    time.sleep(1)
+                    
+                    # Try to get the search page again
+                    search_response = self.session.get(self.SEARCH_URL)
+            
             # Debug: Save page content
             print(f"  Search page loaded: {len(search_response.text)} bytes")
             
-            # Extract REPID from the search page
-            # The REPID is a timestamp - try to find it in the page
-            repid_patterns = [
-                r'REPID[=:"\s]+(\d{13,})',
-                r'["\']?REPID["\']?\s*[:=]\s*["\']?(\d{13,})',
-                r'Report_id=(\d+)',
-                r'\b(\d{13})\b'  # Any 13-digit number
-            ]
+            # Check if we're actually on the report page
+            if 'Quick Search' not in search_response.text and 'Auction Type' not in search_response.text:
+                print("  ⚠️  Not on the report page yet. Page title:")
+                title_match = re.search(r'<title>([^<]+)</title>', search_response.text)
+                if title_match:
+                    print(f"     {title_match.group(1)}")
+                print("  First 500 chars:")
+                print(search_response.text[:500])
+            # Step 2: Generate a fresh REPID and set up the report filter
+            # Use Report_id=33 which is the Tax Deed report
+            import time
+            repid = str(int(time.time() * 1000))
+            print(f"  Step 2: Setting up report with REPID={repid}")
             
-            repid = None
-            for pattern in repid_patterns:
-                match = re.search(pattern, search_response.text, re.IGNORECASE)
-                if match:
-                    potential_repid = match.group(1)
-                    if len(potential_repid) >= 10:  # Make sure it's a reasonable length
-                        repid = potential_repid
-                        print(f"  Found REPID in page: {repid} (pattern: {pattern})")
-                        break
+            # First, initialize the report view
+            init_params = {
+                'zaction': 'admin',
+                'zmethod': 'REPORT',
+                'Report_id': '33'
+            }
+            init_response = self.session.get(self.DATA_URL, params=init_params)
             
-            # If still no REPID, generate one using current timestamp
-            if not repid:
-                import time
-                repid = str(int(time.time() * 1000))  # JavaScript timestamp (milliseconds)
-                print(f"  ⚠️  Could not find REPID in page, generated from timestamp: {repid}")
-                print(f"  First 1000 chars of search page:")
-                print(search_response.text[:1000])
+            # Wait for session to establish
+            time.sleep(1)
             
-            # Step 2: Submit filter to get Tax Deed auctions
-            print("  Step 2: Applying Tax Deed filter...")
+            # Step 3: Apply the Tax Deed filter
+            print("  Step 3: Applying Tax Deed filter...")
             filter_params = {
                 'AUCT_TYPE': '2',  # 2 = Tax Deed
                 'CaseStatus': '0,1,2,3,4,5,6',  # All statuses
@@ -323,23 +345,20 @@ class DuvalTaxDeedAuctionScraper:
                 'view_sedate': end_date.strftime('%m/%d/%Y'),
                 'zaction': 'AJAX',
                 'zmethod': 'COM',
-                'Process': 'REPVIEW',  # Capital P
+                'Process': 'REPVIEW',
                 'FUNC': 'FilterData',
                 'SHOWJSON': 'FALSE',
                 'REPID': repid
             }
             
-            # Apply filter - this is a GET request
+            # Apply filter
             filter_response = self.session.get(self.DATA_URL, params=filter_params)
             
-            if filter_response.status_code != 200:
-                print(f"  ⚠️  Filter request failed: {filter_response.status_code}")
-            
-            # Wait a moment for filter to apply
+            # Wait for filter to apply
             time.sleep(1)
             
-            # Step 3: Get the actual data with POST and form data
-            print("  Step 3: Loading auction data...")
+            # Step 4: Load the data
+            print("  Step 4: Loading auction data...")
             data_params = {
                 'zaction': 'AJAX',
                 'zmethod': 'COM',
