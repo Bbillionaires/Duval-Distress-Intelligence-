@@ -284,14 +284,20 @@ class DuvalTaxDeedAuctionScraper:
                 print(f"  ❌ Could not access search page: {search_response.status_code}")
                 return []
             
-            # Extract REPID from the search page if needed
-            # The REPID changes with each session, so we need to extract it
-            repid_match = re.search(r'REPID[=:](\d+)', search_response.text)
+            # Extract REPID from the search page
+            # The REPID changes with each session and appears in multiple places
+            repid_match = re.search(r'REPID[=:](\d{13,})', search_response.text)
+            if not repid_match:
+                # Try to find it in script tags or data attributes
+                repid_match = re.search(r'["\']REPID["\']\s*:\s*["\']?(\d{13,})', search_response.text)
+            
             repid = repid_match.group(1) if repid_match else None
             
-            if not repid:
-                print("  ⚠️  Could not find REPID, using default...")
-                # Try without REPID or use a default
+            if repid:
+                print(f"  Found REPID: {repid}")
+            else:
+                print("  ⚠️  Could not find REPID - may not get data")
+                # Try to proceed anyway
             
             # Step 2: Submit filter to get Tax Deed auctions
             filter_params = {
@@ -312,7 +318,7 @@ class DuvalTaxDeedAuctionScraper:
             # Apply filter
             filter_response = self.session.get(self.DATA_URL, params=filter_params)
             
-            # Step 3: Get the actual data
+            # Step 3: Get the actual data with proper form data
             data_params = {
                 'zaction': 'AJAX',
                 'zmethod': 'COM',
@@ -324,7 +330,21 @@ class DuvalTaxDeedAuctionScraper:
             if repid:
                 data_params['REPID'] = repid
             
-            data_response = self.session.get(self.DATA_URL, params=data_params)
+            # Form data for jqGrid pagination
+            form_data = {
+                'rows': '1000',  # Get lots of rows
+                'page': '1',
+                'sidx': 'vw.startdatetime',
+                'sord': 'asc',
+                '_search': 'false'
+            }
+            
+            # POST request with both params and form data
+            data_response = self.session.post(
+                self.DATA_URL, 
+                params=data_params,
+                data=form_data
+            )
             
             if data_response.status_code != 200:
                 print(f"  ❌ Data request failed: {data_response.status_code}")
