@@ -262,7 +262,7 @@ class DuvalTaxDeedAuctionScraper:
     def get_upcoming_auctions(self, days_ahead=90):
         """
         Get all upcoming tax deed auctions
-        Uses direct search URL to bypass navigation
+        Extract REPID from FilterData response, then use it in LoadData
         """
         if not self.logged_in:
             if not self.login():
@@ -276,146 +276,19 @@ class DuvalTaxDeedAuctionScraper:
             
             print(f"  Searching Tax Deed auctions from {start_date.strftime('%m/%d/%Y')} to {end_date.strftime('%m/%d/%Y')}")
             
-            # Step 1: Visit the search page to establish the report session
-            print("  Step 1: Accessing search page...")
-            search_response = self.session.get(self.SEARCH_URL)
-            
-            if search_response.status_code != 200:
-                print(f"  ❌ Could not access search page: {search_response.status_code}")
-                return []
-            
-            # Check if we hit a disclaimer/notice page
-            if 'Notice and alert page' in search_response.text or 'disclaimer' in search_response.text.lower():
-                print("  ⚠️  Hit disclaimer page - attempting to accept and continue...")
-                
-                # Look for any forms or buttons to accept
-                # Try to find the continue/accept URL
-                accept_match = re.search(r'href=["\']([^"\']*accept[^"\']*)["\']', search_response.text, re.IGNORECASE)
-                if not accept_match:
-                    accept_match = re.search(r'href=["\']([^"\']*continue[^"\']*)["\']', search_response.text, re.IGNORECASE)
-                
-                if accept_match:
-                    accept_url = accept_match.group(1)
-                    if not accept_url.startswith('http'):
-                        accept_url = self.BASE_URL + ('/' if not accept_url.startswith('/') else '') + accept_url
-                    
-                    print(f"  Accepting disclaimer: {accept_url}")
-                    search_response = self.session.get(accept_url)
-                    
-                    # Wait a moment
-                    time.sleep(1)
-                    
-                    # Try to get the search page again
-                    search_response = self.session.get(self.SEARCH_URL)
-            
-            # Debug: Save page content
-            print(f"  Search page loaded: {len(search_response.text)} bytes")
-            
-            # Check if we're actually on the report page
-            if 'Quick Search' not in search_response.text and 'Auction Type' not in search_response.text:
-                print("  ⚠️  Not on the report page yet. Page title:")
-                title_match = re.search(r'<title>([^<]+)</title>', search_response.text)
-                if title_match:
-                    print(f"     {title_match.group(1)}")
-            
-            # Try to extract REPID from the actual page
-            repid = None
-            repid_patterns = [
-                r'REPID["\']?\s*[:=]\s*["\']?(\d{13,})',
-                r'repid["\']?\s*[:=]\s*["\']?(\d{13,})',
-                r'var\s+REPID\s*=\s*["\']?(\d{13,})',
-                r'REPID=(\d{13,})',
-                r'["\'](\d{13})["\']'  # Any 13-digit number in quotes
-            ]
-            
-            for pattern in repid_patterns:
-                matches = re.findall(pattern, search_response.text, re.IGNORECASE)
-                if matches:
-                    # Take the first match
-                    repid = matches[0]
-                    print(f"  Found REPID in page HTML: {repid}")
-                    break
-            # Step 2: Generate/extract REPID for the report session
-            import time
-            
-            if not repid:
-                # Try to get REPID by initializing the report
-                print("  Step 2: Initializing report to get REPID...")
-                init_params = {
-                    'zaction': 'admin',
-                    'zmethod': 'REPORT',
-                    'Report_id': '33'
-                }
-                init_response = self.session.get(self.DATA_URL, params=init_params)
-                
-                # Debug: Show a snippet of the response
-                print(f"  Init response size: {len(init_response.text)} bytes")
-                
-                # Try to extract REPID from this response - look for it in JavaScript
-                repid_patterns = [
-                    r'REPID["\']?\s*[:=]\s*["\']?(\d{13,})',
-                    r'var\s+REPID\s*=\s*["\']?(\d{13,})',
-                    r'["\']REPID["\']\s*:\s*["\']?(\d{13,})',
-                    r'repid["\']?\s*[:=]\s*["\']?(\d{13,})',
-                ]
-                
-                for pattern in repid_patterns:
-                    matches = re.findall(pattern, init_response.text, re.IGNORECASE)
-                    if matches:
-                        repid = matches[0]
-                        print(f"  ✓ Found REPID from init response: {repid}")
-                        break
-                
-                # If still not found, search for ANY 13-digit number
-                if not repid:
-                    all_timestamps = re.findall(r'\b(\d{13})\b', init_response.text)
-                    if all_timestamps:
-                        print(f"  Found {len(all_timestamps)} 13-digit numbers in page")
-                        print(f"  First few: {all_timestamps[:3]}")
-                        # Use the first one as REPID
-                        repid = all_timestamps[0]
-                        print(f"  Using first one as REPID: {repid}")
-            
-            # If still no REPID, try using Report_id or generate from timestamp
-            if not repid:
-                # The REPID might actually be generated on the fly
-                # Let's try making a direct call to see if we can get it
-                print("  ⚠️  Trying alternative: requesting grid configuration...")
-                
-                # Try to hit the report setup endpoint
-                setup_params = {
-                    'zaction': 'AJAX',
-                    'zmethod': 'COM', 
-                    'process': 'REPVIEW',
-                    'FUNC': 'SETUP',
-                    'Report_id': '33',
-                    'SHOWJSON': 'false'
-                }
-                setup_response = self.session.get(self.DATA_URL, params=setup_params)
-                
-                # Check if this returns a REPID
-                repid_match = re.search(r'REPID["\']?\s*[:=]\s*["\']?(\d+)', setup_response.text)
-                if repid_match:
-                    repid = repid_match.group(1)
-                    print(f"  ✓ Got REPID from SETUP: {repid}")
-                else:
-                    # Last resort: generate timestamp
-                    repid = str(int(time.time() * 1000))
-                    print(f"  ⚠️  Generated REPID from timestamp: {repid}")
-                    print(f"  Setup response: {setup_response.text[:200]}")
-            
-            # Wait for session to establish
-            time.sleep(1)
-            
-            # Step 3: Apply the Tax Deed filter
-            print("  Step 3: Applying Tax Deed filter...")
-            
-            # Format dates without leading zeros (like browser: 1/25/2026)
+            # Format dates without leading zeros
             start_date_str = f"{start_date.month}/{start_date.day}/{start_date.year}"
             end_date_str = f"{end_date.month}/{end_date.day}/{end_date.year}"
             
+            # Generate initial REPID for FilterData
+            import time
+            initial_repid = str(int(time.time() * 1000))
+            
+            # Step 1: Call FilterData to set up the filter and get the real REPID
+            print("  Step 1: Applying filter to get session REPID...")
+            
             filter_params = {
-                'AUCT_TYPE': '2',  # 2 = Tax Deed
+                'AUCT_TYPE': '2',
                 'CaseNumber': '',
                 'view_ssdate': start_date_str,
                 'view_sedate': end_date_str,
@@ -425,49 +298,62 @@ class DuvalTaxDeedAuctionScraper:
                 'City': '',
                 'Zip': '',
                 'My_bids': 'null',
-                'CaseStatus': '0,1,2,3,4,5,6',  # All statuses
+                'CaseStatus': '0,1,2,3,4,5,6',
                 'zaction': 'AJAX',
                 'zmethod': 'COM',
-                'process': 'REPVIEW',  # lowercase p!
+                'process': 'REPVIEW',
                 'FUNC': 'FilterData',
                 'SHOWJSON': 'false',
-                'REPID': repid,
-                '_': str(int(time.time() * 1000))  # Cache-busting timestamp
+                'REPID': initial_repid,
+                '_': str(int(time.time() * 1000))
             }
             
-            # Apply filter
             filter_response = self.session.get(self.DATA_URL, params=filter_params)
             
-            # Wait for filter to apply
+            if filter_response.status_code != 200:
+                print(f"  ❌ FilterData failed: {filter_response.status_code}")
+                return []
+            
+            # Step 2: Extract the REPID from the HTML response
+            # Look for: var ReportID = '1769378903879';
+            repid_match = re.search(r"var\s+ReportID\s*=\s*['\"](\d+)['\"]", filter_response.text)
+            
+            if not repid_match:
+                print("  ⚠️  Could not extract REPID from FilterData response")
+                print(f"  Response preview: {filter_response.text[:500]}")
+                return []
+            
+            repid = repid_match.group(1)
+            print(f"  ✓ Extracted REPID from filter response: {repid}")
+            
+            # Wait a moment for filter to apply
             time.sleep(1)
             
-            # Step 4: Load the data
-            print("  Step 4: Loading auction data...")
+            # Step 3: Load the data using the extracted REPID
+            print("  Step 2: Loading auction data with extracted REPID...")
+            
             data_params = {
                 'zaction': 'AJAX',
                 'zmethod': 'COM',
-                'Process': 'REPVIEW',  # Capital P to match browser
+                'Process': 'REPVIEW',
                 'SHOWJSON': 'FALSE',
                 'REPID': repid,
                 'func': 'LoadData'
             }
             
-            # Form data for jqGrid pagination
+            # Form data for jqGrid
             form_data = {
-                'rows': '1000',  # Get lots of rows
+                'rows': '1000',
                 'page': '1',
                 'sidx': 'vw.startdatetime',
                 'sord': 'asc',
                 '_search': 'false',
-                'nd': str(int(time.time() * 1000)),  # Timestamp to prevent caching
-                'search': 'false'
+                'nd': str(int(time.time() * 1000))
             }
             
-            print(f"  Requesting with REPID={repid}")
-            
-            # POST request with both params and form data
+            # POST request
             data_response = self.session.post(
-                self.DATA_URL, 
+                self.DATA_URL,
                 params=data_params,
                 data=form_data,
                 headers={
@@ -501,11 +387,6 @@ class DuvalTaxDeedAuctionScraper:
                 print(f"  ⚠️  Response is not JSON: {e}")
                 print(f"  Response text (first 500 chars):")
                 print(data_response.text[:500])
-                
-                # Try to see if we got redirected or need to re-login
-                if 'login' in data_response.text.lower() or 'username' in data_response.text.lower():
-                    print("  ⚠️  Appears to be login page - session may have expired")
-                
                 return []
             
             auctions = []
@@ -516,7 +397,6 @@ class DuvalTaxDeedAuctionScraper:
                         continue
                     
                     # Extract data from cell array
-                    # Based on actual response: [sale_date, add_date, case_num, status, opening_bid?, cert_amt?, assessed, holder, ?, address, city, zip, parcel, ?, ?]
                     parcel = str(cells[12]).strip() if len(cells) > 12 else ''
                     
                     # Clean up case number (remove HTML tags)
