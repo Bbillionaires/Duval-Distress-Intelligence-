@@ -348,18 +348,43 @@ class DuvalTaxDeedAuctionScraper:
                 }
                 init_response = self.session.get(self.DATA_URL, params=init_params)
                 
-                # Try to extract REPID from this response
+                # Debug: Show a snippet of the response
+                print(f"  Init response size: {len(init_response.text)} bytes")
+                
+                # Try to extract REPID from this response - look for it in JavaScript
+                repid_patterns = [
+                    r'REPID["\']?\s*[:=]\s*["\']?(\d{13,})',
+                    r'var\s+REPID\s*=\s*["\']?(\d{13,})',
+                    r'["\']REPID["\']\s*:\s*["\']?(\d{13,})',
+                    r'repid["\']?\s*[:=]\s*["\']?(\d{13,})',
+                ]
+                
                 for pattern in repid_patterns:
                     matches = re.findall(pattern, init_response.text, re.IGNORECASE)
                     if matches:
                         repid = matches[0]
-                        print(f"  Found REPID from init: {repid}")
+                        print(f"  ✓ Found REPID from init response: {repid}")
                         break
+                
+                # If still not found, search for ANY 13-digit number
+                if not repid:
+                    all_timestamps = re.findall(r'\b(\d{13})\b', init_response.text)
+                    if all_timestamps:
+                        print(f"  Found {len(all_timestamps)} 13-digit numbers in page")
+                        print(f"  First few: {all_timestamps[:3]}")
+                        # Use the first one as REPID
+                        repid = all_timestamps[0]
+                        print(f"  Using first one as REPID: {repid}")
             
             # If still no REPID, generate from timestamp
             if not repid:
                 repid = str(int(time.time() * 1000))
-                print(f"  Generated REPID from timestamp: {repid}")
+                print(f"  ⚠️  Could not find REPID in page, generated: {repid}")
+                print(f"  Page snippet (showing where REPID should be):")
+                # Look for script tags or relevant sections
+                script_match = re.search(r'<script[^>]*>(.*?)</script>', init_response.text[:5000], re.DOTALL)
+                if script_match:
+                    print(f"  {script_match.group(1)[:300]}")
             
             # Wait for session to establish
             time.sleep(1)
