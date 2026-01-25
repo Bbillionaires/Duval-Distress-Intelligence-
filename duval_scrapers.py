@@ -284,25 +284,35 @@ class DuvalTaxDeedAuctionScraper:
                 print(f"  ❌ Could not access search page: {search_response.status_code}")
                 return []
             
+            # Debug: Save page content
+            print(f"  Search page loaded: {len(search_response.text)} bytes")
+            
             # Extract REPID from the search page
             # The REPID is a timestamp - try to find it in the page
-            repid_match = re.search(r'REPID[=:"\s]+(\d{13,})', search_response.text, re.IGNORECASE)
-            if not repid_match:
-                # REPID might be in JavaScript or as a timestamp
-                repid_match = re.search(r'["\']?REPID["\']?\s*[:=]\s*["\']?(\d{13,})', search_response.text, re.IGNORECASE)
-            if not repid_match:
-                # Try to find any 13-digit number (timestamp format)
-                repid_match = re.search(r'\b(\d{13})\b', search_response.text)
+            repid_patterns = [
+                r'REPID[=:"\s]+(\d{13,})',
+                r'["\']?REPID["\']?\s*[:=]\s*["\']?(\d{13,})',
+                r'Report_id=(\d+)',
+                r'\b(\d{13})\b'  # Any 13-digit number
+            ]
             
-            repid = repid_match.group(1) if repid_match else None
+            repid = None
+            for pattern in repid_patterns:
+                match = re.search(pattern, search_response.text, re.IGNORECASE)
+                if match:
+                    potential_repid = match.group(1)
+                    if len(potential_repid) >= 10:  # Make sure it's a reasonable length
+                        repid = potential_repid
+                        print(f"  Found REPID in page: {repid} (pattern: {pattern})")
+                        break
             
             # If still no REPID, generate one using current timestamp
             if not repid:
                 import time
                 repid = str(int(time.time() * 1000))  # JavaScript timestamp (milliseconds)
-                print(f"  Generated REPID from timestamp: {repid}")
-            else:
-                print(f"  Found REPID: {repid}")
+                print(f"  ⚠️  Could not find REPID in page, generated from timestamp: {repid}")
+                print(f"  First 1000 chars of search page:")
+                print(search_response.text[:1000])
             
             # Step 2: Submit filter to get Tax Deed auctions
             print("  Step 2: Applying Tax Deed filter...")
@@ -379,9 +389,10 @@ class DuvalTaxDeedAuctionScraper:
                 total_rows = len(data.get('rows', []))
                 print(f"  JSON Response - Records: {total_records}, Rows returned: {total_rows}")
                 
-                if total_rows == 0:
-                    print(f"  ⚠️  No rows in response. Full JSON:")
-                    print(f"  {data}")
+                if total_rows > 0 and total_rows < 5:
+                    print(f"  ⚠️  Only {total_rows} row(s). Inspecting data:")
+                    for i, row in enumerate(data.get('rows', [])):
+                        print(f"    Row {i}: {row}")
                     
             except Exception as e:
                 print(f"  ⚠️  Response is not JSON: {e}")
