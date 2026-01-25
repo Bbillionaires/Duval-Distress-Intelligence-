@@ -275,14 +275,31 @@ class DuvalTaxDeedAuctionScraper:
             end_date = start_date + timedelta(days=days_ahead)
             
             print(f"  Searching Tax Deed auctions from {start_date.strftime('%m/%d/%Y')} to {end_date.strftime('%m/%d/%Y')}")
-            
+
             # Format dates without leading zeros
             start_date_str = f"{start_date.month}/{start_date.day}/{start_date.year}"
             end_date_str = f"{end_date.month}/{end_date.day}/{end_date.year}"
-            
-            # Generate initial REPID for FilterData
-            import time
-            initial_repid = str(int(time.time() * 1000))
+
+            # Step 0: Visit the report page first to establish session
+            print("  Step 0: Initializing report session...")
+            init_response = self.session.get(self.SEARCH_URL)
+
+            if init_response.status_code != 200:
+                print(f"  ⚠️  Could not access report page: {init_response.status_code}")
+                return []
+
+            print(f"  Report page loaded: {len(init_response.text)} bytes")
+
+            # Try to extract initial REPID from the page
+            initial_repid_match = re.search(r"var\s+ReportID\s*=\s*['\"](\d+)['\"]", init_response.text)
+            if initial_repid_match:
+                initial_repid = initial_repid_match.group(1)
+                print(f"  Found initial REPID in page: {initial_repid}")
+            else:
+                # Generate initial REPID for FilterData
+                import time
+                initial_repid = str(int(time.time() * 1000))
+                print(f"  Generated REPID: {initial_repid}")
             
             # Step 1: Call FilterData to set up the filter and get the real REPID
             print("  Step 1: Applying filter to get session REPID...")
