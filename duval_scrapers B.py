@@ -145,30 +145,19 @@ class DuvalTaxDeedAuctionScraper:
     def login(self):
         """Login to RealAuction site"""
         try:
-            # First get the login page to establish session
-            self.session.get(self.BASE_URL)
-            
-            # Submit login form
             login_data = {
                 'LogName': self.username,
-                'LogPass': self.password,
-                'zaction': 'LOGIN',
-                'zmethod': 'LOGIN'
+                'LogPass': self.password
             }
             
-            response = self.session.post(self.LOGIN_URL, data=login_data, allow_redirects=True)
+            response = self.session.post(self.LOGIN_URL, data=login_data)
             
-            # Check if login was successful
-            if response.status_code == 200 and ('Log Off' in response.text or 'LogOff' in response.text):
+            if response.status_code == 200 and 'Log Off' in response.text:
                 self.logged_in = True
                 print("  ✅ Logged in to auction site")
                 return True
             else:
-                print("  ❌ Login failed - check credentials")
-                print(f"     Response status: {response.status_code}")
-                # Try to show error message if available
-                if 'Invalid' in response.text or 'invalid' in response.text:
-                    print("     Error: Invalid username or password")
+                print("  ❌ Login failed")
                 return False
                 
         except Exception as e:
@@ -321,10 +310,11 @@ class DuvalPropertyAppraiserScraper:
 
 class DuvalTaxCollectorScraper:
     """
-    Scrapes REAL delinquent tax data from Duval Tax Collector
-    URL: https://county-taxes.net/fl-duval/property-tax
+    Scrapes delinquent tax data from Duval Tax Collector
+    URL: https://county-taxes.net/fl-duval/
     
-    Checks actual tax amounts due by parcel ID
+    Note: This site requires searching by parcel ID individually
+    We'll use the list from LienHub or iterate through known parcels
     """
     
     BASE_URL = "https://county-taxes.net/fl-duval"
@@ -336,122 +326,43 @@ class DuvalTaxCollectorScraper:
         })
     
     def check_parcel_delinquency(self, parcel):
-        """
-        Check actual tax delinquency for a specific parcel
-        Returns detailed tax information including amounts and years
-        """
+        """Check if a specific parcel has delinquent taxes"""
         try:
-            # Clean parcel number (remove dashes if present)
-            parcel_clean = parcel.replace('-', '')
-            
             # Search for parcel
-            search_url = f"{self.BASE_URL}/property-tax"
-            params = {'parcel': parcel_clean}
-            
-            response = self.session.get(search_url, params=params, timeout=10)
+            search_url = f"{self.BASE_URL}/property-tax?parcel={parcel}"
+            response = self.session.get(search_url)
             
             if response.status_code != 200:
-                print(f"    ⚠️  HTTP {response.status_code} for {parcel}")
                 return None
             
             soup = BeautifulSoup(response.text, 'html.parser')
             
-            # Parse tax information from the page
-            tax_data = {
+            # Look for delinquency indicators
+            delinquent = False
+            total_due = 0.0
+            
+            # Parse tax information
+            # (This would need actual HTML structure analysis)
+            
+            return {
                 'parcel': parcel,
-                'total_due': 0.0,
-                'delinquent_years': [],
-                'years_delinquent': 0,
-                'is_delinquent': False,
-                'tax_details': [],
+                'is_delinquent': delinquent,
+                'total_due': total_due,
                 'checked_at': datetime.now().isoformat()
             }
             
-            # Look for tax year rows (adjust selectors based on actual HTML)
-            tax_rows = soup.find_all('tr', class_=['tax-row', 'tax-year-row'])
-            
-            current_year = datetime.now().year
-            
-            for row in tax_rows:
-                try:
-                    # Extract year
-                    year_cell = row.find('td', class_='year') or row.find_all('td')[0]
-                    year_text = year_cell.text.strip()
-                    year = int(re.search(r'(\d{4})', year_text).group(1))
-                    
-                    # Extract amount due
-                    amount_cell = row.find('td', class_='amount-due') or row.find_all('td')[-1]
-                    amount_text = amount_cell.text.strip()
-                    amount = float(re.sub(r'[^0-9.]', '', amount_text))
-                    
-                    # Extract status
-                    status_cell = row.find('td', class_='status')
-                    status = status_cell.text.strip() if status_cell else ''
-                    
-                    # If amount > 0, it's delinquent
-                    if amount > 0 and 'paid' not in status.lower():
-                        tax_data['total_due'] += amount
-                        tax_data['delinquent_years'].append(year)
-                        tax_data['tax_details'].append({
-                            'year': year,
-                            'amount': amount,
-                            'status': status
-                        })
-                
-                except Exception as e:
-                    continue
-            
-            # Calculate years of delinquency
-            if tax_data['delinquent_years']:
-                tax_data['years_delinquent'] = len(tax_data['delinquent_years'])
-                tax_data['is_delinquent'] = True
-            
-            return tax_data
-            
         except Exception as e:
-            print(f"  ❌ Error checking parcel {parcel}: {e}")
+            print(f"  Error checking parcel {parcel}: {e}")
             return None
     
-    def check_multiple_parcels(self, parcels, min_years=2, min_amount=0):
-        """
-        Check delinquency for multiple parcels
-        Only returns parcels meeting minimum criteria
-        
-        Args:
-            parcels: List of parcel IDs
-            min_years: Minimum years of delinquency (default: 2)
-            min_amount: Minimum total amount due (default: 0)
-        """
+    def check_multiple_parcels(self, parcels):
+        """Check delinquency for multiple parcels"""
         results = []
         
-        print(f"  Checking {len(parcels)} parcels...")
-        print(f"  Criteria: {min_years}+ years delinquent, ${min_amount}+ due")
+        for parcel in parcels:
+            result = self.check_parcel_delinquency(parcel)
+            if result:
+                results.append(result)
+            time.sleep(1)  # Rate limiting
         
-        for i, parcel in enumerate(parcels, 1):
-            try:
-                result = self.check_parcel_delinquency(parcel)
-                
-                if result and result['is_delinquent']:
-                    # Check if meets criteria
-                    meets_years = result['years_delinquent'] >= min_years
-                    meets_amount = result['total_due'] >= min_amount
-                    
-                    if meets_years and meets_amount:
-                        results.append(result)
-                        print(f"    ✅ {parcel}: ${result['total_due']:.2f} ({result['years_delinquent']} years)")
-                    else:
-                        print(f"    ⚠️  {parcel}: ${result['total_due']:.2f} ({result['years_delinquent']} years) - doesn't meet criteria")
-                else:
-                    print(f"    ✓ {parcel}: Current (no delinquency)")
-                
-                # Rate limiting
-                if i % 10 == 0:
-                    print(f"    Progress: {i}/{len(parcels)} checked...")
-                time.sleep(1)
-                
-            except Exception as e:
-                print(f"    ❌ {parcel}: Error - {e}")
-                continue
-        
-        print(f"  ✅ Found {len(results)} parcels meeting criteria")
         return results

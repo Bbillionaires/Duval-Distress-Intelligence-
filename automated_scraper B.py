@@ -311,107 +311,7 @@ def enrich_with_property_appraiser():
         return 0
 
 
-def verify_tax_delinquency(min_years=2, min_amount=1000, limit=50):
-    """
-    Verify tax delinquency for existing parcels in database
-    
-    Args:
-        min_years: Minimum years of delinquency to qualify (default: 2)
-        min_amount: Minimum total amount due to qualify (default: $1000)
-        limit: Max parcels to check per run (default: 50)
-    """
-    print(f"\n💰 Verifying Tax Delinquency (≥{min_years} years, ≥${min_amount})...")
-    
-    job_id = create_scrape_job("tax_delinquency_verification")
-    properties_checked = 0
-    properties_updated = 0
-    
-    try:
-        scraper = DuvalTaxCollectorScraper()
-        
-        # Get parcels that need verification
-        with db_conn() as conn:
-            with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
-                cur.execute("""
-                    SELECT parcel
-                    FROM properties 
-                    WHERE parcel IS NOT NULL 
-                    AND parcel != ''
-                    AND (last_verified_at IS NULL 
-                         OR last_verified_at < NOW() - INTERVAL '7 days')
-                    LIMIT %s
-                """, (limit,))
-                parcels_to_check = [row['parcel'] for row in cur.fetchall()]
-        
-        if not parcels_to_check:
-            print("  No parcels need verification")
-            update_scrape_job(job_id, "completed", 0, 0)
-            return 0
-        
-        print(f"  Checking {len(parcels_to_check)} parcels...")
-        
-        # Check parcels for delinquency
-        results = scraper.check_multiple_parcels(
-            parcels_to_check,
-            min_years=min_years,
-            min_amount=min_amount
-        )
-        
-        properties_checked = len(parcels_to_check)
-        
-        # Update database with results
-        with db_conn() as conn:
-            with conn.cursor() as cur:
-                for result in results:
-                    try:
-                        # Determine stage based on delinquency
-                        if result['years_delinquent'] >= 3:
-                            stage = 'danger_zone'
-                        elif result['years_delinquent'] >= 2:
-                            stage = 'sweet_spot'
-                        else:
-                            stage = 'pre_lien'
-                        
-                        # Update property with tax info
-                        cur.execute("""
-                            UPDATE properties
-                            SET current_total_due = %s,
-                                current_delinquent = %s,
-                                stage = CASE 
-                                    WHEN stage = 'auction' THEN 'auction'
-                                    WHEN stage = 'tax_deed_filed' THEN 'tax_deed_filed'
-                                    ELSE %s
-                                END,
-                                certificate_age_months = %s,
-                                last_verified_at = NOW(),
-                                updated_at = NOW()
-                            WHERE parcel = %s
-                        """, (
-                            result['total_due'],
-                            result['total_due'],
-                            stage,
-                            result['years_delinquent'] * 12,  # Convert years to months
-                            result['parcel']
-                        ))
-                        
-                        properties_updated += 1
-                        
-                    except Exception as e:
-                        print(f"  Error updating {result['parcel']}: {e}")
-                        continue
-                
-                conn.commit()
-        
-        print(f"✅ Verified {properties_checked} parcels")
-        print(f"✅ Updated {properties_updated} delinquent properties")
-        
-        update_scrape_job(job_id, "completed", properties_checked, properties_updated)
-        return properties_updated
-        
-    except Exception as e:
-        print(f"❌ Error verifying tax delinquency: {e}")
-        update_scrape_job(job_id, "failed", properties_checked, properties_updated, str(e))
-        return 0
+def update_property_stages():
     """Update all property stages based on current data"""
     print("\n🔄 Recalculating property stages...")
     
@@ -464,19 +364,12 @@ def verify_tax_delinquency(min_years=2, min_amount=1000, limit=50):
             return updated
 
 
-def run_full_scrape(min_delinquent_years=2, min_delinquent_amount=1000):
-    """
-    Run complete scraping workflow
-    
-    Args:
-        min_delinquent_years: Minimum years of tax delinquency (default: 2)
-        min_delinquent_amount: Minimum $ amount delinquent (default: $1000)
-    """
+def run_full_scrape():
+    """Run complete scraping workflow"""
     print("=" * 70)
     print("🚀 DUVAL COUNTY TAX LEAD SCRAPER - LIVE DATA")
     print("=" * 70)
     print(f"Started at: {datetime.now()}")
-    print(f"Lead Criteria: {min_delinquent_years}+ years, ${min_delinquent_amount}+ past due")
     print()
     
     total_found = 0
@@ -486,27 +379,15 @@ def run_full_scrape(min_delinquent_years=2, min_delinquent_amount=1000):
     found = scrape_tax_deed_notices()
     total_found += found
     
-    # 2. Scrape tax deed auction (WITH LOGIN) 
-    # Skip if login fails, continue with other sources
-    try:
-        found = scrape_tax_deed_auction()
-        total_found += found
-    except Exception as e:
-        print(f"⚠️  Skipping auction (login failed): {e}")
+    # 2. Scrape tax deed auction (WITH LOGIN)
+    found = scrape_tax_deed_auction()
+    total_found += found
     
-    # 3. Verify tax delinquency on existing parcels (REAL DATA!)
-    updated = verify_tax_delinquency(
-        min_years=min_delinquent_years,
-        min_amount=min_delinquent_amount,
-        limit=50  # Check 50 parcels per run
-    )
-    total_updated += updated
-    
-    # 4. Enrich with property appraiser data (NO LOGIN, limited batch)
+    # 3. Enrich with property appraiser data (NO LOGIN, limited batch)
     updated = enrich_with_property_appraiser()
     total_updated += updated
     
-    # 5. Update all property stages
+    # 4. Update all property stages
     updated = update_property_stages()
     total_updated += updated
     
@@ -518,33 +399,16 @@ def run_full_scrape(min_delinquent_years=2, min_delinquent_amount=1000):
     print(f"Total properties updated: {total_updated}")
     print(f"Completed at: {datetime.now()}")
     print()
-    print("💡 Your Leads (Properties Meeting Criteria):")
-    print(f"   • {min_delinquent_years}+ years delinquent")
-    print(f"   • ${min_delinquent_amount}+ past due")
-    print("   • Check your dashboard to see them!")
-    print()
-    print("🔧 To Change Lead Criteria:")
-    print(f"   python3 automated_scraper.py --min-years 3 --min-amount 5000")
+    print("💡 Next Steps:")
+    print("  1. Set up daily cron job to run this scraper")
+    print("  2. Monitor scrape_jobs table for status")
+    print("  3. Review properties by stage in your dashboard")
     print()
 
 
 if __name__ == "__main__":
-    import argparse
-    
-    # Parse command line arguments
-    parser = argparse.ArgumentParser(description='Duval County Tax Lead Scraper')
-    parser.add_argument('--min-years', type=int, default=2,
-                       help='Minimum years of tax delinquency (default: 2)')
-    parser.add_argument('--min-amount', type=float, default=1000,
-                       help='Minimum dollar amount delinquent (default: 1000)')
-    
-    args = parser.parse_args()
-    
     try:
-        run_full_scrape(
-            min_delinquent_years=args.min_years,
-            min_delinquent_amount=args.min_amount
-        )
+        run_full_scrape()
     except Exception as e:
         print(f"❌ Fatal error: {e}")
         import traceback
