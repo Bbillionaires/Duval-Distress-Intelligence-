@@ -376,15 +376,33 @@ class DuvalTaxDeedAuctionScraper:
                         repid = all_timestamps[0]
                         print(f"  Using first one as REPID: {repid}")
             
-            # If still no REPID, generate from timestamp
+            # If still no REPID, try using Report_id or generate from timestamp
             if not repid:
-                repid = str(int(time.time() * 1000))
-                print(f"  ⚠️  Could not find REPID in page, generated: {repid}")
-                print(f"  Page snippet (showing where REPID should be):")
-                # Look for script tags or relevant sections
-                script_match = re.search(r'<script[^>]*>(.*?)</script>', init_response.text[:5000], re.DOTALL)
-                if script_match:
-                    print(f"  {script_match.group(1)[:300]}")
+                # The REPID might actually be generated on the fly
+                # Let's try making a direct call to see if we can get it
+                print("  ⚠️  Trying alternative: requesting grid configuration...")
+                
+                # Try to hit the report setup endpoint
+                setup_params = {
+                    'zaction': 'AJAX',
+                    'zmethod': 'COM', 
+                    'process': 'REPVIEW',
+                    'FUNC': 'SETUP',
+                    'Report_id': '33',
+                    'SHOWJSON': 'false'
+                }
+                setup_response = self.session.get(self.DATA_URL, params=setup_params)
+                
+                # Check if this returns a REPID
+                repid_match = re.search(r'REPID["\']?\s*[:=]\s*["\']?(\d+)', setup_response.text)
+                if repid_match:
+                    repid = repid_match.group(1)
+                    print(f"  ✓ Got REPID from SETUP: {repid}")
+                else:
+                    # Last resort: generate timestamp
+                    repid = str(int(time.time() * 1000))
+                    print(f"  ⚠️  Generated REPID from timestamp: {repid}")
+                    print(f"  Setup response: {setup_response.text[:200]}")
             
             # Wait for session to establish
             time.sleep(1)
