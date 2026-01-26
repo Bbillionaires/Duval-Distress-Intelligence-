@@ -275,51 +275,52 @@ class DuvalTaxDeedAuctionScraper:
             end_date = start_date + timedelta(days=days_ahead)
             
             print(f"  Searching Tax Deed auctions from {start_date.strftime('%m/%d/%Y')} to {end_date.strftime('%m/%d/%Y')}")
-
+            
             # Format dates without leading zeros
             start_date_str = f"{start_date.month}/{start_date.day}/{start_date.year}"
             end_date_str = f"{end_date.month}/{end_date.day}/{end_date.year}"
-
+            
             # Step 0: Visit the report page first to establish session
             print("  Step 0: Initializing report session...")
             init_response = self.session.get(self.SEARCH_URL)
-
+            
             if init_response.status_code != 200:
                 print(f"  ⚠️  Could not access report page: {init_response.status_code}")
                 return []
-
+            
             print(f"  Report page loaded: {len(init_response.text)} bytes")
-
+            
             # Check for disclaimer page
             if 'Notice and alert page' in init_response.text or 'Quick Search' not in init_response.text:
                 print("  Disclaimer page detected - trying to bypass...")
-    
+                
                 # Try to directly access with accept parameter or just retry
-                import time
                 time.sleep(2)
-    
+                
                 # Try again - sometimes it works on second attempt
                 init_response = self.session.get(self.SEARCH_URL)
                 print(f"  Retry: {len(init_response.text)} bytes")
-    
+                
                 if 'Quick Search' not in init_response.text:
                     print("  ⚠️  Still on disclaimer page - auction scraping may not work")
-                    print(f"  Page title: {re.search(r'<title>([^<]+)</title>', init_response.text).group(1) if re.search(r'<title>([^<]+)</title>', init_response.text) else 'Unknown'}")
+                    title_match = re.search(r'<title>([^<]+)</title>', init_response.text)
+                    if title_match:
+                        print(f"  Page title: {title_match.group(1)}")
+            
             # Try to extract initial REPID from the page
-             initial_repid_match = re.search(r"var\s+ReportID\s*=\s*['\"](\d+)['\"]", init_response.text)
-             if initial_repid_match:
+            initial_repid_match = re.search(r"var\s+ReportID\s*=\s*['\"](\d+)['\"]", init_response.text)
+            if initial_repid_match:
                 initial_repid = initial_repid_match.group(1)
                 print(f"  Found initial REPID in page: {initial_repid}")
-             else:
+            else:
                 # Generate initial REPID for FilterData
-                import time
                 initial_repid = str(int(time.time() * 1000))
                 print(f"  Generated REPID: {initial_repid}")
             
             # Step 1: Call FilterData to set up the filter and get the real REPID
-             print("  Step 1: Applying filter to get session REPID...")
+            print("  Step 1: Applying filter to get session REPID...")
             
-             filter_params = {
+            filter_params = {
                 'AUCT_TYPE': '2',
                 'CaseNumber': '',
                 'view_ssdate': start_date_str,
