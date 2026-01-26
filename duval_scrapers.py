@@ -146,65 +146,80 @@ class DuvalTaxDeedAuctionScraper:
         self.logged_in = False
 
     def login(self):
-        """Login to RealAuction site"""
-        print(f"  🔐 Logging in as {self.username}...")
-        
+        """
+        Login to RealAuction site using AJAX login method
+        """
         try:
-            # Step 1: Get home page (no disclaimers yet)
+            print("  Logging in to auction site...")
+            print(f"  Using username: {self.username}")
+            
+            # Step 1: Get home page to establish session
             print("  Step 1: Getting home page...")
             home_response = self.session.get(self.BASE_URL)
             
-            # Step 2: Submit AJAX login
+            # Step 2: Submit AJAX login with correct parameters
             print("  Step 2: Submitting AJAX login...")
-            login_response = self.session.post(
-                self.LOGIN_URL,
-                data={
-                    'ZACTION': 'AJAX',
-                    'ZMETHOD': 'LOGIN',
-                    'func': 'LOGIN',
-                    'USERNAME': self.username,
-                    'USERPASS': self.password
-                }
-            )
+            login_data = {
+                'ZACTION': 'AJAX',
+                'ZMETHOD': 'LOGIN',
+                'func': 'LOGIN',
+                'USERNAME': self.username,
+                'USERPASS': self.password
+            }
             
-            # Check response
+            response = self.session.post(self.LOGIN_URL, data=login_data)
+            
+            # Try to parse JSON response
             try:
-                result = login_response.json()
-                print(f"  Login response: {result}")
+                login_result = response.json()
+                print(f"  Login response: {login_result}")
                 
-                if result.get('isOk') == 'YES':
+                if login_result.get('isOk') == 'YES':
                     self.logged_in = True
-                    print("  ✅ Login successful!")
-                    
-                    # NOW accept post-login disclaimers
-                    print("  Step 3: Handling post-login disclaimers...")
-                    self.accept_all_disclaimers()
-                    return True
-                else:
-                    print(f"  ❌ Login failed: {result}")
-                    return False
             except:
-                print(f"  Response size: {len(login_response.text)} bytes")
-                
-            # Check for session cookies as backup
+                pass
+            
+            # Additional checks
+            print(f"  Response size: {len(response.text)} bytes")
+            
+            # Check for session cookies
             has_session = any(c in self.session.cookies for c in ['cfid', 'cftoken'])
+            print(f"  Session cookies: {has_session}")
+            
             if has_session:
-                print("  Session cookies: True")
                 cookies = [c for c in self.session.cookies.keys()]
                 print(f"  Cookies: {cookies}")
+            
+            # Check response content for success/error indicators
+            has_success = 'logout' in response.text.lower() or 'my account' in response.text.lower()
+            has_error = 'invalid' in response.text.lower() or 'error' in response.text.lower()
+            
+            print(f"  Has success indicator: {has_success}")
+            print(f"  Has error indicator: {has_error}")
+            
+            # Success if we have session cookies and no error
+            if has_session and not has_error:
                 self.logged_in = True
                 print("  ✅ Login successful!")
-                
-                # Accept post-login disclaimers
-                print("  Step 3: Handling post-login disclaimers...")
-                self.accept_all_disclaimers()
                 return True
             
-            print("  ❌ Login failed - no session")
+            # If we got this far and have cookies, try to proceed
+            if has_session:
+                print("  ⚠️  Login status unclear but have session - attempting to continue...")
+                self.logged_in = True
+                return True
+            
+            print("  ❌ Login failed - No session established")
+            print(f"  Response preview: {response.text[:200]}")
             return False
             
+        except requests.Timeout:
+            print("  ❌ Login timeout - site may be slow or down")
+            return False
         except Exception as e:
             print(f"  ❌ Login error: {e}")
+            import traceback
+            traceback.print_exc()
             return False
 
     def accept_all_disclaimers(self, max_attempts=10):
