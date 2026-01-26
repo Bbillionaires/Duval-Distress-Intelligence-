@@ -144,7 +144,69 @@ class DuvalTaxDeedAuctionScraper:
         self.username = username
         self.password = password
         self.logged_in = False
-    
+
+    def login(self):
+        """Login to RealAuction site"""
+        print(f"  🔐 Logging in as {self.username}...")
+        
+        try:
+            # Step 1: Get home page (no disclaimers yet)
+            print("  Step 1: Getting home page...")
+            home_response = self.session.get(self.BASE_URL)
+            
+            # Step 2: Submit AJAX login
+            print("  Step 2: Submitting AJAX login...")
+            login_response = self.session.post(
+                self.LOGIN_URL,
+                data={
+                    'ZACTION': 'AJAX',
+                    'ZMETHOD': 'LOGIN',
+                    'func': 'LOGIN',
+                    'USERNAME': self.username,
+                    'USERPASS': self.password
+                }
+            )
+            
+            # Check response
+            try:
+                result = login_response.json()
+                print(f"  Login response: {result}")
+                
+                if result.get('isOk') == 'YES':
+                    self.logged_in = True
+                    print("  ✅ Login successful!")
+                    
+                    # NOW accept post-login disclaimers
+                    print("  Step 3: Handling post-login disclaimers...")
+                    self.accept_all_disclaimers()
+                    return True
+                else:
+                    print(f"  ❌ Login failed: {result}")
+                    return False
+            except:
+                print(f"  Response size: {len(login_response.text)} bytes")
+                
+            # Check for session cookies as backup
+            has_session = any(c in self.session.cookies for c in ['cfid', 'cftoken'])
+            if has_session:
+                print("  Session cookies: True")
+                cookies = [c for c in self.session.cookies.keys()]
+                print(f"  Cookies: {cookies}")
+                self.logged_in = True
+                print("  ✅ Login successful!")
+                
+                # Accept post-login disclaimers
+                print("  Step 3: Handling post-login disclaimers...")
+                self.accept_all_disclaimers()
+                return True
+            
+            print("  ❌ Login failed - no session")
+            return False
+            
+        except Exception as e:
+            print(f"  ❌ Login error: {e}")
+            return False
+
     def accept_all_disclaimers(self, max_attempts=10):
         """
         Accept all sequential disclaimer pages until we reach actual content.
