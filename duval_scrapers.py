@@ -201,14 +201,12 @@ class DuvalTaxDeedAuctionScraper:
             if has_session and not has_error:
                 self.logged_in = True
                 print("  ✅ Login successful!")
-                self.accept_all_disclaimers()
                 return True
             
             # If we got this far and have cookies, try to proceed
             if has_session:
                 print("  ⚠️  Login status unclear but have session - attempting to continue...")
                 self.logged_in = True
-                self.accept_all_disclaimers()
                 return True
             
             print("  ❌ Login failed - No session established")
@@ -317,57 +315,7 @@ class DuvalTaxDeedAuctionScraper:
         
         return None
     
-    def login(self):
-        """Login to RealAuction site"""
-        print(f"  🔐 Logging in as {self.username}...")
-        
-        try:
-            # Step 1: Get home page and handle any initial disclaimers
-            home_response = self.session.get(self.LOGIN_URL)
-            self.accept_all_disclaimers()
-            
-            # Step 2: Submit AJAX login
-            login_response = self.session.post(
-                self.LOGIN_URL,
-                data={
-                    'ZACTION': 'AJAX',
-                    'ZMETHOD': 'LOGIN',
-                    'func': 'LOGIN',
-                    'USERNAME': self.username,
-                    'USERPASS': self.password
-                }
-            )
-            
-            # Check response
-            try:
-                result = login_response.json()
-                if result.get('isOk') == 'YES':
-                    print("  ✅ Login successful!")
-                    self.logged_in = True
-                    
-                    # Accept any post-login disclaimers
-                    self.accept_all_disclaimers()
-                    return True
-                else:
-                    print(f"  ❌ Login failed: {result}")
-                    return False
-            except:
-                print("  ⚠️  Login response not JSON, checking cookies...")
-                
-            # Check for session cookies as backup
-            has_session = any(c in self.session.cookies for c in ['cfid', 'cftoken'])
-            if has_session:
-                print("  ✅ Session established via cookies")
-                self.logged_in = True
-                self.accept_all_disclaimers()
-                return True
-            
-            print("  ❌ Login failed - no session")
-            return False
-            
-        except Exception as e:
-            print(f"  ❌ Login error: {e}")
-            return False
+   
     
     def get_upcoming_auctions(self, days_ahead=90):
         """Get all upcoming tax deed auctions"""
