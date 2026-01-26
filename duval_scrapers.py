@@ -201,12 +201,14 @@ class DuvalTaxDeedAuctionScraper:
             if has_session and not has_error:
                 self.logged_in = True
                 print("  ✅ Login successful!")
+                self.accept_all_disclaimers()
                 return True
             
             # If we got this far and have cookies, try to proceed
             if has_session:
                 print("  ⚠️  Login status unclear but have session - attempting to continue...")
                 self.logged_in = True
+                self.accept_all_disclaimers()
                 return True
             
             print("  ❌ Login failed - No session established")
