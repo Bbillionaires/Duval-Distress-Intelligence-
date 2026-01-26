@@ -238,12 +238,14 @@ class DuvalTaxDeedAuctionScraper:
             if has_session and not has_error:
                 self.logged_in = True
                 print("  ✅ Login successful!")
+                self.accept_disclaimer()
                 return True
             
             # If we got this far and have cookies, try to proceed
             if has_session:
                 print("  ⚠️  Login status unclear but have session - attempting to continue...")
                 self.logged_in = True
+                self.accept_disclaimer()
                 return True
             
             print("  ❌ Login failed - No session established")
@@ -259,6 +261,52 @@ class DuvalTaxDeedAuctionScraper:
             traceback.print_exc()
             return False
     
+    def accept_disclaimer(self):
+        """
+        Accept disclaimer/notice page if present
+        """
+        try:
+            # Get the disclaimer page
+            response = self.session.get(self.BASE_URL)
+            
+            if 'Notice and alert page' in response.text or 'disclaimer' in response.text.lower():
+                print("  Found disclaimer page, looking for accept button...")
+                
+                # Look for common accept patterns
+                patterns = [
+                    r'href=["\']([^"\']*accept[^"\']*)["\']',
+                    r'href=["\']([^"\']*continue[^"\']*)["\']',
+                    r'href=["\']([^"\']*agree[^"\']*)["\']',
+                    r'onclick=["\']([^"\']*)["\'].*(?:accept|continue|agree)',
+                ]
+                
+                for pattern in patterns:
+                    match = re.search(pattern, response.text, re.IGNORECASE)
+                    if match:
+                        accept_url = match.group(1)
+                        
+                        # Clean up the URL
+                        if not accept_url.startswith('http'):
+                            if accept_url.startswith('/'):
+                                accept_url = self.BASE_URL + accept_url
+                            else:
+                                accept_url = self.BASE_URL + '/' + accept_url
+                        
+                        print(f"  Clicking accept: {accept_url}")
+                        self.session.get(accept_url)
+                        return True
+                
+                # If no link found, try posting to the same page
+                print("  No accept button found, trying POST method...")
+                self.session.post(self.BASE_URL, data={'accept': 'yes', 'agreed': 'true'})
+                return True
+            
+            return True  # No disclaimer found
+            
+        except Exception as e:
+            print(f"  Error accepting disclaimer: {e}")
+            return False
+
     def get_upcoming_auctions(self, days_ahead=90):
         """
         Get all upcoming tax deed auctions
