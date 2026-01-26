@@ -122,257 +122,211 @@ class DuvalTaxDeedNoticeScraper:
         return None
 
 
+import requests
+from bs4 import BeautifulSoup
+import re
+import time
+from datetime import datetime, timedelta
+
 class DuvalTaxDeedAuctionScraper:
     """
-    Scrapes upcoming Tax Deed Auction listings
-    URL: https://duval.realtaxdeed.com/
-    Uses AJAX login with correct parameters
+    Scrapes Duval County Tax Deed Auctions
+    Handles multiple sequential disclaimer pages automatically
     """
     
     BASE_URL = "https://duval.realtaxdeed.com"
-    LOGIN_URL = f"{BASE_URL}/index.cfm"  # AJAX login endpoint
-    SEARCH_URL = "https://duval.realtaxdeed.com/index.cfm?zaction=admin&zmethod=REPORT&Report_id=33"
+    LOGIN_URL = f"{BASE_URL}/index.cfm"
+    SEARCH_URL = f"{BASE_URL}/index.cfm?zaction=admin&zmethod=REPORT&Report_id=33"
     DATA_URL = f"{BASE_URL}/index.cfm"
     
-    def __init__(self, username="lawsofgreen", password="48484848"):
+    def __init__(self, username, password):
         self.session = requests.Session()
-        self.session.headers.update({
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-            'Accept': '*/*',
-            'Accept-Language': 'en-US,en;q=0.9',
-            'X-Requested-With': 'XMLHttpRequest'
-        })
         self.username = username
         self.password = password
         self.logged_in = False
     
-    def login(self):
+    def accept_all_disclaimers(self, max_attempts=10):
         """
-        Login to RealAuction site using AJAX login method
-        Uses correct parameters: ZACTION=AJAX, ZMETHOD=LOGIN, USERNAME, USERPASS
+        Accept all sequential disclaimer pages until we reach actual content.
+        The site uses Notice IDs that must be accepted in order.
         """
-        try:
-            print("  Logging in to auction site...")
-            print(f"  Using username: {self.username}")
-            
-            # Step 1: Get the home page first to establish cookies and session
-            print("  Step 1: Getting home page...")
-            home_response = self.session.get(self.BASE_URL, allow_redirects=True)
-            
-            if home_response.status_code != 200:
-                print(f"  ❌ Could not access home page: {home_response.status_code}")
-                return False
-            
-            # Step 2: Submit AJAX login with correct parameters
-            print("  Step 2: Submitting AJAX login...")
-            login_data = {
-                'ZACTION': 'AJAX',
-                'ZMETHOD': 'LOGIN',
-                'func': 'LOGIN',
-                'USERNAME': self.username,
-                'USERPASS': self.password
-            }
-            
-            # Post login
-            response = self.session.post(
-                self.LOGIN_URL, 
-                data=login_data, 
-                allow_redirects=True,
-                timeout=15
-            )
-            
-            if response.status_code != 200:
-                print(f"  ❌ Login request failed - HTTP {response.status_code}")
-                return False
-            
-            # Step 3: Check login response
-            try:
-                # The AJAX login returns JSON
-                result = response.json()
-                print(f"  Login response: {result}")
-                
-                # Check for success in JSON response
-                if isinstance(result, dict):
-                    success = result.get('SUCCESS', False) or result.get('success', False)
-                    if success or result.get('LOGGEDIN') or result.get('logged_in'):
-                        self.logged_in = True
-                        print("  ✅ Login successful (JSON confirmed)!")
-                        return True
-                    
-                    # Check for error message
-                    error = result.get('ERROR') or result.get('error') or result.get('MESSAGE')
-                    if error:
-                        print(f"  ❌ Login failed - {error}")
-                        return False
-                
-            except:
-                # Not JSON, check text response
-                pass
-            
-            # Check session cookies
-            cookies = self.session.cookies.get_dict()
-            has_session = 'cfid' in cookies and 'cftoken' in cookies
-            
-            # Debug info
-            print(f"  Response size: {len(response.text)} bytes")
-            print(f"  Session cookies: {has_session}")
-            print(f"  Cookies: {list(cookies.keys())}")
-            
-            # Check response content for success indicators
-            response_lower = response.text.lower()
-            has_success = any(x in response_lower for x in [
-                'success', 'logged in', 'welcome', 'logout'
-            ])
-            has_error = any(x in response_lower for x in [
-                'invalid', 'incorrect', 'failed', 'denied'
-            ])
-            
-            print(f"  Has success indicator: {has_success}")
-            print(f"  Has error indicator: {has_error}")
-            
-            if has_error:
-                print("  ❌ Login failed - Error detected in response")
-                return False
-            
-            # Success if we have session cookies and no error
-            if has_session and not has_error:
-                self.logged_in = True
-                print("  ✅ Login successful!")
-                self.accept_disclaimer()
-                return True
-            
-            # If we got this far and have cookies, try to proceed
-            if has_session:
-                print("  ⚠️  Login status unclear but have session - attempting to continue...")
-                self.logged_in = True
-                self.accept_disclaimer()
-                return True
-            
-            print("  ❌ Login failed - No session established")
-            print(f"  Response preview: {response.text[:200]}")
-            return False
-                
-        except requests.Timeout:
-            print("  ❌ Login timeout - site may be slow or down")
-            return False
-        except Exception as e:
-            print(f"  ❌ Login error: {e}")
-            import traceback
-            traceback.print_exc()
-            return False
-    
-    def accept_disclaimer(self):
-        """
-        Accept disclaimer/notice page if present
-        """
-        try:
-            # Get the disclaimer page
+        print("  🔓 Checking for disclaimer pages...")
+        
+        for attempt in range(max_attempts):
+            # Get current page
             response = self.session.get(self.BASE_URL)
             
-            if 'Notice and alert page' in response.text or 'disclaimer' in response.text.lower():
-                print("  Found disclaimer page, looking for accept button...")
-                
-                # Look for common accept patterns
-                patterns = [
-                    r'href=["\']([^"\']*accept[^"\']*)["\']',
-                    r'href=["\']([^"\']*continue[^"\']*)["\']',
-                    r'href=["\']([^"\']*agree[^"\']*)["\']',
-                    r'onclick=["\']([^"\']*)["\'].*(?:accept|continue|agree)',
-                ]
-                
-                for pattern in patterns:
-                    match = re.search(pattern, response.text, re.IGNORECASE)
-                    if match:
-                        accept_url = match.group(1)
-                        
-                        # Clean up the URL
-                        if not accept_url.startswith('http'):
-                            if accept_url.startswith('/'):
-                                accept_url = self.BASE_URL + accept_url
-                            else:
-                                accept_url = self.BASE_URL + '/' + accept_url
-                        
-                        print(f"  Clicking accept: {accept_url}")
-                        self.session.get(accept_url)
-                        return True
-                
-                # If no link found, try posting to the same page
-                print("  No accept button found, trying POST method...")
-                self.session.post(self.BASE_URL, data={'accept': 'yes', 'agreed': 'true'})
+            # Check if we're past all disclaimers
+            if self._is_past_disclaimers(response.text):
+                print(f"  ✅ All disclaimers cleared after {attempt} acceptance(s)")
                 return True
             
-            return True  # No disclaimer found
+            # Extract Notice ID from current disclaimer page
+            nid = self._extract_notice_id(response.text)
             
-        except Exception as e:
-            print(f"  Error accepting disclaimer: {e}")
-            return False
-
-    def get_upcoming_auctions(self, days_ahead=90):
-        """
-        Get all upcoming tax deed auctions
-        Extract REPID from FilterData response, then use it in LoadData
-        """
-        if not self.logged_in:
-            if not self.login():
-                print("  ⚠️  Skipping auction scrape - login failed")
-                return []
+            if not nid:
+                print(f"  ⚠️  No Notice ID found on attempt {attempt + 1}")
+                if attempt > 0:
+                    # We accepted at least one, assume we're done
+                    return True
+                return False
+            
+            print(f"  📋 Accepting disclaimer {attempt + 1}: Notice ID {nid}")
+            
+            # Accept this specific disclaimer
+            accept_response = self.session.post(
+                self.LOGIN_URL,
+                data={
+                    'zaction': 'AJAX',
+                    'zmethod': 'COM',
+                    'process': 'NOTICE',
+                    'func': 'ACCEPT',
+                    'showjson': 'false',
+                    'NID': nid
+                }
+            )
+            
+            # Small delay for server processing
+            time.sleep(0.5)
+        
+        print(f"  ⚠️  Still seeing disclaimers after {max_attempts} attempts")
+        return False
+    
+    def _is_past_disclaimers(self, html):
+        """Check if we're past all disclaimer pages"""
+        # Look for signs we're on actual content
+        past_indicators = [
+            'Quick Search' in html,
+            'Auction Type' in html,
+            'logout' in html.lower(),
+            'my account' in html.lower()
+        ]
+        
+        # Look for signs we're still on disclaimer
+        disclaimer_indicators = [
+            'Notice and alert page' in html,
+            'disclaimer' in html.lower() and 'accept' in html.lower(),
+            'I have read and agree' in html,
+            re.search(r'AcceptNotice\(\d+\)', html)
+        ]
+        
+        # Must have at least one positive indicator and no negative ones
+        return any(past_indicators) and not any(disclaimer_indicators)
+    
+    def _extract_notice_id(self, html):
+        """Extract Notice ID (NID) from disclaimer page"""
+        # Method 1: onclick handler like onclick="AcceptNotice(10038)"
+        match = re.search(r'AcceptNotice\((\d+)\)', html)
+        if match:
+            return match.group(1)
+        
+        # Method 2: Hidden input with name="NID"
+        soup = BeautifulSoup(html, 'html.parser')
+        nid_input = soup.find('input', {'name': 'NID'})
+        if nid_input and nid_input.get('value'):
+            return nid_input['value']
+        
+        # Method 3: JavaScript variable
+        match = re.search(r'NID["\s]*[:=]["\s]*["\']?(\d+)["\']?', html)
+        if match:
+            return match.group(1)
+        
+        # Method 4: data-nid attribute
+        nid_elem = soup.find(attrs={'data-nid': True})
+        if nid_elem:
+            return nid_elem['data-nid']
+        
+        return None
+    
+    def login(self):
+        """Login to RealAuction site"""
+        print(f"  🔐 Logging in as {self.username}...")
         
         try:
-            # Calculate date range
+            # Step 1: Get home page and handle any initial disclaimers
+            home_response = self.session.get(self.LOGIN_URL)
+            self.accept_all_disclaimers()
+            
+            # Step 2: Submit AJAX login
+            login_response = self.session.post(
+                self.LOGIN_URL,
+                data={
+                    'ZACTION': 'AJAX',
+                    'ZMETHOD': 'LOGIN',
+                    'func': 'LOGIN',
+                    'USERNAME': self.username,
+                    'USERPASS': self.password
+                }
+            )
+            
+            # Check response
+            try:
+                result = login_response.json()
+                if result.get('isOk') == 'YES':
+                    print("  ✅ Login successful!")
+                    self.logged_in = True
+                    
+                    # Accept any post-login disclaimers
+                    self.accept_all_disclaimers()
+                    return True
+                else:
+                    print(f"  ❌ Login failed: {result}")
+                    return False
+            except:
+                print("  ⚠️  Login response not JSON, checking cookies...")
+                
+            # Check for session cookies as backup
+            has_session = any(c in self.session.cookies for c in ['cfid', 'cftoken'])
+            if has_session:
+                print("  ✅ Session established via cookies")
+                self.logged_in = True
+                self.accept_all_disclaimers()
+                return True
+            
+            print("  ❌ Login failed - no session")
+            return False
+            
+        except Exception as e:
+            print(f"  ❌ Login error: {e}")
+            return False
+    
+    def get_upcoming_auctions(self, days_ahead=90):
+        """Get all upcoming tax deed auctions"""
+        if not self.logged_in and not self.login():
+            print("  ⚠️  Skipping - login failed")
+            return []
+        
+        try:
             start_date = datetime.now()
             end_date = start_date + timedelta(days=days_ahead)
+            start_str = f"{start_date.month}/{start_date.day}/{start_date.year}"
+            end_str = f"{end_date.month}/{end_date.day}/{end_date.year}"
             
-            print(f"  Searching Tax Deed auctions from {start_date.strftime('%m/%d/%Y')} to {end_date.strftime('%m/%d/%Y')}")
+            print(f"  🔍 Searching auctions from {start_str} to {end_str}")
             
-            # Format dates without leading zeros
-            start_date_str = f"{start_date.month}/{start_date.day}/{start_date.year}"
-            end_date_str = f"{end_date.month}/{end_date.day}/{end_date.year}"
+            # Step 1: Initialize report page and handle disclaimers
+            print("  📄 Loading report page...")
+            report_response = self.session.get(self.SEARCH_URL)
             
-            # Step 0: Visit the report page first to establish session
-            print("  Step 0: Initializing report session...")
-            init_response = self.session.get(self.SEARCH_URL)
+            # Accept any disclaimers on report page
+            self.accept_all_disclaimers()
             
-            if init_response.status_code != 200:
-                print(f"  ⚠️  Could not access report page: {init_response.status_code}")
-                return []
+            # Re-fetch report page after disclaimers
+            report_response = self.session.get(self.SEARCH_URL)
             
-            print(f"  Report page loaded: {len(init_response.text)} bytes")
+            # Step 2: Extract REPID from page or generate
+            repid = self._extract_repid(report_response.text)
+            if not repid:
+                repid = str(int(time.time() * 1000))
+            print(f"  🔑 Using REPID: {repid}")
             
-            # Check for disclaimer page
-            if 'Notice and alert page' in init_response.text or 'Quick Search' not in init_response.text:
-                print("  Disclaimer page detected - trying to bypass...")
-                
-                # Try to directly access with accept parameter or just retry
-                time.sleep(2)
-                
-                # Try again - sometimes it works on second attempt
-                init_response = self.session.get(self.SEARCH_URL)
-                print(f"  Retry: {len(init_response.text)} bytes")
-                
-                if 'Quick Search' not in init_response.text:
-                    print("  ⚠️  Still on disclaimer page - auction scraping may not work")
-                    title_match = re.search(r'<title>([^<]+)</title>', init_response.text)
-                    if title_match:
-                        print(f"  Page title: {title_match.group(1)}")
-            
-            # Try to extract initial REPID from the page
-            initial_repid_match = re.search(r"var\s+ReportID\s*=\s*['\"](\d+)['\"]", init_response.text)
-            if initial_repid_match:
-                initial_repid = initial_repid_match.group(1)
-                print(f"  Found initial REPID in page: {initial_repid}")
-            else:
-                # Generate initial REPID for FilterData
-                initial_repid = str(int(time.time() * 1000))
-                print(f"  Generated REPID: {initial_repid}")
-            
-            # Step 1: Call FilterData to set up the filter and get the real REPID
-            print("  Step 1: Applying filter to get session REPID...")
-            
+            # Step 3: Apply filter to get real REPID
+            print("  🎯 Applying Tax Deed filter...")
             filter_params = {
                 'AUCT_TYPE': '2',
                 'CaseNumber': '',
-                'view_ssdate': start_date_str,
-                'view_sedate': end_date_str,
+                'view_ssdate': start_str,
+                'view_sedate': end_str,
                 'ParcelID': '',
                 'PrimaryPlaintiffTD': '',
                 'Address': '',
@@ -385,138 +339,112 @@ class DuvalTaxDeedAuctionScraper:
                 'process': 'REPVIEW',
                 'FUNC': 'FilterData',
                 'SHOWJSON': 'false',
-                'REPID': initial_repid,
+                'REPID': repid,
                 '_': str(int(time.time() * 1000))
             }
             
             filter_response = self.session.get(self.DATA_URL, params=filter_params)
             
-            if filter_response.status_code != 200:
-                print(f"  ❌ FilterData failed: {filter_response.status_code}")
-                return []
+            # Extract REPID from filter response
+            new_repid = self._extract_repid(filter_response.text)
+            if new_repid:
+                repid = new_repid
+                print(f"  ✓ Filter returned REPID: {repid}")
             
-            # Step 2: Extract the REPID from the HTML response
-            # Look for: var ReportID = '1769378903879';
-            repid_match = re.search(r"var\s+ReportID\s*=\s*['\"](\d+)['\"]", filter_response.text)
-            
-            if not repid_match:
-                print("  ⚠️  Could not extract REPID from FilterData response")
-                print(f"  Response preview: {filter_response.text[:500]}")
-                return []
-            
-            repid = repid_match.group(1)
-            print(f"  ✓ Extracted REPID from filter response: {repid}")
-            
-            # Wait a moment for filter to apply
             time.sleep(1)
             
-            # Step 3: Load the data using the extracted REPID
-            print("  Step 2: Loading auction data with extracted REPID...")
-            
-            data_params = {
-                'zaction': 'AJAX',
-                'zmethod': 'COM',
-                'Process': 'REPVIEW',
-                'SHOWJSON': 'FALSE',
-                'REPID': repid,
-                'func': 'LoadData'
-            }
-            
-            # Form data for jqGrid
-            form_data = {
-                'rows': '1000',
-                'page': '1',
-                'sidx': 'vw.startdatetime',
-                'sord': 'asc',
-                '_search': 'false',
-                'nd': str(int(time.time() * 1000))
-            }
-            
-            # POST request
+            # Step 4: Load data using REPID
+            print("  📊 Loading auction data...")
             data_response = self.session.post(
                 self.DATA_URL,
-                params=data_params,
-                data=form_data,
-                headers={
-                    'X-Requested-With': 'XMLHttpRequest',
-                    'Accept': 'application/json, text/javascript, */*; q=0.01'
-                }
+                params={
+                    'zaction': 'AJAX',
+                    'zmethod': 'COM',
+                    'Process': 'REPVIEW',
+                    'SHOWJSON': 'FALSE',
+                    'REPID': repid,
+                    'func': 'LoadData'
+                },
+                data={
+                    'rows': '1000',
+                    'page': '1',
+                    'sidx': 'vw.startdatetime',
+                    'sord': 'asc',
+                    '_search': 'false',
+                    'nd': str(int(time.time() * 1000))
+                },
+                headers={'X-Requested-With': 'XMLHttpRequest'}
             )
-            
-            if data_response.status_code != 200:
-                print(f"  ❌ Data request failed: {data_response.status_code}")
-                return []
-            
-            # Debug: Check content type
-            content_type = data_response.headers.get('Content-Type', '')
-            print(f"  Response Content-Type: {content_type}")
-            print(f"  Response length: {len(data_response.text)} bytes")
             
             # Parse JSON response
             try:
                 data = data_response.json()
-                total_records = data.get('records', 0)
-                total_rows = len(data.get('rows', []))
-                print(f"  JSON Response - Records: {total_records}, Rows returned: {total_rows}")
+                rows = data.get('rows', [])
+                print(f"  ✅ Found {len(rows)} auction records")
                 
-                if total_rows > 0 and total_rows < 5:
-                    print(f"  ⚠️  Only {total_rows} row(s). Inspecting data:")
-                    for i, row in enumerate(data.get('rows', [])):
-                        print(f"    Row {i}: {row}")
-                    
-            except Exception as e:
-                print(f"  ⚠️  Response is not JSON: {e}")
-                print(f"  Response text (first 500 chars):")
-                print(data_response.text[:500])
-                return []
-            
-            auctions = []
-            for row in data.get('rows', []):
-                try:
+                # Parse auction data
+                auctions = []
+                for row in rows:
                     cells = row.get('cell', [])
                     if len(cells) < 13:
                         continue
                     
-                    # Extract data from cell array
-                    parcel = str(cells[12]).strip() if len(cells) > 12 else ''
+                    parcel = str(cells[12]).strip()
+                    if not parcel:
+                        continue
                     
-                    # Clean up case number (remove HTML tags)
-                    case_num_raw = str(cells[2]) if len(cells) > 2 else ''
-                    case_num_match = re.search(r'>([^<]+)</A>', case_num_raw)
-                    case_number = case_num_match.group(1) if case_num_match else case_num_raw
+                    # Clean case number
+                    case_num_raw = str(cells[2])
+                    case_match = re.search(r'>([^<]+)</A>', case_num_raw)
+                    case_number = case_match.group(1) if case_match else case_num_raw
                     
-                    auction = {
-                        'sale_date': str(cells[0]) if len(cells) > 0 else '',
-                        'add_date': str(cells[1]) if len(cells) > 1 else '',
+                    auctions.append({
+                        'sale_date': str(cells[0]),
+                        'add_date': str(cells[1]),
                         'case_number': case_number,
-                        'status': str(cells[3]) if len(cells) > 3 else '',
-                        'opening_bid': str(cells[4]) if len(cells) > 4 else '',
-                        'certificate_amount': str(cells[5]) if len(cells) > 5 else '',
-                        'assessed_value': str(cells[6]) if len(cells) > 6 else '',
-                        'certificate_holder': str(cells[7]) if len(cells) > 7 else '',
-                        'address': str(cells[9]) if len(cells) > 9 else '',
-                        'city': str(cells[10]) if len(cells) > 10 else '',
-                        'zip': str(cells[11]) if len(cells) > 11 else '',
+                        'status': str(cells[3]),
+                        'opening_bid': str(cells[4]),
+                        'certificate_amount': str(cells[5]),
+                        'assessed_value': str(cells[6]),
+                        'certificate_holder': str(cells[7]),
+                        'address': str(cells[9]),
+                        'city': str(cells[10]),
+                        'zip': str(cells[11]),
                         'parcel': parcel
-                    }
-                    
-                    if parcel and parcel != '':
-                        auctions.append(auction)
-                        print(f"    Found: {parcel} - {case_number} - {auction['status']}")
+                    })
                 
-                except Exception as e:
-                    print(f"    Error parsing row: {e}")
-                    continue
-            
-            print(f"  ✅ Found {len(auctions)} upcoming tax deed auctions with parcels")
-            return auctions
-            
+                return auctions
+                
+            except Exception as e:
+                print(f"  ❌ Failed to parse response: {e}")
+                print(f"  Response preview: {data_response.text[:500]}")
+                return []
+                
         except Exception as e:
-            print(f"  ❌ Error getting auctions: {e}")
+            print(f"  ❌ Error: {e}")
             import traceback
             traceback.print_exc()
             return []
+    
+    def _extract_repid(self, html):
+        """Extract REPID from HTML"""
+        match = re.search(r"var\s+ReportID\s*=\s*['\"](\d+)['\"]", html)
+        return match.group(1) if match else None
 
+
+# Example usage
+if __name__ == "__main__":
+    scraper = DuvalTaxDeedAuctionScraper(
+        username="lawsofgreen",
+        password="48484848"
+    )
+    
+    if scraper.login():
+        auctions = scraper.get_upcoming_auctions()
+        print(f"\n✅ Retrieved {len(auctions)} auctions")
+        
+        for auction in auctions[:5]:  # Show first 5
+            print(f"  • {auction['parcel']} - {auction['case_number']} - {auction['status']}")
 
 class DuvalPropertyAppraiserScraper:
     """
