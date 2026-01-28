@@ -1,0 +1,67 @@
+<div>
+	<table cellspacing="0" rules="all" border="1" style="border-collapse:collapse;">
+		<tr>
+			<th scope="col">Real Estate Number</th><th scope="col">Owner</th><th scope="col">Street Number</th><th scope="col">Street</th><th scope="col">Street Type</th><th scope="col">Street Direction</th><th scope="col">Unit</th><th scope="col">City</th><th scope="col">Zip Code</th>
+		</tr><tr>
+			<td>004889-0905</td><td>UNITED STATES OF AMERICA</td><td>7415</td><td>COMMONWEALTH</td><td>AVE</td><td>&nbsp;</td><td>&nbsp;</td><td>Jacksonville</td><td>32099-</td>
+		</tr><tr>
+			<td>004890-0020</td><td>UNITED STATES OF AMERICA</td><td>0</td><td>COMMONWEALTH</td><td>AVE</td><td>&nbsp;</td><td>&nbsp;</td><td>Jacksonville</td><td>32099-</td>
+		</tr><tr>
+			<td>098405-0100</td><td>UNITED STATES OF AMERICA</td><td>0</td><td>JASON</td><td>ST</td><td>&nbsp;</td><td>&nbsp;</td><td>Jacksonville</td><td>32212-</td>
+		</tr><tr>
+			<td>100535-0000</td><td>UNITED STATES OF AMERICA</td><td>0</td><td>ROOSEVELT</td><td>BLVD</td><td>&nbsp;</td><td>&nbsp;</td><td>Jacksonville</td><td>32212-</td>
+		</tr><tr>
+			<td>100569-0010</td><td>UNITED STATES OF AMERICA</td><td>0</td><td>PATROL</td><td>RD</td><td>&nbsp;</td><td>&nbsp;</td><td>Jacksonville</td><td>32212-</td>
+		</tr><tr>
+			<td>168222-0010</td><td>UNITED STATES OF AMERICA</td><td>0</td><td>PATROL</td><td>RD</td><td>&nbsp;</td><td>&nbsp;</td><td>Jacksonville</td><td>32227-</td>
+		</tr><tr>
+			<td>168251-0010</td><td>U S A</td><td>0</td><td>PATROL</td><td>RD</td><td>&nbsp;</td><td>&nbsp;</td><td>Jacksonville</td><td>32227-</td>
+		</tr><tr>
+			<td>168280-0000</td><td>UNITED STATES OF AMERICA</td><td>0</td><td>BAYSHORE</td><td>DR</td><td>N</td><td>&nbsp;</td><td>Jacksonville</td><td>32227-</td>
+		</tr><tr>
+			<td>168282-0000</td><td>U S A</td><td>0</td><td>SR A1A</td><td>&nbsp;</td><td>&nbsp;</td><td>&nbsp;</td><td>Jacksonville</td><td>32227-</td>
+		</tr><tr>
+			<td>168284-0000</td><td>U S A</td><td>0</td><td>MAINE</td><td>ST</td><td>&nbsp;</td><td>&nbsp;</td><td>Jacksonville</td><td>32227-</td>
+		</tr><tr>
+			<td>168295-0000</td><td>RIBAULT BAY NAVAL RESERVATION</td><td>0</td><td>MAYPORT</td><td>RD</td><td>&nbsp;</td><td>&nbsp;</td><td>Jacksonville</td><td>32227-</td>
+		</tr><tr>
+			<td>168313-0000</td><td>U S NAVY</td><td>0</td><td>MAYPORT</td><td>RD</td><td>&nbsp;</td><td>&nbsp;</td><td>Jacksonville</td><td>32227-</td>
+		</tr><tr>
+			<td>168325-0000</td><td>UNITED STATES OF AMERICA</td><td>0</td><td>WONDERWOOD</td><td>DR</td><td>&nbsp;</td><td>&nbsp;</td><td>Jacksonville</td><td>32227-</td>
+		</tr><tr>
+			<td>168330-0020</td><td>HELOW PROPERTIES LTD</td><td>0</td><td>MAYPORT</td><td>RD</td><td>&nbsp;</td><td>&nbsp;</td><td>Jacksonville</td><td>32227-</td>
+		</tr><tr>
+			<td>168336-0000</td><td>UNITED STATES OF AMERICA</td><td>2972</td><td>MAYPORT</td><td>RD</td><td>&nbsp;</td><td>&nbsp;</td><td>Jacksonville</td><td>32227-</td>
+		</tr><tr>
+			<td>168337-0000</td><td>U S A</td><td>0</td><td>MAYPORT</td><td>RD</td><td>&nbsp;</td><td>&nbsp;</td><td>Jacksonville</td><td>32227-</td>
+		</tr><tr>
+			<td>168338-0000</td><td>U S A</td><td>0</td><td>MAYPORT</td><td>RD</td><td>&nbsp;</td><td>&nbsp;</td><td>Jacksonville</td><td>32227-</td>
+		</tr><tr>
+			<td>168339-0000</td><td>U S A</td><td>0</td><td>MAYPORT</td><td>RD</td><td>&nbsp;</td><td>&nbsp;</td><td>Jacksonville</td><td>32227-</td>
+		</tr><tr>
+			<td>168388-0000</td><td>UNITED STATES OF AMERICA</td><td>0</td><td>WONDERWOOD</td><td>DR</td><td>&nbsp;</td><td>&nbsp;</td><td>Jacksonville</td><td>32227-</td>
+		</tr><tr>
+			<td>168389-0000</td><td>UNITED STATES OF AMERICA</td><td>0</td><td>WONDERWOOD</td><td>DR</td><td>&nbsp;</td><td>&nbsp;</td><td>Jacksonville</td><td>32227-</td>
+		</tr><tr>
+			<td>168393-0000</td><td>UNITED STATES OF AMERICA</td><td>0</td><td>WONDERWOOD</td><td>DR</td><td>&nbsp;</td><td>&nbsp;</td><td>Jacksonville</td><td>32227-</td>
+		</tr><tr>
+			<td>168422-0000</td><td>UNITED STATES OF AMERICA</td><td>0</td><td>WONDERWOOD</td><td>DR</td><td>&nbsp;</td><td>&nbsp;</td><td>Jacksonville</td><td>32227-</td>
+		</tr><tr>
+			<td>168423-0000</td><td>UNITED STATES OF AMERICA</td><td>0</td><td>WONDERWOOD</td><td>DR</td><td>&nbsp;</td><td>&nbsp;</td><td>Jacksonville</td><td>32227-</td>
+		</tr><tr>
+			<td>168426-0000</td><td>UNITED STATES OF AMERICA</td><td>0</td><td>WONDERWOOD</td><td>DR</td><td>&nbsp;</td><td>&nbsp;</td><td>Jacksonville</td><td>32227-</td>
+		</tr><tr>
+			<td>168848-0000</td><td>UNITED STATES OF AMERICA</td><td>0</td><td>SR A1A</td><td>&nbsp;</td><td>&nbsp;</td><td>&nbsp;</td><td>Jacksonville</td><td>32227-</td>
+		</tr><tr>
+			<td>168930-0000</td><td>U S A</td><td>0</td><td>MAYPORT</td><td>RD</td><td>&nbsp;</td><td>&nbsp;</td><td>Jacksonville</td><td>32227-</td>
+		</tr><tr>
+			<td>168932-0000</td><td>SMITH ROBERT N &amp; JOSEFA C TRUST</td><td>599</td><td>WONDERWOOD</td><td>DR</td><td>&nbsp;</td><td>&nbsp;</td><td>Jacksonville</td><td>32227-</td>
+		</tr><tr>
+			<td>168938-0000</td><td>UNITED STATES OF AMERICA</td><td>0</td><td>MAYPORT</td><td>RD</td><td>&nbsp;</td><td>&nbsp;</td><td>Jacksonville</td><td>32227-</td>
+		</tr><tr>
+			<td>168939-0000</td><td>UNITED STATES OF AMERICA</td><td>0</td><td>MAYPORT</td><td>RD</td><td>&nbsp;</td><td>&nbsp;</td><td>Jacksonville</td><td>32227-</td>
+		</tr><tr>
+			<td>168940-0000</td><td>HELOW PROPERTIES LTD</td><td>2995</td><td>MAYPORT</td><td>RD</td><td>&nbsp;</td><td>&nbsp;</td><td>Jacksonville</td><td>32227</td>
+		</tr>
+	</table>
+</div>
