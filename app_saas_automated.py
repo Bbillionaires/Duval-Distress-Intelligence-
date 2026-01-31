@@ -49,6 +49,7 @@ try:
 except Exception as e:
     print(f"⚠️  Database check failed: {e}")
 print("=" * 70 + "\n")
+
 BASE_DIR = Path(__file__).resolve().parent
 DATABASE_URL = os.getenv("DATABASE_URL", "").strip()
 APP_SECRET = os.getenv("APP_SECRET", "dev-secret-change-me")
