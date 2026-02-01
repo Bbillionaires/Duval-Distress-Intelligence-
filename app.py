@@ -3,6 +3,12 @@ from pathlib import Path
 from flask import Flask, jsonify, request, redirect, send_from_directory, session
 
 # Database check on startup
+# DATABASE CONNECTION FIX FOR SUPABASE
+
+Replace the database check section in your app.py (lines 7-33) with this:
+
+```python
+# Database check on startup
 import sys
 sys.stdout.write("\n" + "=" * 70 + "\n")
 sys.stdout.write("🔍 DATABASE CHECK ON STARTUP\n")
@@ -12,7 +18,21 @@ try:
     DATABASE_URL = os.getenv("DATABASE_URL")
     if DATABASE_URL:
         import psycopg2
-        conn = psycopg2.connect(DATABASE_URL)
+        import urllib.parse as urlparse
+        
+        # Parse the database URL for proper connection
+        url = urlparse.urlparse(DATABASE_URL)
+        
+        # Connect with explicit SSL settings for Supabase
+        conn = psycopg2.connect(
+            database=url.path[1:],
+            user=url.username,
+            password=url.password,
+            host=url.hostname,
+            port=url.port or 5432,
+            sslmode='require',
+            connect_timeout=10
+        )
         cur = conn.cursor()
         
         cur.execute('SELECT COUNT(*) FROM properties')
@@ -28,11 +48,38 @@ try:
             print(f"   {stage}: {count}")
         
         conn.close()
+        print("✅ Database connection successful!")
     else:
         print("⚠️  DATABASE_URL not set")
 except Exception as e:
     print(f"⚠️  Database check failed: {e}")
+    import traceback
+    traceback.print_exc()
 print("=" * 70 + "\n")
+```
+
+## What Changed:
+1. Added `import urllib.parse as urlparse` to parse the connection URL
+2. Split the DATABASE_URL into components (host, user, password, etc.)
+3. Added explicit `sslmode='require'` parameter
+4. Added `connect_timeout=10` to prevent hanging
+5. Added success message
+6. Added full traceback on errors for debugging
+
+## How to Apply:
+
+1. Open app.py in your editor
+2. Find lines 7-33 (the database check section starting with "# Database check on startup")
+3. Replace that entire section with the code above
+4. Save the file
+5. Run:
+   ```
+   git add app.py
+   git commit -m "Fix Supabase SSL connection"
+   git push
+   ```
+
+This will properly handle Supabase's SSL requirements!
 
 BASE_DIR = Path(__file__).resolve().parent
 CSV_PATH = os.getenv("CSV_PATH", str(BASE_DIR / "leads.csv"))
