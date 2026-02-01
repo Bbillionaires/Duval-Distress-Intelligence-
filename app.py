@@ -7,7 +7,6 @@ from flask import Flask, jsonify, request, redirect, send_from_directory, sessio
 
 Replace the database check section in your app.py (lines 7-33) with this:
 
-```python
 # Database check on startup
 import sys
 sys.stdout.write("\n" + "=" * 70 + "\n")
@@ -56,7 +55,6 @@ except Exception as e:
     import traceback
     traceback.print_exc()
 print("=" * 70 + "\n")
-```
 
 ## What Changed:
 1. Added `import urllib.parse as urlparse` to parse the connection URL
