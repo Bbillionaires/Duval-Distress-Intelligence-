@@ -56,29 +56,6 @@ except Exception as e:
     traceback.print_exc()
 print("=" * 70 + "\n")
 
-## What Changed:
-1. Added `import urllib.parse as urlparse` to parse the connection URL
-2. Split the DATABASE_URL into components (host, user, password, etc.)
-3. Added explicit `sslmode='require'` parameter
-4. Added `connect_timeout=10` to prevent hanging
-5. Added success message
-6. Added full traceback on errors for debugging
-
-## How to Apply:
-
-1. Open app.py in your editor
-2. Find lines 7-33 (the database check section starting with "# Database check on startup")
-3. Replace that entire section with the code above
-4. Save the file
-5. Run:
-   ```
-   git add app.py
-   git commit -m "Fix Supabase SSL connection"
-   git push
-   ```
-
-This will properly handle Supabase's SSL requirements!
-
 BASE_DIR = Path(__file__).resolve().parent
 CSV_PATH = os.getenv("CSV_PATH", str(BASE_DIR / "leads.csv"))
 CACHE_DAYS = int(os.getenv("CACHE_DAYS","30"))
