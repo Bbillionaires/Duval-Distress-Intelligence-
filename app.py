@@ -49,6 +49,71 @@ except Exception as e:
     traceback.print_exc()
 print("=" * 70 + "\n")
 
+def db_init():
+    """Initialize database tables on startup"""
+    try:
+        import psycopg2
+        import urllib.parse as urlparse
+        
+        DATABASE_URL = os.getenv("DATABASE_URL")
+        if not DATABASE_URL:
+            print("⚠️  Cannot init database - DATABASE_URL not set")
+            return
+        
+        url = urlparse.urlparse(DATABASE_URL)
+        conn = psycopg2.connect(
+            database=url.path[1:],
+            user=url.username,
+            password=url.password,
+            host=url.hostname,
+            port=url.port or 5432,
+            sslmode='require',
+            connect_timeout=10
+        )
+        
+        cur = conn.cursor()
+        
+        print("🔧 Creating database tables...")
+        
+        cur.execute("""
+        CREATE TABLE IF NOT EXISTS properties (
+            id SERIAL PRIMARY KEY,
+            parcel TEXT UNIQUE NOT NULL,
+            stage TEXT NOT NULL,
+            certificate_number TEXT,
+            owner_name TEXT,
+            property_address TEXT,
+            city TEXT,
+            zip TEXT,
+            assessed_value NUMERIC(12,2),
+            taxable_value NUMERIC(12,2),
+            total_amount_due NUMERIC(12,2),
+            has_tax_deed_notice BOOLEAN DEFAULT FALSE,
+            tax_deed_notice_date DATE,
+            auction_date DATE,
+            county TEXT DEFAULT 'duval',
+            data_source TEXT,
+            last_scraped TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
+        
+        CREATE INDEX IF NOT EXISTS idx_parcel ON properties(parcel);
+        CREATE INDEX IF NOT EXISTS idx_stage ON properties(stage);
+        CREATE INDEX IF NOT EXISTS idx_tax_deed_notice ON properties(has_tax_deed_notice);
+        """)
+        
+        conn.commit()
+        conn.close()
+        
+        print("✅ Database tables created successfully!")
+        
+    except Exception as e:
+        print(f"⚠️  Database initialization failed: {e}")
+
+# Run database initialization
+db_init()
+
 BASE_DIR = Path(__file__).resolve().parent
 CSV_PATH = os.getenv("CSV_PATH", str(BASE_DIR / "leads.csv"))
 CACHE_DAYS = int(os.getenv("CACHE_DAYS","30"))
