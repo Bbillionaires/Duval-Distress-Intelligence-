@@ -3,11 +3,6 @@ from pathlib import Path
 from flask import Flask, jsonify, request, redirect, send_from_directory, session
 
 # Database check on startup
-# DATABASE CONNECTION FIX FOR SUPABASE
-
-Replace the database check section in your app.py (lines 7-33) with this:
-
-# Database check on startup
 import sys
 sys.stdout.write("\n" + "=" * 70 + "\n")
 sys.stdout.write("🔍 DATABASE CHECK ON STARTUP\n")
@@ -19,10 +14,8 @@ try:
         import psycopg2
         import urllib.parse as urlparse
         
-        # Parse the database URL for proper connection
         url = urlparse.urlparse(DATABASE_URL)
         
-        # Connect with explicit SSL settings for Supabase
         conn = psycopg2.connect(
             database=url.path[1:],
             user=url.username,
