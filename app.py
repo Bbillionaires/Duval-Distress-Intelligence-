@@ -2,53 +2,6 @@
 from pathlib import Path
 from flask import Flask, jsonify, request, redirect, send_from_directory, session
 
-# Database check on startup
-import sys
-sys.stdout.write("\n" + "=" * 70 + "\n")
-sys.stdout.write("🔍 DATABASE CHECK ON STARTUP\n")
-sys.stdout.flush()
-print("=" * 70)
-try:
-    DATABASE_URL = os.getenv("DATABASE_URL")
-    if DATABASE_URL:
-        import psycopg2
-        import urllib.parse as urlparse
-        
-        url = urlparse.urlparse(DATABASE_URL)
-        
-        conn = psycopg2.connect(
-            database=url.path[1:],
-            user=url.username,
-            password=url.password,
-            host=url.hostname,
-            port=url.port or 5432,
-            sslmode='require',
-            connect_timeout=10
-        )
-        cur = conn.cursor()
-        
-        cur.execute('SELECT COUNT(*) FROM properties')
-        total = cur.fetchone()[0]
-        print(f"📊 Total properties in database: {total}")      
-        cur.execute('SELECT COUNT(*) FROM properties WHERE has_tax_deed_notice = TRUE')
-        ntd = cur.fetchone()[0]
-        print(f"🎯 Properties with Tax Deed Notice: {ntd}")
-        
-        cur.execute('SELECT stage, COUNT(*) FROM properties GROUP BY stage ORDER BY COUNT(*) DESC')
-        print("📈 By stage:")
-        for stage, count in cur.fetchall():
-            print(f"   {stage}: {count}")
-        
-        conn.close()
-        print("✅ Database connection successful!")
-    else:
-        print("⚠️  DATABASE_URL not set")
-except Exception as e:
-    print(f"⚠️  Database check failed: {e}")
-    import traceback
-    traceback.print_exc()
-print("=" * 70 + "\n")
-
 def db_init():
     """Initialize database tables on startup"""
     try:
@@ -111,8 +64,58 @@ def db_init():
     except Exception as e:
         print(f"⚠️  Database initialization failed: {e}")
 
-# Run database initialization
+# Run database initialization FIRST
+
 db_init()
+
+# Database check on startup
+import sys
+sys.stdout.write("\n" + "=" * 70 + "\n")
+sys.stdout.write("🔍 DATABASE CHECK ON STARTUP\n")
+sys.stdout.flush()
+print("=" * 70)
+try:
+    DATABASE_URL = os.getenv("DATABASE_URL")
+    if DATABASE_URL:
+        import psycopg2
+        import urllib.parse as urlparse
+        
+        url = urlparse.urlparse(DATABASE_URL)
+        
+        conn = psycopg2.connect(
+            database=url.path[1:],
+            user=url.username,
+            password=url.password,
+            host=url.hostname,
+            port=url.port or 5432,
+            sslmode='require',
+            connect_timeout=10
+        )
+        cur = conn.cursor()
+        
+        cur.execute('SELECT COUNT(*) FROM properties')
+        total = cur.fetchone()[0]
+        print(f"📊 Total properties in database: {total}")      
+        cur.execute('SELECT COUNT(*) FROM properties WHERE has_tax_deed_notice = TRUE')
+        ntd = cur.fetchone()[0]
+        print(f"🎯 Properties with Tax Deed Notice: {ntd}")
+        
+        cur.execute('SELECT stage, COUNT(*) FROM properties GROUP BY stage ORDER BY COUNT(*) DESC')
+        print("📈 By stage:")
+        for stage, count in cur.fetchall():
+            print(f"   {stage}: {count}")
+        
+        conn.close()
+        print("✅ Database connection successful!")
+    else:
+        print("⚠️  DATABASE_URL not set")
+except Exception as e:
+    print(f"⚠️  Database check failed: {e}")
+    import traceback
+    traceback.print_exc()
+print("=" * 70 + "\n")
+
+# Run database initialization
 
 BASE_DIR = Path(__file__).resolve().parent
 CSV_PATH = os.getenv("CSV_PATH", str(BASE_DIR / "leads.csv"))
