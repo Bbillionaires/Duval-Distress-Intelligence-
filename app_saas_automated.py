@@ -452,9 +452,9 @@ def api_health():
     })
 
 
+# Initialize database on startup (always run, not just when called directly)
+db_init()
+
 if __name__ == "__main__":
-    # Initialize database on startup
-    db_init()
-    
     port = int(os.getenv("PORT", "10000"))
     app.run(host="0.0.0.0", port=port, debug=True)
