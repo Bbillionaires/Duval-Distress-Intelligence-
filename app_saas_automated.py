@@ -6,6 +6,7 @@ Features:
 2. API endpoints to trigger scrapes
 3. View scrape jobs and results
 4. Admin controls
+5. Multi-county support (future-proof)
 """
 import os
 import subprocess
@@ -29,6 +30,38 @@ DEFAULT_ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "ChangeMe123!")
 
 app = Flask(__name__)
 app.config["SECRET_KEY"] = APP_SECRET
+
+# County configuration (future-proof for expansion)
+AVAILABLE_COUNTIES = [
+    {
+        "code": "duval",
+        "name": "Duval",
+        "state": "FL",
+        "enabled": True,
+        "price": 99
+    },
+    {
+        "code": "miami-dade",
+        "name": "Miami-Dade",
+        "state": "FL",
+        "enabled": False,
+        "price": 99
+    },
+    {
+        "code": "broward",
+        "name": "Broward",
+        "state": "FL",
+        "enabled": False,
+        "price": 99
+    },
+    {
+        "code": "palm-beach",
+        "name": "Palm Beach",
+        "state": "FL",
+        "enabled": False,
+        "price": 99
+    }
+]
 
 
 def db_conn():
@@ -69,6 +102,7 @@ def db_init():
             CREATE TABLE IF NOT EXISTS scrape_jobs (
               id SERIAL PRIMARY KEY,
               job_type TEXT NOT NULL,
+              county TEXT NOT NULL DEFAULT 'duval',
               status TEXT NOT NULL DEFAULT 'pending',
               started_at TIMESTAMPTZ,
               completed_at TIMESTAMPTZ,
@@ -79,6 +113,7 @@ def db_init():
             );
             CREATE INDEX IF NOT EXISTS idx_scrape_jobs_status ON scrape_jobs(status);
             CREATE INDEX IF NOT EXISTS idx_scrape_jobs_created ON scrape_jobs(created_at DESC);
+            CREATE INDEX IF NOT EXISTS idx_scrape_jobs_county ON scrape_jobs(county);
             """)
             
             # Properties table
@@ -86,6 +121,7 @@ def db_init():
             CREATE TABLE IF NOT EXISTS properties (
               id SERIAL PRIMARY KEY,
               parcel TEXT UNIQUE NOT NULL,
+              county TEXT NOT NULL DEFAULT 'duval',
               stage TEXT NOT NULL,
               certificate_number TEXT,
               certificate_year INT,
@@ -104,6 +140,7 @@ def db_init():
               updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
             );
             CREATE INDEX IF NOT EXISTS idx_properties_parcel ON properties(parcel);
+            CREATE INDEX IF NOT EXISTS idx_properties_county ON properties(county);
             CREATE INDEX IF NOT EXISTS idx_properties_stage ON properties(stage);
             CREATE INDEX IF NOT EXISTS idx_properties_verified ON properties(last_verified_at DESC);
             """)
@@ -113,12 +150,14 @@ def db_init():
             CREATE TABLE IF NOT EXISTS property_history (
               id SERIAL PRIMARY KEY,
               parcel TEXT NOT NULL,
+              county TEXT NOT NULL DEFAULT 'duval',
               total_due NUMERIC(12,2),
               delinquent_amount NUMERIC(12,2),
               stage TEXT,
               snapshot_date TIMESTAMPTZ NOT NULL DEFAULT NOW()
             );
             CREATE INDEX IF NOT EXISTS idx_history_parcel ON property_history(parcel);
+            CREATE INDEX IF NOT EXISTS idx_history_county ON property_history(county);
             CREATE INDEX IF NOT EXISTS idx_history_date ON property_history(snapshot_date DESC);
             """)
             
@@ -127,6 +166,7 @@ def db_init():
             CREATE TABLE IF NOT EXISTS tax_deed_notices (
               id SERIAL PRIMARY KEY,
               parcel TEXT NOT NULL,
+              county TEXT NOT NULL DEFAULT 'duval',
               doc_number TEXT,
               recorded_date TEXT,
               party_names TEXT,
@@ -134,6 +174,7 @@ def db_init():
               created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
             );
             CREATE INDEX IF NOT EXISTS idx_ntd_parcel ON tax_deed_notices(parcel);
+            CREATE INDEX IF NOT EXISTS idx_ntd_county ON tax_deed_notices(county);
             """)
             
             # Seed admin user
@@ -242,14 +283,38 @@ def api_logout():
     return resp
 
 
+# ========== COUNTY API ==========
+
+@app.get("/api/counties")
+def api_counties():
+    """Get list of available counties"""
+    u = require_login()
+    if not u:
+        return jsonify({"ok": False, "error": "Not authorized"}), 401
+    
+    return jsonify({
+        "ok": True,
+        "counties": AVAILABLE_COUNTIES
+    })
+
+
 # ========== SCRAPING API ==========
 
 @app.post("/api/trigger_scrape")
-def api_trigger_scrape():
+@app.post("/api/trigger_scrape/<county>")
+def api_trigger_scrape(county="duval"):
     """Manually trigger a scrape job (admin only)"""
     u = require_login(admin=True)
     if not u:
         return jsonify({"ok": False, "error": "Not authorized"}), 401
+    
+    # Validate county
+    county_config = next((c for c in AVAILABLE_COUNTIES if c["code"] == county), None)
+    if not county_config:
+        return jsonify({"ok": False, "error": f"Unknown county: {county}"}), 400
+    
+    if not county_config["enabled"]:
+        return jsonify({"ok": False, "error": f"{county_config['name']} is not enabled yet"}), 400
     
     # Run scraper in background
     scraper_script = BASE_DIR / "automated_scraper.py"
@@ -268,7 +333,7 @@ def api_trigger_scrape():
         
         return jsonify({
             "ok": True,
-            "message": "Scrape job started in background"
+            "message": f"Scrape job started for {county_config['name']} County"
         })
     
     except Exception as e:
@@ -276,7 +341,8 @@ def api_trigger_scrape():
 
 
 @app.get("/api/scrape_jobs")
-def api_scrape_jobs():
+@app.get("/api/scrape_jobs/<county>")
+def api_scrape_jobs(county=None):
     """Get list of scrape jobs"""
     u = require_login(admin=True)
     if not u:
@@ -289,18 +355,28 @@ def api_scrape_jobs():
     
     with db_conn() as conn:
         with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
-            cur.execute("""
-            SELECT * FROM scrape_jobs
-            ORDER BY created_at DESC
-            LIMIT %s
-            """, (limit,))
+            if county:
+                cur.execute("""
+                SELECT * FROM scrape_jobs
+                WHERE county = %s
+                ORDER BY created_at DESC
+                LIMIT %s
+                """, (county, limit))
+            else:
+                cur.execute("""
+                SELECT * FROM scrape_jobs
+                ORDER BY created_at DESC
+                LIMIT %s
+                """, (limit,))
+            
             jobs = cur.fetchall()
     
     return jsonify({"ok": True, "jobs": jobs})
 
 
 @app.get("/api/properties")
-def api_properties():
+@app.get("/api/properties/<county>")
+def api_properties(county=None):
     """Get properties from database"""
     u = require_login()
     if not u:
@@ -321,6 +397,10 @@ def api_properties():
     # Build query
     where_clauses = []
     params = []
+    
+    if county:
+        where_clauses.append("county = %s")
+        params.append(county)
     
     if stage:
         where_clauses.append("stage = %s")
@@ -367,7 +447,8 @@ def api_properties():
 
 
 @app.get("/api/stats")
-def api_stats():
+@app.get("/api/stats/<county>")
+def api_stats(county=None):
     """Get overall statistics"""
     u = require_login()
     if not u:
@@ -375,33 +456,40 @@ def api_stats():
     
     with db_conn() as conn:
         with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+            # Build county filter
+            county_filter = "WHERE county = %s" if county else ""
+            county_params = [county] if county else []
+            
             # Overall counts
-            cur.execute("""
+            cur.execute(f"""
             SELECT 
                 COUNT(*) as total_properties,
                 COUNT(*) FILTER (WHERE stage = 'sweet_spot') as sweet_spot_count,
                 COUNT(*) FILTER (WHERE has_tax_deed_notice = TRUE) as with_ntd,
                 SUM(current_total_due) as total_amount_due
             FROM properties
-            """)
+            {county_filter}
+            """, county_params)
             overall = cur.fetchone()
             
             # By stage
-            cur.execute("""
+            cur.execute(f"""
             SELECT stage, COUNT(*) as count
             FROM properties
+            {county_filter}
             GROUP BY stage
             ORDER BY count DESC
-            """)
+            """, county_params)
             by_stage = cur.fetchall()
             
             # Recent jobs
-            cur.execute("""
+            cur.execute(f"""
             SELECT status, COUNT(*) as count
             FROM scrape_jobs
             WHERE created_at > NOW() - INTERVAL '7 days'
+            {("AND county = %s" if county else "")}
             GROUP BY status
-            """)
+            """, county_params)
             recent_jobs = cur.fetchall()
     
     return jsonify({
@@ -430,7 +518,7 @@ print("🔍 DATABASE CHECK ON STARTUP")
 print("=" * 70)
 try:
     if DATABASE_URL:
-        conn = db_conn()  # Use the proper db_conn() function instead
+        conn = db_conn()
         cur = conn.cursor()
         
         cur.execute('SELECT COUNT(*) FROM properties')
