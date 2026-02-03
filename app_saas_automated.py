@@ -19,37 +19,6 @@ from flask import Flask, jsonify, request, send_from_directory, redirect, make_r
 from werkzeug.security import generate_password_hash, check_password_hash
 import secrets
 
-# Database check on startup
-print("\n" + "=" * 70)
-print("🔍 DATABASE CHECK ON STARTUP")
-print("=" * 70)
-try:
-    DATABASE_URL = os.getenv("DATABASE_URL")
-    if DATABASE_URL:
-        import psycopg2
-        conn = psycopg2.connect(DATABASE_URL)
-        cur = conn.cursor()
-        
-        cur.execute('SELECT COUNT(*) FROM properties')
-        total = cur.fetchone()[0]
-        print(f"📊 Total properties in database: {total}")
-        
-        cur.execute('SELECT COUNT(*) FROM properties WHERE has_tax_deed_notice = TRUE')
-        ntd = cur.fetchone()[0]
-        print(f"🎯 Properties with Tax Deed Notice: {ntd}")
-        
-        cur.execute('SELECT stage, COUNT(*) FROM properties GROUP BY stage ORDER BY COUNT(*) DESC')
-        print("📈 By stage:")
-        for stage, count in cur.fetchall():
-            print(f"   {stage}: {count}")
-        
-        conn.close()
-    else:
-        print("⚠️  DATABASE_URL not set")
-except Exception as e:
-    print(f"⚠️  Database check failed: {e}")
-print("=" * 70 + "\n")
-
 BASE_DIR = Path(__file__).resolve().parent
 DATABASE_URL = os.getenv("DATABASE_URL", "").strip()
 APP_SECRET = os.getenv("APP_SECRET", "dev-secret-change-me")
@@ -454,6 +423,39 @@ def api_health():
 
 # Initialize database on startup (always run, not just when called directly)
 db_init()
+
+# Database check on startup
+print("\n" + "=" * 70)
+print("🔍 DATABASE CHECK ON STARTUP")
+print("=" * 70)
+try:
+    if DATABASE_URL:
+        conn = db_conn()  # Use the proper db_conn() function instead
+        cur = conn.cursor()
+        
+        cur.execute('SELECT COUNT(*) FROM properties')
+        total = cur.fetchone()[0]
+        print(f"📊 Total properties in database: {total}")
+        
+        cur.execute('SELECT COUNT(*) FROM properties WHERE has_tax_deed_notice = TRUE')
+        ntd = cur.fetchone()[0]
+        print(f"🎯 Properties with Tax Deed Notice: {ntd}")
+        
+        cur.execute('SELECT stage, COUNT(*) FROM properties GROUP BY stage ORDER BY COUNT(*) DESC')
+        print("📈 By stage:")
+        for stage, count in cur.fetchall():
+            print(f"   {stage}: {count}")
+        
+        conn.close()
+        print("✅ Database connection successful!")
+    else:
+        print("⚠️  DATABASE_URL not set")
+except Exception as e:
+    print(f"⚠️  Database check failed: {e}")
+    import traceback
+    traceback.print_exc()
+print("=" * 70 + "\n")
+
 
 if __name__ == "__main__":
     port = int(os.getenv("PORT", "10000"))
