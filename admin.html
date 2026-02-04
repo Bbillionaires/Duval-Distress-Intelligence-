@@ -71,68 +71,23 @@
             transform: translateY(-2px);
         }
 
-        .btn-danger {
-            background: #f56565;
+        .btn-success {
+            background: #10b981;
             color: white;
         }
 
-        /* County Selector */
-        .county-selector {
-            background: white;
-            border-radius: 10px;
-            padding: 20px;
-            margin-bottom: 30px;
-            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        .btn-success:hover {
+            background: #059669;
         }
 
-        .county-selector h2 {
-            color: #2d3748;
-            font-size: 18px;
-            margin-bottom: 15px;
-        }
-
-        .county-tabs {
-            display: flex;
-            gap: 10px;
-            flex-wrap: wrap;
-        }
-
-        .county-tab {
-            padding: 12px 24px;
-            border-radius: 6px;
-            border: 2px solid #e2e8f0;
-            background: white;
-            cursor: pointer;
-            transition: all 0.3s;
-            display: flex;
-            align-items: center;
-            gap: 8px;
-        }
-
-        .county-tab:hover {
-            border-color: #667eea;
-        }
-
-        .county-tab.active {
-            background: #667eea;
-            color: white;
-            border-color: #667eea;
-        }
-
-        .county-tab.disabled {
-            opacity: 0.5;
+        .btn-success:disabled {
+            background: #6b7280;
             cursor: not-allowed;
         }
 
-        .county-tab .badge {
-            background: rgba(0,0,0,0.1);
-            padding: 2px 8px;
-            border-radius: 4px;
-            font-size: 11px;
-        }
-
-        .county-tab.active .badge {
-            background: rgba(255,255,255,0.2);
+        .btn-danger {
+            background: #f56565;
+            color: white;
         }
 
         /* Stats Grid */
@@ -253,53 +208,6 @@
             color: white;
         }
 
-        .badge-enabled {
-            background: #10b981;
-            color: white;
-        }
-
-        .badge-coming-soon {
-            background: #94a3b8;
-            color: white;
-        }
-
-        /* County Management */
-        .county-list {
-            display: grid;
-            gap: 15px;
-        }
-
-        .county-item {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            padding: 15px;
-            border: 2px solid #e2e8f0;
-            border-radius: 8px;
-            transition: all 0.3s;
-        }
-
-        .county-item:hover {
-            border-color: #667eea;
-        }
-
-        .county-info h4 {
-            color: #2d3748;
-            font-size: 16px;
-            margin-bottom: 5px;
-        }
-
-        .county-info p {
-            color: #718096;
-            font-size: 13px;
-        }
-
-        .county-actions {
-            display: flex;
-            gap: 10px;
-            align-items: center;
-        }
-
         .loading {
             text-align: center;
             padding: 40px;
@@ -325,14 +233,6 @@
             .main-content {
                 grid-template-columns: 1fr;
             }
-
-            .county-tabs {
-                flex-direction: column;
-            }
-
-            .county-tab {
-                width: 100%;
-            }
         }
     </style>
 </head>
@@ -341,35 +241,13 @@
         <!-- Header -->
         <div class="header">
             <div class="header-left">
-                <h1>🏘️ <span id="countyBrandName">Real Estate</span> Intelligence</h1>
-                <p class="tagline">Tax Lead Platform</p>
+                <h1>🏘️ Duval Intelligence</h1>
+                <p class="tagline">Tax Lead Platform - $99/month</p>
             </div>
             <div class="header-actions">
-                <span id="userEmail" style="color: #718096; font-size: 14px;"></span>
+                <button class="btn btn-success" id="runScraperBtn" onclick="runScraper()">🚀 Run Scraper</button>
+                <button class="btn btn-primary" id="uploadBtn" onclick="showUploadDialog()">📤 Upload Data</button>
                 <button class="btn btn-danger" onclick="logout()">Logout</button>
-            </div>
-        </div>
-
-        <!-- County Selector -->
-        <div class="county-selector">
-            <h2>Select County</h2>
-            <div class="county-tabs" id="countyTabs">
-                <div class="county-tab active" data-county="duval">
-                    <span>🏛️ Duval Intelligence</span>
-                    <span class="badge">$49/mo</span>
-                </div>
-                <div class="county-tab disabled" data-county="miami-dade">
-                    <span>🌴 Miami-Dade Intelligence</span>
-                    <span class="badge">Coming Soon</span>
-                </div>
-                <div class="county-tab disabled" data-county="broward">
-                    <span>🏖️ Broward Intelligence</span>
-                    <span class="badge">Coming Soon</span>
-                </div>
-                <div class="county-tab disabled" data-county="palm-beach">
-                    <span>🌊 Palm Beach Intelligence</span>
-                    <span class="badge">Coming Soon</span>
-                </div>
             </div>
         </div>
 
@@ -378,7 +256,7 @@
             <div class="stat-card highlight">
                 <h3>Sweet Spot Leads</h3>
                 <div class="stat-value" id="sweetSpotCount">-</div>
-                <div class="stat-label"><span id="currentCountyName">Duval County</span></div>
+                <div class="stat-label">Duval County</div>
             </div>
             <div class="stat-card">
                 <h3>Total Properties</h3>
@@ -401,14 +279,15 @@
         <div class="main-content">
             <!-- Properties -->
             <div class="card">
-                <h2>Properties - <span id="countyDisplay">Duval County</span></h2>
+                <h2>Properties - Duval County</h2>
                 
                 <div style="margin-bottom: 20px; display: flex; gap: 10px;">
                     <select id="stageFilter" style="padding: 8px; border-radius: 6px; border: 1px solid #e2e8f0;">
                         <option value="">All Stages</option>
                         <option value="sweet_spot">Sweet Spot</option>
-                        <option value="early_delinquent">Early</option>
-                        <option value="late_stage">Late</option>
+                        <option value="pre_lien">Pre-Lien</option>
+                        <option value="tax_deed_filed">Tax Deed Filed</option>
+                        <option value="auction">Auction</option>
                     </select>
                     <button class="btn btn-primary" onclick="loadProperties()">Apply</button>
                     <button class="btn btn-primary" onclick="exportCSV()">📥 Export CSV</button>
@@ -428,7 +307,7 @@
                                 <th>Owner</th>
                                 <th>Address</th>
                                 <th>Amount Due</th>
-                                <th>Cert Age</th>
+                                <th>Tax Deed Notice</th>
                             </tr>
                         </thead>
                         <tbody id="propertiesBody"></tbody>
@@ -438,12 +317,6 @@
 
             <!-- Sidebar -->
             <div>
-                <!-- County Management -->
-                <div class="card" style="margin-bottom: 20px;">
-                    <h2>County Management</h2>
-                    <div class="county-list" id="countyList"></div>
-                </div>
-
                 <!-- Stage Breakdown -->
                 <div class="card">
                     <h2>Stage Breakdown</h2>
@@ -453,77 +326,47 @@
         </div>
     </div>
 
-    <script>
-        let currentCounty = 'duval';
-        let allCounties = [];
+    <!-- Upload Modal -->
+    <div id="uploadModal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 1000; align-items: center; justify-content: center;">
+        <div style="background: white; padding: 30px; border-radius: 10px; max-width: 500px; width: 90%;">
+            <h2 style="margin-bottom: 20px;">📤 Upload Property Data</h2>
+            
+            <div style="margin-bottom: 20px;">
+                <p style="color: #718096; font-size: 14px; margin-bottom: 15px;">
+                    Upload an Excel (.xlsx, .xls) or CSV file with property data.
+                </p>
+                <p style="color: #718096; font-size: 13px; margin-bottom: 10px;">
+                    <strong>Required column:</strong> parcel<br>
+                    <strong>Optional columns:</strong> owner, address, city, zip, total_due, certificate_number, etc.
+                </p>
+            </div>
+            
+            <input type="file" id="fileInput" accept=".xlsx,.xls,.csv" style="margin-bottom: 20px; padding: 10px; border: 2px dashed #e2e8f0; border-radius: 6px; width: 100%;">
+            
+            <div id="uploadProgress" style="display: none; margin-bottom: 20px;">
+                <div class="spinner" style="width: 30px; height: 30px;"></div>
+                <p style="text-align: center; color: #718096;">Uploading and processing...</p>
+            </div>
+            
+            <div id="uploadResult" style="display: none; margin-bottom: 20px; padding: 15px; border-radius: 6px;"></div>
+            
+            <div style="display: flex; gap: 10px; justify-content: flex-end;">
+                <button class="btn" style="background: #e2e8f0; color: #2d3748;" onclick="closeUploadDialog()">Cancel</button>
+                <button class="btn btn-primary" onclick="uploadFile()">Upload</button>
+            </div>
+        </div>
+    </div>
 
+    <script>
         // Load data on page load
         window.addEventListener('DOMContentLoaded', () => {
-            loadCounties();
             loadStats();
             loadProperties();
-            setupCountyTabs();
         });
-
-        async function loadCounties() {
-            try {
-                const response = await fetch('/api/counties');
-                const data = await response.json();
-
-                if (data.ok) {
-                    allCounties = data.counties;
-                    renderCountyManagement(data.counties);
-                }
-            } catch (error) {
-                console.error('Error loading counties:', error);
-            }
-        }
-
-        function renderCountyManagement(counties) {
-            const countyList = document.getElementById('countyList');
-            
-            countyList.innerHTML = counties.map(county => `
-                <div class="county-item">
-                    <div class="county-info">
-                        <h4>${county.name}, ${county.state}</h4>
-                        <p>$${county.price}/month • ${county.enabled ? 'Active' : 'Coming Soon'}</p>
-                    </div>
-                    <div class="county-actions">
-                        <span class="badge badge-${county.enabled ? 'enabled' : 'coming-soon'}">
-                            ${county.enabled ? 'Enabled' : 'Coming Soon'}
-                        </span>
-                        ${county.enabled ? `
-                            <button class="btn btn-primary" onclick="refreshCounty('${county.code}')">
-                                🔄 Refresh
-                            </button>
-                        ` : ''}
-                    </div>
-                </div>
-            `).join('');
-        }
-
-        function setupCountyTabs() {
-            document.querySelectorAll('.county-tab:not(.disabled)').forEach(tab => {
-                tab.addEventListener('click', () => {
-                    // Remove active from all
-                    document.querySelectorAll('.county-tab').forEach(t => t.classList.remove('active'));
-                    
-                    // Add active to clicked
-                    tab.classList.add('active');
-                    
-                    // Update current county
-                    currentCounty = tab.dataset.county;
-                    
-                    // Reload data
-                    loadStats();
-                    loadProperties();
-                });
-            });
-        }
 
         async function loadStats() {
             try {
-                const response = await fetch(`/api/stats/${currentCounty}`);
+                const response = await fetch('/api/stats');
                 const data = await response.json();
 
                 if (data.ok) {
@@ -535,11 +378,6 @@
                         '$' + (parseFloat(data.overall.total_amount_due) || 0).toLocaleString('en-US', {maximumFractionDigits: 0});
                     document.getElementById('lastUpdated').textContent = 
                         new Date().toLocaleDateString();
-                    
-                    document.getElementById('currentCountyName').textContent = 
-                        getCountyName(currentCounty);
-                    document.getElementById('countyDisplay').textContent = 
-                        getCountyName(currentCounty);
 
                     // Stage breakdown
                     const breakdownHtml = data.by_stage.map(stage => `
@@ -550,7 +388,7 @@
                             </div>
                         </div>
                     `).join('');
-                    document.getElementById('stageBreakdown').innerHTML = breakdownHtml;
+                    document.getElementById('stageBreakdown').innerHTML = breakdownHtml || '<p style="color: #718096;">No data yet</p>';
                 }
             } catch (error) {
                 console.error('Error loading stats:', error);
@@ -573,7 +411,7 @@
 
                 if (stage) params.append('stage', stage);
 
-                const response = await fetch(`/api/properties/${currentCounty}?${params}`);
+                const response = await fetch(`/api/properties?${params}`);
                 const data = await response.json();
 
                 if (data.ok && data.rows.length > 0) {
@@ -583,91 +421,153 @@
                             <td><strong>${prop.parcel || '-'}</strong></td>
                             <td><span class="badge badge-${prop.stage.replace('_', '-')}">${formatStage(prop.stage)}</span></td>
                             <td>${prop.owner || '-'}</td>
-                            <td>${prop.address || '-'}</td>
+                            <td>${prop.address || '-'}, ${prop.city || ''}</td>
                             <td><strong>$${parseFloat(prop.current_total_due || 0).toLocaleString('en-US', {maximumFractionDigits: 2})}</strong></td>
-                            <td>${prop.certificate_age_months || '-'} mo</td>
+                            <td>${prop.has_tax_deed_notice ? '✅ Yes' : '❌ No'}</td>
                         </tr>
                     `).join('');
                     
                     table.style.display = 'block';
+                } else {
+                    document.getElementById('propertiesBody').innerHTML = '<tr><td colspan="6" style="text-align: center; padding: 40px; color: #718096;">No properties found. Click "🚀 Run Scraper" to collect data.</td></tr>';
+                    table.style.display = 'block';
                 }
             } catch (error) {
                 console.error('Error loading properties:', error);
+                document.getElementById('propertiesBody').innerHTML = '<tr><td colspan="6" style="text-align: center; padding: 40px; color: #ef4444;">Error loading properties</td></tr>';
+                table.style.display = 'block';
             } finally {
                 loading.style.display = 'none';
             }
         }
 
-        async function refreshCounty(countyCode) {
-            if (!confirm(`Refresh data for ${getCountyName(countyCode)}? This may take a few minutes.`)) {
+        async function runScraper() {
+            if (!confirm('Run the scraper now? This will collect new tax deed properties from Duval County. It may take 5-10 minutes.')) {
                 return;
             }
-
+            
+            const btn = document.getElementById('runScraperBtn');
+            const originalText = btn.textContent;
+            btn.disabled = true;
+            btn.textContent = '⏳ Running scraper...';
+            
             try {
-                const response = await fetch(`/api/trigger_scrape/${countyCode}`, {
-                    method: 'POST'
+                const response = await fetch('/api/trigger_scrape', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'}
                 });
+                
                 const data = await response.json();
-
+                
                 if (data.ok) {
-                    alert('Refresh started! Data will update in a few minutes.');
+                    alert('✅ Scraper started successfully! The system is now collecting properties. Refresh this page in 5-10 minutes to see new data.');
                 } else {
-                    alert(data.error || 'Failed to start refresh');
+                    alert('❌ Error: ' + (data.error || 'Unknown error'));
                 }
             } catch (error) {
-                alert('Failed to start refresh');
+                alert('❌ Error starting scraper: ' + error.message);
+            } finally {
+                btn.disabled = false;
+                btn.textContent = originalText;
             }
         }
 
         function exportCSV() {
-            alert('CSV export for ' + getCountyName(currentCounty));
-        }
-
-        function getCountyName(code) {
-            const county = allCounties.find(c => c.code === code);
-            return county ? `${county.name}, ${county.state}` : code;
+            const stage = document.getElementById('stageFilter').value;
+            const params = new URLSearchParams({
+                page: 1,
+                page_size: 1000
+            });
+            if (stage) params.append('stage', stage);
+            
+            window.location.href = `/api/properties?${params}&format=csv`;
         }
 
         function formatStage(stage) {
             const stages = {
                 'sweet_spot': '🎯 Sweet Spot',
-                'early_delinquent': '⚠️ Early',
-                'late_stage': '🕐 Late Stage',
-                'exiting_sweetspot': '🚨 Exiting'
+                'pre_lien': '⚠️ Pre-Lien',
+                'tax_deed_filed': '📋 Tax Deed Filed',
+                'auction': '⚖️ Auction',
+                'current': '✅ Current'
             };
             return stages[stage] || stage;
         }
 
         function logout() {
-            window.location.href = '/login';
+            fetch('/api/logout', { method: 'POST' })
+                .then(() => window.location.href = '/login');
         }
-    </script>
-    
-    <script>
-        // Update branding based on selected county
-        function updateBranding(countyCode) {
-            const countyNames = {
-                'duval': 'Duval',
-                'miami-dade': 'Miami-Dade',
-                'broward': 'Broward',
-                'palm-beach': 'Palm Beach'
-            };
+
+        function showUploadDialog() {
+            document.getElementById('uploadModal').style.display = 'flex';
+            document.getElementById('uploadResult').style.display = 'none';
+            document.getElementById('fileInput').value = '';
+        }
+
+        function closeUploadDialog() {
+            document.getElementById('uploadModal').style.display = 'none';
+        }
+
+        async function uploadFile() {
+            const fileInput = document.getElementById('fileInput');
+            const file = fileInput.files[0];
             
-            const brandName = countyNames[countyCode] || 'Real Estate';
-            document.getElementById('countyBrandName').textContent = brandName;
-            document.title = `${brandName} Intelligence - Admin Dashboard`;
+            if (!file) {
+                alert('Please select a file first');
+                return;
+            }
+            
+            const progressDiv = document.getElementById('uploadProgress');
+            const resultDiv = document.getElementById('uploadResult');
+            
+            progressDiv.style.display = 'block';
+            resultDiv.style.display = 'none';
+            
+            const formData = new FormData();
+            formData.append('file', file);
+            
+            try {
+                const response = await fetch('/api/upload_properties/duval', {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                const data = await response.json();
+                
+                progressDiv.style.display = 'none';
+                resultDiv.style.display = 'block';
+                
+                if (data.ok) {
+                    resultDiv.style.background = '#d1fae5';
+                    resultDiv.style.color = '#065f46';
+                    resultDiv.innerHTML = `
+                        <strong>✅ Upload Successful!</strong><br>
+                        📊 Total rows: ${data.total_rows}<br>
+                        ✅ Imported: ${data.imported}<br>
+                        ⚠️ Duplicates updated: ${data.duplicates}<br>
+                        ${data.errors && data.errors.length > 0 ? `<br>⚠️ Errors: ${data.errors.join('<br>')}` : ''}
+                    `;
+                    
+                    // Reload data after 2 seconds
+                    setTimeout(() => {
+                        closeUploadDialog();
+                        loadStats();
+                        loadProperties();
+                    }, 2000);
+                } else {
+                    resultDiv.style.background = '#fee2e2';
+                    resultDiv.style.color = '#991b1b';
+                    resultDiv.innerHTML = `<strong>❌ Error:</strong> ${data.error}`;
+                }
+            } catch (error) {
+                progressDiv.style.display = 'none';
+                resultDiv.style.display = 'block';
+                resultDiv.style.background = '#fee2e2';
+                resultDiv.style.color = '#991b1b';
+                resultDiv.innerHTML = `<strong>❌ Error:</strong> ${error.message}`;
+            }
         }
-
-        // Call when county changes
-        document.querySelectorAll('.county-tab:not(.disabled)').forEach(tab => {
-            tab.addEventListener('click', () => {
-                const county = tab.dataset.county;
-                updateBranding(county);
-            });
-        });
-
-        // Set initial branding
-        updateBranding('duval');
     </script>
 </body>
 </html>

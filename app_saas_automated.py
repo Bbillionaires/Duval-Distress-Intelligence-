@@ -18,7 +18,9 @@ import psycopg2
 import psycopg2.extras
 from flask import Flask, jsonify, request, send_from_directory, redirect, make_response
 from werkzeug.security import generate_password_hash, check_password_hash
+from werkzeug.utils import secure_filename
 import secrets
+import pandas as pd
 
 BASE_DIR = Path(__file__).resolve().parent
 DATABASE_URL = os.getenv("DATABASE_URL", "").strip()
@@ -30,6 +32,11 @@ DEFAULT_ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "ChangeMe123!")
 
 app = Flask(__name__)
 app.config["SECRET_KEY"] = APP_SECRET
+app.config["MAX_CONTENT_LENGTH"] = 16 * 1024 * 1024  # 16MB max file size
+app.config["UPLOAD_FOLDER"] = BASE_DIR / "uploads"
+
+# Allowed file extensions for upload
+ALLOWED_EXTENSIONS = {'xlsx', 'xls', 'csv'}
 
 # County configuration (future-proof for expansion)
 AVAILABLE_COUNTIES = [
@@ -507,6 +514,190 @@ def api_health():
         "db_url_set": bool(DATABASE_URL),
         "server_time": datetime.now(timezone.utc).isoformat() + "Z"
     })
+
+
+# ========== FILE UPLOAD API ==========
+
+def allowed_file(filename):
+    return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
+
+
+def classify_stage_from_data(row):
+    """Classify property stage based on available data"""
+    has_ntd = row.get('has_tax_deed_notice', False)
+    total_due = float(row.get('current_total_due', 0) or 0)
+    
+    if has_ntd:
+        return 'tax_deed_filed'
+    elif total_due > 5000:
+        return 'sweet_spot'
+    elif total_due > 0:
+        return 'pre_lien'
+    else:
+        return 'current'
+
+
+@app.post("/api/upload_properties")
+@app.post("/api/upload_properties/<county>")
+def api_upload_properties(county="duval"):
+    """Upload property data from Excel file"""
+    u = require_login(admin=True)
+    if not u:
+        return jsonify({"ok": False, "error": "Not authorized"}), 401
+    
+    # Check if file was uploaded
+    if 'file' not in request.files:
+        return jsonify({"ok": False, "error": "No file uploaded"}), 400
+    
+    file = request.files['file']
+    
+    if file.filename == '':
+        return jsonify({"ok": False, "error": "No file selected"}), 400
+    
+    if not allowed_file(file.filename):
+        return jsonify({"ok": False, "error": "Invalid file type. Please upload .xlsx, .xls, or .csv"}), 400
+    
+    try:
+        # Read Excel file
+        if file.filename.endswith('.csv'):
+            df = pd.read_csv(file)
+        else:
+            df = pd.read_excel(file)
+        
+        # Column mapping (flexible - handles different column names)
+        column_map = {
+            # Parcel variations
+            'parcel': ['parcel', 'parcel_id', 'parcel_number', 'parcel id', 'account', 'account_no'],
+            # Owner variations
+            'owner': ['owner', 'owner_name', 'name', 'taxpayer', 'taxpayer_name'],
+            # Address variations
+            'address': ['address', 'property_address', 'situs_address', 'situs address', 'location'],
+            'city': ['city', 'situs_city'],
+            'zip': ['zip', 'zip_code', 'zipcode', 'situs_zip'],
+            # Financial data
+            'current_total_due': ['total_due', 'amount_due', 'total_amount_due', 'amount', 'balance'],
+            'face_amount': ['face_amount', 'certificate_amount', 'face amount'],
+            # Certificate data
+            'certificate_number': ['certificate', 'cert_number', 'certificate_number', 'cert number', 'cert_no'],
+            'certificate_year': ['cert_year', 'certificate_year', 'year'],
+            # Tax deed notice
+            'has_tax_deed_notice': ['tax_deed_notice', 'ntd', 'notice', 'has_notice'],
+        }
+        
+        # Normalize column names
+        df.columns = df.columns.str.strip().str.lower()
+        
+        # Map columns
+        mapped_cols = {}
+        for target_col, possible_names in column_map.items():
+            for name in possible_names:
+                if name in df.columns:
+                    mapped_cols[target_col] = name
+                    break
+        
+        # Check if we have at least parcel column
+        if 'parcel' not in mapped_cols:
+            return jsonify({
+                "ok": False, 
+                "error": f"Could not find parcel column. Available columns: {', '.join(df.columns)}"
+            }), 400
+        
+        imported = 0
+        duplicates = 0
+        errors = []
+        
+        with db_conn() as conn:
+            with conn.cursor() as cur:
+                for idx, row in df.iterrows():
+                    try:
+                        # Get parcel (required)
+                        parcel = str(row[mapped_cols['parcel']]).strip()
+                        if not parcel or parcel == 'nan':
+                            continue
+                        
+                        # Get other fields (optional)
+                        owner = str(row[mapped_cols.get('owner', mapped_cols['parcel'])]).strip() if 'owner' in mapped_cols else ''
+                        address = str(row[mapped_cols.get('address', mapped_cols['parcel'])]).strip() if 'address' in mapped_cols else ''
+                        city = str(row[mapped_cols.get('city', mapped_cols['parcel'])]).strip() if 'city' in mapped_cols else ''
+                        zip_code = str(row[mapped_cols.get('zip', mapped_cols['parcel'])]).strip() if 'zip' in mapped_cols else ''
+                        
+                        # Financial data
+                        try:
+                            total_due = float(row[mapped_cols.get('current_total_due', mapped_cols['parcel'])]) if 'current_total_due' in mapped_cols else None
+                        except:
+                            total_due = None
+                        
+                        try:
+                            face_amount = float(row[mapped_cols.get('face_amount', mapped_cols['parcel'])]) if 'face_amount' in mapped_cols else None
+                        except:
+                            face_amount = None
+                        
+                        # Certificate data
+                        cert_number = str(row[mapped_cols.get('certificate_number', mapped_cols['parcel'])]).strip() if 'certificate_number' in mapped_cols else ''
+                        
+                        # Tax deed notice
+                        has_ntd = False
+                        if 'has_tax_deed_notice' in mapped_cols:
+                            ntd_val = str(row[mapped_cols['has_tax_deed_notice']]).lower()
+                            has_ntd = ntd_val in ['true', 'yes', '1', 't', 'y']
+                        
+                        # Classify stage
+                        stage = classify_stage_from_data({
+                            'has_tax_deed_notice': has_ntd,
+                            'current_total_due': total_due
+                        })
+                        
+                        # Insert or update
+                        cur.execute("""
+                            INSERT INTO properties (
+                                parcel, county, stage, owner, address, city, zip,
+                                current_total_due, face_amount, certificate_number,
+                                has_tax_deed_notice, last_verified_at, created_at, updated_at
+                            ) VALUES (
+                                %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, NOW(), NOW(), NOW()
+                            )
+                            ON CONFLICT (parcel) DO UPDATE SET
+                                owner = COALESCE(NULLIF(EXCLUDED.owner, ''), properties.owner),
+                                address = COALESCE(NULLIF(EXCLUDED.address, ''), properties.address),
+                                city = COALESCE(NULLIF(EXCLUDED.city, ''), properties.city),
+                                zip = COALESCE(NULLIF(EXCLUDED.zip, ''), properties.zip),
+                                current_total_due = COALESCE(EXCLUDED.current_total_due, properties.current_total_due),
+                                face_amount = COALESCE(EXCLUDED.face_amount, properties.face_amount),
+                                certificate_number = COALESCE(NULLIF(EXCLUDED.certificate_number, ''), properties.certificate_number),
+                                has_tax_deed_notice = EXCLUDED.has_tax_deed_notice OR properties.has_tax_deed_notice,
+                                stage = EXCLUDED.stage,
+                                last_verified_at = NOW(),
+                                updated_at = NOW()
+                        """, (parcel, county, stage, owner, address, city, zip_code, 
+                              total_due, face_amount, cert_number, has_ntd))
+                        
+                        if cur.rowcount > 0:
+                            imported += 1
+                        else:
+                            duplicates += 1
+                            
+                    except Exception as e:
+                        errors.append(f"Row {idx + 2}: {str(e)}")
+                        if len(errors) > 10:  # Limit error messages
+                            errors.append("... and more errors")
+                            break
+                        continue
+                
+                conn.commit()
+        
+        return jsonify({
+            "ok": True,
+            "imported": imported,
+            "duplicates": duplicates,
+            "total_rows": len(df),
+            "errors": errors[:10] if errors else []
+        })
+        
+    except Exception as e:
+        return jsonify({
+            "ok": False,
+            "error": f"Failed to process file: {str(e)}"
+        }), 500
 
 
 # Initialize database on startup (always run, not just when called directly)
