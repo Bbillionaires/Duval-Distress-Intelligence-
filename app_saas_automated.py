@@ -13,6 +13,8 @@ import subprocess
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
+import csv
+import io
 
 import psycopg2
 import psycopg2.extras
@@ -20,7 +22,6 @@ from flask import Flask, jsonify, request, send_from_directory, redirect, make_r
 from werkzeug.security import generate_password_hash, check_password_hash
 from werkzeug.utils import secure_filename
 import secrets
-import pandas as pd
 
 BASE_DIR = Path(__file__).resolve().parent
 DATABASE_URL = os.getenv("DATABASE_URL", "").strip()
@@ -540,7 +541,7 @@ def classify_stage_from_data(row):
 @app.post("/api/upload_properties")
 @app.post("/api/upload_properties/<county>")
 def api_upload_properties(county="duval"):
-    """Upload property data from Excel file"""
+    """Upload property data from CSV file (lightweight, no pandas)"""
     u = require_login(admin=True)
     if not u:
         return jsonify({"ok": False, "error": "Not authorized"}), 401
@@ -554,52 +555,54 @@ def api_upload_properties(county="duval"):
     if file.filename == '':
         return jsonify({"ok": False, "error": "No file selected"}), 400
     
-    if not allowed_file(file.filename):
-        return jsonify({"ok": False, "error": "Invalid file type. Please upload .xlsx, .xls, or .csv"}), 400
+    # Only support CSV for now (Excel requires too much memory on free tier)
+    if not file.filename.endswith('.csv'):
+        return jsonify({"ok": False, "error": "Please upload CSV format only (.csv). Excel files use too much memory on free tier."}), 400
     
     try:
-        # Read Excel file
-        if file.filename.endswith('.csv'):
-            df = pd.read_csv(file)
-        else:
-            df = pd.read_excel(file)
+        # Read CSV file
+        file_content = file.read().decode('utf-8')
+        csv_reader = csv.DictReader(io.StringIO(file_content))
+        
+        # Get all rows
+        rows = list(csv_reader)
+        
+        if not rows:
+            return jsonify({"ok": False, "error": "File is empty"}), 400
         
         # Column mapping (flexible - handles different column names)
         column_map = {
-            # Parcel variations
             'parcel': ['parcel', 'parcel_id', 'parcel_number', 'parcel id', 'account', 'account_no'],
-            # Owner variations
             'owner': ['owner', 'owner_name', 'name', 'taxpayer', 'taxpayer_name'],
-            # Address variations
             'address': ['address', 'property_address', 'situs_address', 'situs address', 'location'],
             'city': ['city', 'situs_city'],
             'zip': ['zip', 'zip_code', 'zipcode', 'situs_zip'],
-            # Financial data
             'current_total_due': ['total_due', 'amount_due', 'total_amount_due', 'amount', 'balance'],
             'face_amount': ['face_amount', 'certificate_amount', 'face amount'],
-            # Certificate data
             'certificate_number': ['certificate', 'cert_number', 'certificate_number', 'cert number', 'cert_no'],
-            'certificate_year': ['cert_year', 'certificate_year', 'year'],
-            # Tax deed notice
             'has_tax_deed_notice': ['tax_deed_notice', 'ntd', 'notice', 'has_notice'],
         }
         
-        # Normalize column names
-        df.columns = df.columns.str.strip().str.lower()
+        # Normalize available columns
+        available_cols = [col.strip().lower() for col in rows[0].keys()]
         
         # Map columns
         mapped_cols = {}
         for target_col, possible_names in column_map.items():
             for name in possible_names:
-                if name in df.columns:
-                    mapped_cols[target_col] = name
+                if name in available_cols:
+                    # Find original case column name
+                    for orig_col in rows[0].keys():
+                        if orig_col.strip().lower() == name:
+                            mapped_cols[target_col] = orig_col
+                            break
                     break
         
         # Check if we have at least parcel column
         if 'parcel' not in mapped_cols:
             return jsonify({
                 "ok": False, 
-                "error": f"Could not find parcel column. Available columns: {', '.join(df.columns)}"
+                "error": f"Could not find parcel column. Available columns: {', '.join(rows[0].keys())}"
             }), 400
         
         imported = 0
@@ -608,37 +611,39 @@ def api_upload_properties(county="duval"):
         
         with db_conn() as conn:
             with conn.cursor() as cur:
-                for idx, row in df.iterrows():
+                for idx, row in enumerate(rows):
                     try:
                         # Get parcel (required)
-                        parcel = str(row[mapped_cols['parcel']]).strip()
-                        if not parcel or parcel == 'nan':
+                        parcel = str(row.get(mapped_cols['parcel'], '')).strip()
+                        if not parcel or parcel.lower() == 'nan':
                             continue
                         
                         # Get other fields (optional)
-                        owner = str(row[mapped_cols.get('owner', mapped_cols['parcel'])]).strip() if 'owner' in mapped_cols else ''
-                        address = str(row[mapped_cols.get('address', mapped_cols['parcel'])]).strip() if 'address' in mapped_cols else ''
-                        city = str(row[mapped_cols.get('city', mapped_cols['parcel'])]).strip() if 'city' in mapped_cols else ''
-                        zip_code = str(row[mapped_cols.get('zip', mapped_cols['parcel'])]).strip() if 'zip' in mapped_cols else ''
+                        owner = str(row.get(mapped_cols.get('owner', ''), '')).strip()
+                        address = str(row.get(mapped_cols.get('address', ''), '')).strip()
+                        city = str(row.get(mapped_cols.get('city', ''), '')).strip()
+                        zip_code = str(row.get(mapped_cols.get('zip', ''), '')).strip()
                         
                         # Financial data
                         try:
-                            total_due = float(row[mapped_cols.get('current_total_due', mapped_cols['parcel'])]) if 'current_total_due' in mapped_cols else None
+                            total_due_str = str(row.get(mapped_cols.get('current_total_due', ''), ''))
+                            total_due = float(total_due_str.replace('$', '').replace(',', '')) if total_due_str else None
                         except:
                             total_due = None
                         
                         try:
-                            face_amount = float(row[mapped_cols.get('face_amount', mapped_cols['parcel'])]) if 'face_amount' in mapped_cols else None
+                            face_str = str(row.get(mapped_cols.get('face_amount', ''), ''))
+                            face_amount = float(face_str.replace('$', '').replace(',', '')) if face_str else None
                         except:
                             face_amount = None
                         
                         # Certificate data
-                        cert_number = str(row[mapped_cols.get('certificate_number', mapped_cols['parcel'])]).strip() if 'certificate_number' in mapped_cols else ''
+                        cert_number = str(row.get(mapped_cols.get('certificate_number', ''), '')).strip()
                         
                         # Tax deed notice
                         has_ntd = False
                         if 'has_tax_deed_notice' in mapped_cols:
-                            ntd_val = str(row[mapped_cols['has_tax_deed_notice']]).lower()
+                            ntd_val = str(row.get(mapped_cols['has_tax_deed_notice'], '')).lower()
                             has_ntd = ntd_val in ['true', 'yes', '1', 't', 'y']
                         
                         # Classify stage
@@ -671,14 +676,11 @@ def api_upload_properties(county="duval"):
                         """, (parcel, county, stage, owner, address, city, zip_code, 
                               total_due, face_amount, cert_number, has_ntd))
                         
-                        if cur.rowcount > 0:
-                            imported += 1
-                        else:
-                            duplicates += 1
+                        imported += 1
                             
                     except Exception as e:
                         errors.append(f"Row {idx + 2}: {str(e)}")
-                        if len(errors) > 10:  # Limit error messages
+                        if len(errors) > 10:
                             errors.append("... and more errors")
                             break
                         continue
@@ -689,7 +691,7 @@ def api_upload_properties(county="duval"):
             "ok": True,
             "imported": imported,
             "duplicates": duplicates,
-            "total_rows": len(df),
+            "total_rows": len(rows),
             "errors": errors[:10] if errors else []
         })
         
