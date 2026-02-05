@@ -333,15 +333,16 @@
             
             <div style="margin-bottom: 20px;">
                 <p style="color: #718096; font-size: 14px; margin-bottom: 15px;">
-                    Upload a CSV file with property data. (Note: Excel files use too much memory on free tier - please export to CSV first)
+                    Upload Excel (.xlsx) or CSV file with property data. Large files (10,000+ rows) are automatically processed in batches.
                 </p>
                 <p style="color: #718096; font-size: 13px; margin-bottom: 10px;">
+                    <strong>For county-taxes.net files:</strong> Just upload the Excel file directly!<br>
                     <strong>Required column:</strong> parcel<br>
-                    <strong>Optional columns:</strong> owner, address, city, zip, total_due, certificate_number, etc.
+                    <strong>Optional columns:</strong> Owner Name, Property Address, Cert #, Face Amount, etc.
                 </p>
             </div>
             
-            <input type="file" id="fileInput" accept=".csv" style="margin-bottom: 20px; padding: 10px; border: 2px dashed #e2e8f0; border-radius: 6px; width: 100%;">
+            <input type="file" id="fileInput" accept=".xlsx,.xls,.csv" style="margin-bottom: 20px; padding: 10px; border: 2px dashed #e2e8f0; border-radius: 6px; width: 100%;">
             
             <div id="uploadProgress" style="display: none; margin-bottom: 20px;">
                 <div class="spinner" style="width: 30px; height: 30px;"></div>
@@ -524,11 +525,24 @@
             progressDiv.style.display = 'block';
             resultDiv.style.display = 'none';
             
+            // Update progress text for large files
+            const fileSize = file.size / (1024 * 1024); // MB
+            if (fileSize > 1) {
+                progressDiv.innerHTML = `
+                    <div class="spinner" style="width: 30px; height: 30px;"></div>
+                    <p style="text-align: center; color: #718096;">Processing large file in batches...<br>This may take 1-2 minutes</p>
+                `;
+            }
+            
             const formData = new FormData();
             formData.append('file', file);
             
+            // Use batch endpoint for Excel files
+            const isExcel = file.name.endsWith('.xlsx') || file.name.endsWith('.xls');
+            const endpoint = isExcel ? '/api/upload_batch/duval' : '/api/upload_properties/duval';
+            
             try {
-                const response = await fetch('/api/upload_properties/duval', {
+                const response = await fetch(endpoint, {
                     method: 'POST',
                     body: formData
                 });
@@ -543,10 +557,9 @@
                     resultDiv.style.color = '#065f46';
                     resultDiv.innerHTML = `
                         <strong>✅ Upload Successful!</strong><br>
-                        📊 Total rows: ${data.total_rows}<br>
-                        ✅ Imported: ${data.imported}<br>
-                        ⚠️ Duplicates updated: ${data.duplicates}<br>
-                        ${data.errors && data.errors.length > 0 ? `<br>⚠️ Errors: ${data.errors.join('<br>')}` : ''}
+                        📊 Imported: ${data.imported.toLocaleString()}<br>
+                        ${data.skipped ? `⚠️ Skipped: ${data.skipped}<br>` : ''}
+                        ${data.errors && data.errors.length > 0 ? `<br>⚠️ Some errors occurred (${data.errors.length})` : ''}
                     `;
                     
                     // Reload data after 2 seconds

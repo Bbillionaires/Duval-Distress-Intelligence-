@@ -15,6 +15,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 import csv
 import io
+import tempfile
 
 import psycopg2
 import psycopg2.extras
@@ -22,6 +23,13 @@ from flask import Flask, jsonify, request, send_from_directory, redirect, make_r
 from werkzeug.security import generate_password_hash, check_password_hash
 from werkzeug.utils import secure_filename
 import secrets
+
+# Import openpyxl for Excel handling
+try:
+    from openpyxl import load_workbook
+    EXCEL_SUPPORT = True
+except ImportError:
+    EXCEL_SUPPORT = False
 
 BASE_DIR = Path(__file__).resolve().parent
 DATABASE_URL = os.getenv("DATABASE_URL", "").strip()
@@ -700,6 +708,157 @@ def api_upload_properties(county="duval"):
             "ok": False,
             "error": f"Failed to process file: {str(e)}"
         }), 500
+
+
+# ========== BATCH UPLOAD FOR LARGE FILES ==========
+
+def classify_stage_from_cert(cert_status, issued_date_str, deed_status):
+    """Classify based on tax certificate data (county-taxes.net format)"""
+    try:
+        if issued_date_str and '/' in issued_date_str:
+            issued_date = datetime.strptime(issued_date_str, '%m/%d/%Y')
+            years_old = (datetime.now() - issued_date).days / 365.25
+        else:
+            years_old = 0
+        
+        if cert_status and 'redeemed' in str(cert_status).lower():
+            return 'current'
+        
+        if deed_status and str(deed_status).strip():
+            return 'tax_deed_filed'
+        
+        if years_old >= 2 and years_old <= 5:
+            return 'sweet_spot'
+        elif years_old > 5:
+            return 'danger_zone'
+        elif years_old >= 1:
+            return 'pre_lien'
+        else:
+            return 'current'
+    except:
+        return 'pre_lien'
+
+
+def process_excel_batch(rows, county):
+    """Process batch of Excel rows"""
+    imported = 0
+    errors = []
+    
+    with db_conn() as conn:
+        with conn.cursor() as cur:
+            for row in rows:
+                try:
+                    parcel = row.get('parcel', '').strip()
+                    if not parcel:
+                        continue
+                    
+                    owner = row.get('Owner Name', '')
+                    address = row.get('Property Address', '')
+                    cert_number = row.get('Cert #', '')
+                    issued_date = row.get('Issued Date', '')
+                    cert_status = row.get('Cert Status', '')
+                    deed_status = row.get('Deed Status', '')
+                    
+                    try:
+                        face_str = str(row.get('Face Amount', '')).replace('$', '').replace(',', '')
+                        face_amount = float(face_str) if face_str else None
+                    except:
+                        face_amount = None
+                    
+                    stage = classify_stage_from_cert(cert_status, issued_date, deed_status)
+                    has_ntd = bool(deed_status and str(deed_status).strip())
+                    
+                    cur.execute("""
+                        INSERT INTO properties (
+                            parcel, county, stage, owner, address,
+                            certificate_number, face_amount,
+                            has_tax_deed_notice, last_verified_at, created_at, updated_at
+                        ) VALUES (
+                            %s, %s, %s, %s, %s, %s, %s, %s, NOW(), NOW(), NOW()
+                        )
+                        ON CONFLICT (parcel) DO UPDATE SET
+                            owner = COALESCE(NULLIF(EXCLUDED.owner, ''), properties.owner),
+                            address = COALESCE(NULLIF(EXCLUDED.address, ''), properties.address),
+                            certificate_number = COALESCE(NULLIF(EXCLUDED.certificate_number, ''), properties.certificate_number),
+                            face_amount = COALESCE(EXCLUDED.face_amount, properties.face_amount),
+                            has_tax_deed_notice = EXCLUDED.has_tax_deed_notice OR properties.has_tax_deed_notice,
+                            stage = EXCLUDED.stage,
+                            last_verified_at = NOW(),
+                            updated_at = NOW()
+                    """, (parcel, county, stage, owner, address, cert_number, face_amount, has_ntd))
+                    
+                    imported += 1
+                except Exception as e:
+                    errors.append(str(e))
+                    if len(errors) > 10:
+                        break
+            
+            conn.commit()
+    
+    return {'imported': imported, 'errors': errors}
+
+
+@app.post("/api/upload_batch/<county>")
+def api_upload_batch(county="duval"):
+    """Batch upload for large Excel files (processes 1000 rows at a time)"""
+    u = require_login(admin=True)
+    if not u:
+        return jsonify({"ok": False, "error": "Not authorized"}), 401
+    
+    if 'file' not in request.files:
+        return jsonify({"ok": False, "error": "No file uploaded"}), 400
+    
+    file = request.files['file']
+    
+    if not file.filename.endswith(('.xlsx', '.xls')):
+        return jsonify({"ok": False, "error": "Excel file required (.xlsx or .xls)"}), 400
+    
+    if not EXCEL_SUPPORT:
+        return jsonify({"ok": False, "error": "openpyxl not installed"}), 500
+    
+    try:
+        BATCH_SIZE = 1000
+        wb = load_workbook(file.stream, read_only=True, data_only=True)
+        ws = wb.active
+        
+        # Get headers
+        headers = [str(cell.value).strip() if cell.value else '' for cell in next(ws.iter_rows(min_row=1, max_row=1))]
+        
+        batch = []
+        imported = 0
+        skipped = 0
+        errors = []
+        
+        for row in ws.iter_rows(min_row=2, values_only=True):
+            row_dict = dict(zip(headers, [str(cell) if cell else '' for cell in row]))
+            
+            if row_dict.get('parcel'):
+                batch.append(row_dict)
+            else:
+                skipped += 1
+            
+            if len(batch) >= BATCH_SIZE:
+                result = process_excel_batch(batch, county)
+                imported += result['imported']
+                errors.extend(result['errors'])
+                batch = []
+        
+        if batch:
+            result = process_excel_batch(batch, county)
+            imported += result['imported']
+            errors.extend(result['errors'])
+        
+        wb.close()
+        
+        return jsonify({
+            "ok": True,
+            "imported": imported,
+            "skipped": skipped,
+            "errors": errors[:10]
+        })
+    
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e)}), 500
 
 
 # Initialize database on startup (always run, not just when called directly)
