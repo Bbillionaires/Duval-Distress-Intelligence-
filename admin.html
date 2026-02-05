@@ -539,7 +539,7 @@
             
             // Use batch endpoint for Excel files
             const isExcel = file.name.endsWith('.xlsx') || file.name.endsWith('.xls');
-            const endpoint = isExcel ? '/api/upload_batch/duval' : '/api/upload_properties/duval';
+            const endpoint = '/api/upload_batch/duval';  // Use batch endpoint for all files
             
             try {
                 const response = await fetch(endpoint, {
