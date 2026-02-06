@@ -740,7 +740,7 @@ def classify_stage_from_cert(cert_status, issued_date_str, deed_status):
 
 
 def process_excel_batch(rows, county):
-    """Process batch of Excel rows"""
+    """Process batch of Excel rows with correct county-taxes.net column mapping"""
     imported = 0
     errors = []
     
@@ -748,48 +748,53 @@ def process_excel_batch(rows, county):
         with conn.cursor() as cur:
             for row in rows:
                 try:
-                    parcel = row.get('parcel', '').strip()
-                    if not parcel:
+                    parcel = str(row.get('parcel', '')).strip()
+                    if not parcel or parcel == 'None':
                         continue
                     
-                    owner = row.get('Owner Name', '')
-                    address = row.get('Property Address', '')
-                    cert_number = row.get('Cert #', '')
-                    issued_date = row.get('Issued Date', '')
-                    cert_status = row.get('Cert Status', '')
-                    deed_status = row.get('Deed Status', '')
+                    # Use exact column names from county-taxes.net
+                    owner = str(row.get('Owner Name', '')).strip()
+                    address = str(row.get('Property Address', '')).strip()
+                    cert_number = str(row.get('Cert #', '')).strip()
+                    issued_date = str(row.get('Issued Date', '')).strip()
+                    cert_status = str(row.get('Cert Status', '')).strip()
+                    deed_status = str(row.get('Deed Status', '')).strip()
                     
+                    # Parse Face Amount
                     try:
-                        face_str = str(row.get('Face Amount', '')).replace('$', '').replace(',', '')
-                        face_amount = float(face_str) if face_str else None
+                        face_str = str(row.get('Face Amount', '')).replace('$', '').replace(',', '').strip()
+                        face_amount = float(face_str) if face_str and face_str != 'None' else None
                     except:
                         face_amount = None
                     
+                    # Classify stage based on certificate data
                     stage = classify_stage_from_cert(cert_status, issued_date, deed_status)
-                    has_ntd = bool(deed_status and str(deed_status).strip())
+                    has_ntd = bool(deed_status and deed_status.strip() and deed_status != 'None')
                     
+                    # Insert or update
                     cur.execute("""
                         INSERT INTO properties (
                             parcel, county, stage, owner, address,
-                            certificate_number, face_amount,
+                            certificate_number, face_amount, current_total_due,
                             has_tax_deed_notice, last_verified_at, created_at, updated_at
                         ) VALUES (
-                            %s, %s, %s, %s, %s, %s, %s, %s, NOW(), NOW(), NOW()
+                            %s, %s, %s, %s, %s, %s, %s, %s, %s, NOW(), NOW(), NOW()
                         )
                         ON CONFLICT (parcel) DO UPDATE SET
                             owner = COALESCE(NULLIF(EXCLUDED.owner, ''), properties.owner),
                             address = COALESCE(NULLIF(EXCLUDED.address, ''), properties.address),
                             certificate_number = COALESCE(NULLIF(EXCLUDED.certificate_number, ''), properties.certificate_number),
                             face_amount = COALESCE(EXCLUDED.face_amount, properties.face_amount),
+                            current_total_due = COALESCE(EXCLUDED.current_total_due, properties.current_total_due),
                             has_tax_deed_notice = EXCLUDED.has_tax_deed_notice OR properties.has_tax_deed_notice,
                             stage = EXCLUDED.stage,
                             last_verified_at = NOW(),
                             updated_at = NOW()
-                    """, (parcel, county, stage, owner, address, cert_number, face_amount, has_ntd))
+                    """, (parcel, county, stage, owner, address, cert_number, face_amount, face_amount, has_ntd))
                     
                     imported += 1
                 except Exception as e:
-                    errors.append(str(e))
+                    errors.append(f"Parcel {parcel}: {str(e)}")
                     if len(errors) > 10:
                         break
             
@@ -800,7 +805,7 @@ def process_excel_batch(rows, county):
 
 @app.post("/api/upload_batch/<county>")
 def api_upload_batch(county="duval"):
-    """Batch upload for large Excel files (processes 1000 rows at a time)"""
+    """Batch upload for large files (processes 1000 rows at a time) - supports Excel, CSV, TSV"""
     u = require_login(admin=True)
     if not u:
         return jsonify({"ok": False, "error": "Not authorized"}), 401
@@ -810,45 +815,80 @@ def api_upload_batch(county="duval"):
     
     file = request.files['file']
     
-    if not file.filename.endswith(('.xlsx', '.xls')):
-        return jsonify({"ok": False, "error": "Excel file required (.xlsx or .xls)"}), 400
+    is_excel = file.filename.endswith(('.xlsx', '.xls'))
+    is_csv = file.filename.endswith('.csv')
     
-    if not EXCEL_SUPPORT:
+    if not is_excel and not is_csv:
+        return jsonify({"ok": False, "error": "Please upload .xlsx, .xls, or .csv file"}), 400
+    
+    if is_excel and not EXCEL_SUPPORT:
         return jsonify({"ok": False, "error": "openpyxl not installed"}), 500
     
     try:
         BATCH_SIZE = 1000
-        wb = load_workbook(file.stream, read_only=True, data_only=True)
-        ws = wb.active
-        
-        # Get headers
-        headers = [str(cell.value).strip() if cell.value else '' for cell in next(ws.iter_rows(min_row=1, max_row=1))]
-        
-        batch = []
         imported = 0
         skipped = 0
         errors = []
         
-        for row in ws.iter_rows(min_row=2, values_only=True):
-            row_dict = dict(zip(headers, [str(cell) if cell else '' for cell in row]))
+        if is_excel:
+            # Excel file processing
+            wb = load_workbook(file.stream, read_only=True, data_only=True)
+            ws = wb.active
             
-            if row_dict.get('parcel'):
-                batch.append(row_dict)
-            else:
-                skipped += 1
+            # Get headers
+            headers = [str(cell.value).strip() if cell.value else '' for cell in next(ws.iter_rows(min_row=1, max_row=1))]
             
-            if len(batch) >= BATCH_SIZE:
+            batch = []
+            
+            for row in ws.iter_rows(min_row=2, values_only=True):
+                row_dict = dict(zip(headers, [str(cell) if cell else '' for cell in row]))
+                
+                if row_dict.get('parcel'):
+                    batch.append(row_dict)
+                else:
+                    skipped += 1
+                
+                if len(batch) >= BATCH_SIZE:
+                    result = process_excel_batch(batch, county)
+                    imported += result['imported']
+                    errors.extend(result['errors'])
+                    batch = []
+            
+            if batch:
                 result = process_excel_batch(batch, county)
                 imported += result['imported']
                 errors.extend(result['errors'])
-                batch = []
+            
+            wb.close()
         
-        if batch:
-            result = process_excel_batch(batch, county)
-            imported += result['imported']
-            errors.extend(result['errors'])
-        
-        wb.close()
+        else:
+            # CSV/TSV file processing
+            file_content = file.read().decode('utf-8', errors='ignore')
+            
+            # Detect delimiter (tab or comma)
+            first_line = file_content.split('\n')[0]
+            delimiter = '\t' if '\t' in first_line else ','
+            
+            csv_reader = csv.DictReader(io.StringIO(file_content), delimiter=delimiter)
+            
+            batch = []
+            
+            for row in csv_reader:
+                if row.get('parcel'):
+                    batch.append(row)
+                else:
+                    skipped += 1
+                
+                if len(batch) >= BATCH_SIZE:
+                    result = process_excel_batch(batch, county)
+                    imported += result['imported']
+                    errors.extend(result['errors'])
+                    batch = []
+            
+            if batch:
+                result = process_excel_batch(batch, county)
+                imported += result['imported']
+                errors.extend(result['errors'])
         
         return jsonify({
             "ok": True,
