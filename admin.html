@@ -284,10 +284,12 @@
                 <div style="margin-bottom: 20px; display: flex; gap: 10px;">
                     <select id="stageFilter" style="padding: 8px; border-radius: 6px; border: 1px solid #e2e8f0;">
                         <option value="">All Stages</option>
+                        <option value="auction_failed">🔥 Auction Failed (HOT!)</option>
                         <option value="sweet_spot">Sweet Spot</option>
-                        <option value="pre_lien">Pre-Lien</option>
                         <option value="tax_deed_filed">Tax Deed Filed</option>
-                        <option value="auction">Auction</option>
+                        <option value="danger_zone">Danger Zone</option>
+                        <option value="pre_lien">Pre-Lien</option>
+                        <option value="current">Current</option>
                     </select>
                     <button class="btn btn-primary" onclick="loadProperties()">Apply</button>
                     <button class="btn btn-primary" onclick="exportCSV()">📥 Export CSV</button>
@@ -539,7 +541,7 @@
             
             // Use batch endpoint for Excel files
             const isExcel = file.name.endsWith('.xlsx') || file.name.endsWith('.xls');
-            const endpoint = '/api/upload_batch/duval';  // Use batch endpoint for all files
+            const endpoint = isExcel ? '/api/upload_batch/duval' : '/api/upload_properties/duval';
             
             try {
                 const response = await fetch(endpoint, {

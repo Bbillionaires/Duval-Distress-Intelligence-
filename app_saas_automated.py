@@ -715,63 +715,112 @@ def api_upload_properties(county="duval"):
 def classify_stage_from_cert(cert_status, issued_date_str, deed_status):
     """Classify based on tax certificate data (county-taxes.net format)"""
     try:
+        # Parse issued date
         if issued_date_str and '/' in issued_date_str:
             issued_date = datetime.strptime(issued_date_str, '%m/%d/%Y')
             years_old = (datetime.now() - issued_date).days / 365.25
         else:
             years_old = 0
         
+        # Check if certificate was redeemed/cancelled
         if cert_status and 'redeemed' in str(cert_status).lower():
             return 'current'
         
-        if deed_status and str(deed_status).strip():
+        # Normalize deed status
+        deed_status_clean = str(deed_status).strip().upper()
+        
+        # Check for cancelled certificates
+        if 'CANCELED' in deed_status_clean or 'CANCELLED' in deed_status_clean:
+            return 'current'
+        
+        # LAS = "Lands Available for Sale" = Failed auction (HOT LEAD!)
+        if 'LAS' in deed_status_clean:
+            return 'auction_failed'  # Went to auction, nobody bought it!
+        
+        # Applied/Certified = Tax deed filed
+        if 'APPLIED' in deed_status_clean or 'CERTIFIED' in deed_status_clean:
             return 'tax_deed_filed'
         
+        # Ignore "-- None --" as deed filing
+        has_deed_filing = deed_status_clean and deed_status_clean not in ['-- NONE --', 'NONE', 'NULL', '', 'N/A']
+        
+        # If some other deed status we don't recognize
+        if has_deed_filing:
+            return 'tax_deed_filed'
+        
+        # Classify based on certificate age (no deed filed)
         if years_old >= 2 and years_old <= 5:
-            return 'sweet_spot'
+            return 'sweet_spot'  # BEST LEADS!
         elif years_old > 5:
-            return 'danger_zone'
+            return 'danger_zone'  # Approaching expiration
         elif years_old >= 1:
-            return 'pre_lien'
+            return 'pre_lien'  # Getting interesting
         else:
-            return 'current'
+            return 'current'  # Too new
     except:
         return 'pre_lien'
 
 
 def process_excel_batch(rows, county):
-    """Process batch of Excel rows with correct county-taxes.net column mapping"""
+    """Process batch with smart parcel grouping - takes highest Face Amount per parcel"""
     imported = 0
     errors = []
     
+    # Group rows by parcel and keep the one with highest Face Amount
+    parcel_groups = {}
+    
+    for row in rows:
+        try:
+            parcel = str(row.get('parcel', '')).strip()
+            
+            # Skip if no parcel or parcel is empty/None
+            if not parcel or parcel.upper() in ['NONE', 'NULL', '']:
+                continue
+            
+            # Parse Face Amount to find the highest (cumulative total)
+            try:
+                face_str = str(row.get('Face Amount', '')).replace('$', '').replace(',', '').strip()
+                face_amount = float(face_str) if face_str and face_str.upper() not in ['NONE', 'NULL', ''] else 0
+            except:
+                face_amount = 0
+            
+            # Keep the row with highest Face Amount for each parcel
+            if parcel not in parcel_groups or face_amount > parcel_groups[parcel].get('face_amount', 0):
+                parcel_groups[parcel] = {
+                    'row': row,
+                    'face_amount': face_amount
+                }
+        except:
+            continue
+    
+    # Now process the grouped parcels (one per parcel with highest amount)
     with db_conn() as conn:
         with conn.cursor() as cur:
-            for row in rows:
+            for parcel, data in parcel_groups.items():
                 try:
-                    parcel = str(row.get('parcel', '')).strip()
-                    if not parcel or parcel == 'None':
-                        continue
+                    row = data['row']
+                    face_amount = data['face_amount']
                     
-                    # Use exact column names from county-taxes.net
+                    # Get all relevant columns from county-taxes.net
                     owner = str(row.get('Owner Name', '')).strip()
-                    address = str(row.get('Property Address', '')).strip()
+                    owner_address = str(row.get('Owner Address', '')).strip()
+                    property_address = str(row.get('Property Address', '')).strip()
                     cert_number = str(row.get('Cert #', '')).strip()
                     issued_date = str(row.get('Issued Date', '')).strip()
                     cert_status = str(row.get('Cert Status', '')).strip()
                     deed_status = str(row.get('Deed Status', '')).strip()
                     
-                    # Parse Face Amount
-                    try:
-                        face_str = str(row.get('Face Amount', '')).replace('$', '').replace(',', '').strip()
-                        face_amount = float(face_str) if face_str and face_str != 'None' else None
-                    except:
-                        face_amount = None
-                    
                     # Classify stage based on certificate data
                     stage = classify_stage_from_cert(cert_status, issued_date, deed_status)
-                    has_ntd = bool(deed_status and deed_status.strip() and deed_status != 'None')
                     
-                    # Insert or update
+                    # Determine if has tax deed notice
+                    deed_status_clean = str(deed_status).strip().upper()
+                    has_ntd = deed_status_clean and deed_status_clean not in ['-- NONE --', 'NONE', 'NULL', '', 'N/A']
+                    
+                    # Combine owner name and address
+                    full_owner_info = f"{owner}\n{owner_address}" if owner_address else owner
+                    
+                    # Insert or update (always use latest/highest amount data)
                     cur.execute("""
                         INSERT INTO properties (
                             parcel, county, stage, owner, address,
@@ -781,18 +830,21 @@ def process_excel_batch(rows, county):
                             %s, %s, %s, %s, %s, %s, %s, %s, %s, NOW(), NOW(), NOW()
                         )
                         ON CONFLICT (parcel) DO UPDATE SET
-                            owner = COALESCE(NULLIF(EXCLUDED.owner, ''), properties.owner),
-                            address = COALESCE(NULLIF(EXCLUDED.address, ''), properties.address),
-                            certificate_number = COALESCE(NULLIF(EXCLUDED.certificate_number, ''), properties.certificate_number),
-                            face_amount = COALESCE(EXCLUDED.face_amount, properties.face_amount),
-                            current_total_due = COALESCE(EXCLUDED.current_total_due, properties.current_total_due),
-                            has_tax_deed_notice = EXCLUDED.has_tax_deed_notice OR properties.has_tax_deed_notice,
+                            owner = EXCLUDED.owner,
+                            address = EXCLUDED.address,
+                            certificate_number = EXCLUDED.certificate_number,
+                            face_amount = EXCLUDED.face_amount,
+                            current_total_due = EXCLUDED.current_total_due,
+                            has_tax_deed_notice = EXCLUDED.has_tax_deed_notice,
                             stage = EXCLUDED.stage,
                             last_verified_at = NOW(),
                             updated_at = NOW()
-                    """, (parcel, county, stage, owner, address, cert_number, face_amount, face_amount, has_ntd))
+                    """, (parcel, county, stage, full_owner_info, property_address, 
+                          cert_number, face_amount if face_amount > 0 else None, 
+                          face_amount if face_amount > 0 else None, has_ntd))
                     
                     imported += 1
+                    
                 except Exception as e:
                     errors.append(f"Parcel {parcel}: {str(e)}")
                     if len(errors) > 10:
