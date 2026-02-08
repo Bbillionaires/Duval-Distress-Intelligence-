@@ -757,7 +757,10 @@ def classify_stage_from_cert(cert_status, issued_date_str, deed_status):
             return 'pre_lien'  # Getting interesting
         else:
             return 'current'  # Too new
-    except:
+    except Exception as e:
+        # Log the error to help debug classification issues
+        print(f"⚠️ Classification error: {e}")
+        print(f"   issued_date={issued_date_str}, cert_status={cert_status}, deed_status={deed_status}")
         return 'pre_lien'
 
 
