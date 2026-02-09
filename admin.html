@@ -306,10 +306,12 @@
                             <tr>
                                 <th>Parcel</th>
                                 <th>Stage</th>
-                                <th>Owner</th>
-                                <th>Address</th>
+                                <th>Property Address</th>
+                                <th>Owner Name</th>
+                                <th>Owner Mailing Address</th>
+                                <th>Deed Status</th>
                                 <th>Amount Due</th>
-                                <th>Tax Deed Notice</th>
+                                <th>Certificate #</th>
                             </tr>
                         </thead>
                         <tbody id="propertiesBody"></tbody>
@@ -423,21 +425,23 @@
                         <tr>
                             <td><strong>${prop.parcel || '-'}</strong></td>
                             <td><span class="badge badge-${prop.stage.replace('_', '-')}">${formatStage(prop.stage)}</span></td>
+                            <td>${prop.address || '-'}</td>
                             <td>${prop.owner || '-'}</td>
-                            <td>${prop.address || '-'}, ${prop.city || ''}</td>
+                            <td>${prop.owner_address || '-'}</td>
+                            <td>${prop.deed_status || '-'}</td>
                             <td><strong>$${parseFloat(prop.current_total_due || 0).toLocaleString('en-US', {maximumFractionDigits: 2})}</strong></td>
-                            <td>${prop.has_tax_deed_notice ? '✅ Yes' : '❌ No'}</td>
+                            <td>${prop.certificate_number || '-'}</td>
                         </tr>
                     `).join('');
                     
                     table.style.display = 'block';
                 } else {
-                    document.getElementById('propertiesBody').innerHTML = '<tr><td colspan="6" style="text-align: center; padding: 40px; color: #718096;">No properties found. Click "🚀 Run Scraper" to collect data.</td></tr>';
+                    document.getElementById('propertiesBody').innerHTML = '<tr><td colspan="8" style="text-align: center; padding: 40px; color: #718096;">No properties found. Click "📤 Upload Data" to import properties.</td></tr>';
                     table.style.display = 'block';
                 }
             } catch (error) {
                 console.error('Error loading properties:', error);
-                document.getElementById('propertiesBody').innerHTML = '<tr><td colspan="6" style="text-align: center; padding: 40px; color: #ef4444;">Error loading properties</td></tr>';
+                document.getElementById('propertiesBody').innerHTML = '<tr><td colspan="8" style="text-align: center; padding: 40px; color: #ef4444;">Error loading properties</td></tr>';
                 table.style.display = 'block';
             } finally {
                 loading.style.display = 'none';

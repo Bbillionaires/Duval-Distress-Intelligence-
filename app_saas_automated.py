@@ -143,9 +143,11 @@ def db_init():
               certificate_year INT,
               certificate_age_months INT,
               owner TEXT,
+              owner_address TEXT,
               address TEXT,
               city TEXT,
               zip TEXT,
+              deed_status TEXT,
               face_amount NUMERIC(12,2),
               current_total_due NUMERIC(12,2),
               current_delinquent NUMERIC(12,2),
@@ -768,6 +770,7 @@ def process_excel_batch(rows, county):
     """Process batch with smart parcel grouping - takes highest Face Amount per parcel"""
     imported = 0
     errors = []
+    skipped_las = 0
     
     # Group rows by parcel and keep the one with highest Face Amount
     parcel_groups = {}
@@ -779,6 +782,12 @@ def process_excel_batch(rows, county):
             # Skip if no parcel or parcel is empty/None
             if not parcel or parcel.upper() in ['NONE', 'NULL', '']:
                 continue
+            
+            # Check deed status and skip LAS (Lands Available)
+            deed_status = str(row.get('Deed Status', '')).strip().upper()
+            if deed_status == 'LAS':
+                skipped_las += 1
+                continue  # Skip LAS properties - getting these from elsewhere
             
             # Parse Face Amount to find the highest (cumulative total)
             try:
@@ -805,7 +814,7 @@ def process_excel_batch(rows, county):
                     face_amount = data['face_amount']
                     
                     # Get all relevant columns from county-taxes.net
-                    owner = str(row.get('Owner Name', '')).strip()
+                    owner_name = str(row.get('Owner Name', '')).strip()
                     owner_address = str(row.get('Owner Address', '')).strip()
                     property_address = str(row.get('Property Address', '')).strip()
                     cert_number = str(row.get('Cert #', '')).strip()
@@ -820,30 +829,29 @@ def process_excel_batch(rows, county):
                     deed_status_clean = str(deed_status).strip().upper()
                     has_ntd = deed_status_clean and deed_status_clean not in ['-- NONE --', 'NONE', 'NULL', '', 'N/A']
                     
-                    # Combine owner name and address
-                    full_owner_info = f"{owner}\n{owner_address}" if owner_address else owner
-                    
-                    # Insert or update (always use latest/highest amount data)
+                    # Insert or update with separate owner_address and deed_status
                     cur.execute("""
                         INSERT INTO properties (
-                            parcel, county, stage, owner, address,
-                            certificate_number, face_amount, current_total_due,
+                            parcel, county, stage, owner, owner_address, address,
+                            certificate_number, deed_status, face_amount, current_total_due,
                             has_tax_deed_notice, last_verified_at, created_at, updated_at
                         ) VALUES (
-                            %s, %s, %s, %s, %s, %s, %s, %s, %s, NOW(), NOW(), NOW()
+                            %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, NOW(), NOW(), NOW()
                         )
                         ON CONFLICT (parcel) DO UPDATE SET
                             owner = EXCLUDED.owner,
+                            owner_address = EXCLUDED.owner_address,
                             address = EXCLUDED.address,
                             certificate_number = EXCLUDED.certificate_number,
+                            deed_status = EXCLUDED.deed_status,
                             face_amount = EXCLUDED.face_amount,
                             current_total_due = EXCLUDED.current_total_due,
                             has_tax_deed_notice = EXCLUDED.has_tax_deed_notice,
                             stage = EXCLUDED.stage,
                             last_verified_at = NOW(),
                             updated_at = NOW()
-                    """, (parcel, county, stage, full_owner_info, property_address, 
-                          cert_number, face_amount if face_amount > 0 else None, 
+                    """, (parcel, county, stage, owner_name, owner_address, property_address, 
+                          cert_number, deed_status, face_amount if face_amount > 0 else None, 
                           face_amount if face_amount > 0 else None, has_ntd))
                     
                     imported += 1
@@ -855,7 +863,7 @@ def process_excel_batch(rows, county):
             
             conn.commit()
     
-    return {'imported': imported, 'errors': errors}
+    return {'imported': imported, 'errors': errors, 'skipped_las': skipped_las}
 
 
 @app.post("/api/upload_batch/<county>")
@@ -949,6 +957,7 @@ def api_upload_batch(county="duval"):
             "ok": True,
             "imported": imported,
             "skipped": skipped,
+            "skipped_las": result.get('skipped_las', 0),
             "errors": errors[:10]
         })
     
