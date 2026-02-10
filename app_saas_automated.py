@@ -822,6 +822,15 @@ def process_excel_batch(rows, county):
                     cert_status = str(row.get('Cert Status', '')).strip()
                     deed_status = str(row.get('Deed Status', '')).strip()
                     
+                    # Debug logging for first row
+                    if imported == 0:
+                        print(f"🔍 DEBUG - First row data:")
+                        print(f"   Parcel: {parcel}")
+                        print(f"   Owner Name: '{owner_name}'")
+                        print(f"   Owner Address: '{owner_address}'")
+                        print(f"   Deed Status: '{deed_status}'")
+                        print(f"   Issued Date: '{issued_date}'")
+                    
                     # Classify stage based on certificate data
                     stage = classify_stage_from_cert(cert_status, issued_date, deed_status)
                     
