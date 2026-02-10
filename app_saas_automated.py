@@ -717,52 +717,59 @@ def api_upload_properties(county="duval"):
 def classify_stage_from_cert(cert_status, issued_date_str, deed_status):
     """Classify based on tax certificate data (county-taxes.net format)"""
     try:
-        # Parse issued date
-        if issued_date_str and '/' in issued_date_str:
-            issued_date = datetime.strptime(issued_date_str, '%m/%d/%Y')
-            years_old = (datetime.now() - issued_date).days / 365.25
-        else:
+        # Parse issued date - handles multiple formats from Excel
+        years_old = 0
+        issued_date_str = str(issued_date_str or '').strip()
+        try:
+            if '-' in issued_date_str:
+                # Excel datetime format: '2023-05-24 12:00:00' or '2023-05-24'
+                parsed = datetime.strptime(issued_date_str[:10], '%Y-%m-%d')
+            elif '/' in issued_date_str:
+                # String format: '5/24/2023'
+                parsed = datetime.strptime(issued_date_str, '%m/%d/%Y')
+            else:
+                parsed = None
+            if parsed:
+                years_old = (datetime.now() - parsed).days / 365.25
+        except:
             years_old = 0
         
-        # Check if certificate was redeemed/cancelled
-        if cert_status and 'redeemed' in str(cert_status).lower():
+        # Normalize statuses
+        cert_status_clean = str(cert_status or '').strip().upper()
+        deed_status_clean = str(deed_status or '').strip().upper()
+        
+        # Redeemed = paid off
+        if 'REDEEMED' in cert_status_clean:
             return 'current'
         
-        # Normalize deed status
-        deed_status_clean = str(deed_status).strip().upper()
-        
-        # Check for cancelled certificates
+        # Cancelled
         if 'CANCELED' in deed_status_clean or 'CANCELLED' in deed_status_clean:
             return 'current'
         
-        # LAS = "Lands Available for Sale" = Failed auction (HOT LEAD!)
-        if 'LAS' in deed_status_clean:
-            return 'auction_failed'  # Went to auction, nobody bought it!
+        # LAS = Lands Available = Failed auction (HOTTEST LEAD!)
+        if deed_status_clean == 'LAS':
+            return 'auction_failed'
         
-        # Applied/Certified = Tax deed filed
+        # Applied or Certified = Tax deed filed
         if 'APPLIED' in deed_status_clean or 'CERTIFIED' in deed_status_clean:
             return 'tax_deed_filed'
         
-        # Ignore "-- None --" as deed filing
-        has_deed_filing = deed_status_clean and deed_status_clean not in ['-- NONE --', 'NONE', 'NULL', '', 'N/A']
-        
-        # If some other deed status we don't recognize
-        if has_deed_filing:
+        # Any other real deed status
+        has_deed = deed_status_clean and deed_status_clean not in ['-- NONE --', 'NONE', 'NULL', '', 'N/A']
+        if has_deed:
             return 'tax_deed_filed'
         
-        # Classify based on certificate age (no deed filed)
+        # Classify by certificate age
         if years_old >= 2 and years_old <= 5:
-            return 'sweet_spot'  # BEST LEADS!
+            return 'sweet_spot'
         elif years_old > 5:
-            return 'danger_zone'  # Approaching expiration
+            return 'danger_zone'
         elif years_old >= 1:
-            return 'pre_lien'  # Getting interesting
+            return 'pre_lien'
         else:
-            return 'current'  # Too new
+            return 'current'
     except Exception as e:
-        # Log the error to help debug classification issues
-        print(f"⚠️ Classification error: {e}")
-        print(f"   issued_date={issued_date_str}, cert_status={cert_status}, deed_status={deed_status}")
+        print(f"⚠️ Classification error: {e}, issued_date={issued_date_str}")
         return 'pre_lien'
 
 
@@ -778,106 +785,125 @@ def process_excel_batch(rows, county):
     for row in rows:
         try:
             parcel = str(row.get('parcel', '')).strip()
-            
-            # Skip if no parcel or parcel is empty/None
             if not parcel or parcel.upper() in ['NONE', 'NULL', '']:
                 continue
             
-            # Check deed status and skip LAS (Lands Available)
-            deed_status = str(row.get('Deed Status', '')).strip().upper()
-            if deed_status == 'LAS':
+            # Skip LAS (Lands Available) - getting these from elsewhere
+            deed_status_check = str(row.get('Deed Status', '')).strip().upper()
+            if deed_status_check == 'LAS':
                 skipped_las += 1
-                continue  # Skip LAS properties - getting these from elsewhere
+                continue
             
-            # Parse Face Amount to find the highest (cumulative total)
+            # Parse Face Amount
             try:
                 face_str = str(row.get('Face Amount', '')).replace('$', '').replace(',', '').strip()
                 face_amount = float(face_str) if face_str and face_str.upper() not in ['NONE', 'NULL', ''] else 0
             except:
                 face_amount = 0
             
-            # Keep the row with highest Face Amount for each parcel
+            # Keep row with highest Face Amount per parcel (bold total row)
             if parcel not in parcel_groups or face_amount > parcel_groups[parcel].get('face_amount', 0):
-                parcel_groups[parcel] = {
-                    'row': row,
-                    'face_amount': face_amount
-                }
+                parcel_groups[parcel] = {'row': row, 'face_amount': face_amount}
         except:
             continue
     
-    # Now process the grouped parcels (one per parcel with highest amount)
-    with db_conn() as conn:
-        with conn.cursor() as cur:
-            for parcel, data in parcel_groups.items():
-                try:
-                    row = data['row']
-                    face_amount = data['face_amount']
-                    
-                    # Get all relevant columns from county-taxes.net
-                    owner_name = str(row.get('Owner Name', '')).strip()
-                    owner_address = str(row.get('Owner Address', '')).strip()
-                    property_address = str(row.get('Property Address', '')).strip()
-                    cert_number = str(row.get('Cert #', '')).strip()
-                    issued_date = str(row.get('Issued Date', '')).strip()
-                    cert_status = str(row.get('Cert Status', '')).strip()
-                    deed_status = str(row.get('Deed Status', '')).strip()
-                    
-                    # Debug logging for first row
-                    if imported == 0:
-                        print(f"🔍 DEBUG - First row data:")
-                        print(f"   Parcel: {parcel}")
-                        print(f"   Owner Name: '{owner_name}'")
-                        print(f"   Owner Address: '{owner_address}'")
-                        print(f"   Deed Status: '{deed_status}'")
-                        print(f"   Issued Date: '{issued_date}'")
-                    
-                    # Classify stage based on certificate data
-                    stage = classify_stage_from_cert(cert_status, issued_date, deed_status)
-                    
-                    # Determine if has tax deed notice
-                    deed_status_clean = str(deed_status).strip().upper()
-                    has_ntd = deed_status_clean and deed_status_clean not in ['-- NONE --', 'NONE', 'NULL', '', 'N/A']
-                    
-                    # Insert or update with separate owner_address and deed_status
-                    try:
-                        cur.execute("""
-                            INSERT INTO properties (
-                                parcel, county, stage, owner, owner_address, address,
-                                certificate_number, deed_status, face_amount, current_total_due,
-                                has_tax_deed_notice, last_verified_at, created_at, updated_at
-                            ) VALUES (
-                                %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, NOW(), NOW(), NOW()
-                            )
-                            ON CONFLICT (parcel) DO UPDATE SET
-                                owner = EXCLUDED.owner,
-                                owner_address = EXCLUDED.owner_address,
-                                address = EXCLUDED.address,
-                                certificate_number = EXCLUDED.certificate_number,
-                                deed_status = EXCLUDED.deed_status,
-                                face_amount = EXCLUDED.face_amount,
-                                current_total_due = EXCLUDED.current_total_due,
-                                has_tax_deed_notice = EXCLUDED.has_tax_deed_notice,
-                                stage = EXCLUDED.stage,
-                                last_verified_at = NOW(),
-                                updated_at = NOW()
-                        """, (parcel, county, stage, owner_name, owner_address, property_address, 
-                              cert_number, deed_status, face_amount if face_amount > 0 else None, 
-                              face_amount if face_amount > 0 else None, has_ntd))
-                        
-                        imported += 1
-                    except Exception as db_error:
-                        print(f"❌ DATABASE ERROR for parcel {parcel}:")
-                        print(f"   Error: {db_error}")
-                        print(f"   Data: owner_address='{owner_address}', deed_status='{deed_status}'")
-                        errors.append(f"Parcel {parcel}: DB Error - {str(db_error)}")
-                        continue
-                    
-                except Exception as e:
-                    errors.append(f"Parcel {parcel}: {str(e)}")
-                    if len(errors) > 10:
-                        break
+    # Process each parcel with its own connection to avoid transaction abort cascade
+    for parcel, data in parcel_groups.items():
+        try:
+            row = data['row']
+            face_amount = data['face_amount']
             
-            conn.commit()
+            # Extract all columns cleanly
+            owner_name = str(row.get('Owner Name', '') or '').strip()
+            owner_address = str(row.get('Owner Address', '') or '').strip()
+            property_address = str(row.get('Property Address', '') or '').strip()
+            deed_status_raw = str(row.get('Deed Status', '') or '').strip()
+            cert_status = str(row.get('Cert Status', '') or '').strip()
+            issued_date = str(row.get('Issued Date', '') or '').strip()
+            
+            # Clean cert number - remove .0 suffix Excel adds
+            cert_raw = str(row.get('Cert #', '') or '').strip()
+            try:
+                cert_number = str(int(float(cert_raw))) if cert_raw and cert_raw not in ['', 'None', 'NULL'] else None
+            except:
+                cert_number = cert_raw if cert_raw else None
+            
+            # Clean face amount
+            face_amount_save = float(face_amount) if face_amount and face_amount > 0 else None
+            
+            # Normalize deed status - treat "-- None --" and empty as no deed
+            deed_status_upper = deed_status_raw.upper()
+            has_real_deed_status = bool(
+                deed_status_upper and 
+                deed_status_upper not in ['-- NONE --', 'NONE', 'NULL', '', 'N/A']
+            )
+            
+            # Save deed_status as None if no real deed status
+            deed_status_save = deed_status_raw if has_real_deed_status else None
+            
+            # has_ntd MUST be True or False - never empty string or None
+            has_ntd = True if has_real_deed_status else False
+            
+            # Parse issued date - handles Excel datetime and string formats
+            years_old = 0
+            try:
+                if '-' in issued_date:
+                    parsed_date = datetime.strptime(issued_date[:10], '%Y-%m-%d')
+                elif '/' in issued_date:
+                    parsed_date = datetime.strptime(issued_date, '%m/%d/%Y')
+                else:
+                    parsed_date = None
+                if parsed_date:
+                    years_old = (datetime.now() - parsed_date).days / 365.25
+            except:
+                years_old = 0
+            
+            # Classify stage
+            stage = classify_stage_from_cert(cert_status, issued_date, deed_status_raw)
+            
+            # Each parcel gets its own transaction to prevent cascade failures
+            with db_conn() as conn:
+                with conn.cursor() as cur:
+                    cur.execute("""
+                        INSERT INTO properties (
+                            parcel, county, stage, owner, owner_address, address,
+                            certificate_number, deed_status, face_amount, current_total_due,
+                            has_tax_deed_notice, last_verified_at, created_at, updated_at
+                        ) VALUES (
+                            %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, NOW(), NOW(), NOW()
+                        )
+                        ON CONFLICT (parcel) DO UPDATE SET
+                            owner = EXCLUDED.owner,
+                            owner_address = EXCLUDED.owner_address,
+                            address = EXCLUDED.address,
+                            certificate_number = EXCLUDED.certificate_number,
+                            deed_status = EXCLUDED.deed_status,
+                            face_amount = EXCLUDED.face_amount,
+                            current_total_due = EXCLUDED.current_total_due,
+                            has_tax_deed_notice = EXCLUDED.has_tax_deed_notice,
+                            stage = EXCLUDED.stage,
+                            last_verified_at = NOW(),
+                            updated_at = NOW()
+                    """, (
+                        parcel, county, stage,
+                        owner_name or None,
+                        owner_address or None,
+                        property_address or None,
+                        cert_number,
+                        deed_status_save,
+                        face_amount_save,
+                        face_amount_save,
+                        has_ntd
+                    ))
+                    conn.commit()
+            
+            imported += 1
+            
+        except Exception as e:
+            print(f"❌ ERROR for parcel {parcel}: {e}")
+            errors.append(f"Parcel {parcel}: {str(e)}")
+            if len(errors) > 20:
+                break
     
     return {'imported': imported, 'errors': errors, 'skipped_las': skipped_las}
 
