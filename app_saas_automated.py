@@ -839,31 +839,38 @@ def process_excel_batch(rows, county):
                     has_ntd = deed_status_clean and deed_status_clean not in ['-- NONE --', 'NONE', 'NULL', '', 'N/A']
                     
                     # Insert or update with separate owner_address and deed_status
-                    cur.execute("""
-                        INSERT INTO properties (
-                            parcel, county, stage, owner, owner_address, address,
-                            certificate_number, deed_status, face_amount, current_total_due,
-                            has_tax_deed_notice, last_verified_at, created_at, updated_at
-                        ) VALUES (
-                            %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, NOW(), NOW(), NOW()
-                        )
-                        ON CONFLICT (parcel) DO UPDATE SET
-                            owner = EXCLUDED.owner,
-                            owner_address = EXCLUDED.owner_address,
-                            address = EXCLUDED.address,
-                            certificate_number = EXCLUDED.certificate_number,
-                            deed_status = EXCLUDED.deed_status,
-                            face_amount = EXCLUDED.face_amount,
-                            current_total_due = EXCLUDED.current_total_due,
-                            has_tax_deed_notice = EXCLUDED.has_tax_deed_notice,
-                            stage = EXCLUDED.stage,
-                            last_verified_at = NOW(),
-                            updated_at = NOW()
-                    """, (parcel, county, stage, owner_name, owner_address, property_address, 
-                          cert_number, deed_status, face_amount if face_amount > 0 else None, 
-                          face_amount if face_amount > 0 else None, has_ntd))
-                    
-                    imported += 1
+                    try:
+                        cur.execute("""
+                            INSERT INTO properties (
+                                parcel, county, stage, owner, owner_address, address,
+                                certificate_number, deed_status, face_amount, current_total_due,
+                                has_tax_deed_notice, last_verified_at, created_at, updated_at
+                            ) VALUES (
+                                %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, NOW(), NOW(), NOW()
+                            )
+                            ON CONFLICT (parcel) DO UPDATE SET
+                                owner = EXCLUDED.owner,
+                                owner_address = EXCLUDED.owner_address,
+                                address = EXCLUDED.address,
+                                certificate_number = EXCLUDED.certificate_number,
+                                deed_status = EXCLUDED.deed_status,
+                                face_amount = EXCLUDED.face_amount,
+                                current_total_due = EXCLUDED.current_total_due,
+                                has_tax_deed_notice = EXCLUDED.has_tax_deed_notice,
+                                stage = EXCLUDED.stage,
+                                last_verified_at = NOW(),
+                                updated_at = NOW()
+                        """, (parcel, county, stage, owner_name, owner_address, property_address, 
+                              cert_number, deed_status, face_amount if face_amount > 0 else None, 
+                              face_amount if face_amount > 0 else None, has_ntd))
+                        
+                        imported += 1
+                    except Exception as db_error:
+                        print(f"❌ DATABASE ERROR for parcel {parcel}:")
+                        print(f"   Error: {db_error}")
+                        print(f"   Data: owner_address='{owner_address}', deed_status='{deed_status}'")
+                        errors.append(f"Parcel {parcel}: DB Error - {str(db_error)}")
+                        continue
                     
                 except Exception as e:
                     errors.append(f"Parcel {parcel}: {str(e)}")
