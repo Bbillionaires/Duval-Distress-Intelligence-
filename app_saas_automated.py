@@ -1007,40 +1007,12 @@ def api_upload_batch(county="duval"):
         return jsonify({"ok": False, "error": str(e)}), 500
 
 
-# Initialize database on startup (always run, not just when called directly)
-db_init()
-
-# Database check on startup
-print("\n" + "=" * 70)
-print("🔍 DATABASE CHECK ON STARTUP")
-print("=" * 70)
+# Initialize database tables on startup
 try:
-    if DATABASE_URL:
-        conn = db_conn()
-        cur = conn.cursor()
-        
-        cur.execute('SELECT COUNT(*) FROM properties')
-        total = cur.fetchone()[0]
-        print(f"📊 Total properties in database: {total}")
-        
-        cur.execute('SELECT COUNT(*) FROM properties WHERE has_tax_deed_notice = TRUE')
-        ntd = cur.fetchone()[0]
-        print(f"🎯 Properties with Tax Deed Notice: {ntd}")
-        
-        cur.execute('SELECT stage, COUNT(*) FROM properties GROUP BY stage ORDER BY COUNT(*) DESC')
-        print("📈 By stage:")
-        for stage, count in cur.fetchall():
-            print(f"   {stage}: {count}")
-        
-        conn.close()
-        print("✅ Database connection successful!")
-    else:
-        print("⚠️  DATABASE_URL not set")
+    db_init()
+    print("✅ Database initialized successfully!")
 except Exception as e:
-    print(f"⚠️  Database check failed: {e}")
-    import traceback
-    traceback.print_exc()
-print("=" * 70 + "\n")
+    print(f"⚠️  Database init failed: {e}")
 
 
 if __name__ == "__main__":
