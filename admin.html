@@ -281,23 +281,31 @@
             <div class="card">
                 <h2>Properties - Duval County</h2>
                 
-                <div style="margin-bottom: 20px; display: flex; gap: 10px;">
-                    <select id="stageFilter" style="padding: 8px; border-radius: 6px; border: 1px solid #e2e8f0;">
-                        <option value="">All Stages</option>
-                        <option value="auction_failed">🔥 Auction Failed (HOT!)</option>
-                        <option value="sweet_spot">Sweet Spot</option>
-                        <option value="tax_deed_filed">Tax Deed Filed</option>
-                        <option value="danger_zone">Danger Zone</option>
-                        <option value="pre_lien">Pre-Lien</option>
-                        <option value="current">Current</option>
-                    </select>
-                    <button class="btn btn-primary" onclick="loadProperties()">Apply</button>
-                    <button class="btn btn-primary" onclick="exportCSV()">📥 Export CSV</button>
+                <div style="margin-bottom: 20px; display: flex; gap: 10px; align-items: center; justify-content: space-between;">
+                    <div style="display: flex; gap: 10px; align-items: center;">
+                        <select id="stageFilter" style="padding: 8px; border-radius: 6px; border: 1px solid #e2e8f0;">
+                            <option value="">All Stages</option>
+                            <option value="auction_failed">🔥 Auction Failed (HOT!)</option>
+                            <option value="sweet_spot">Sweet Spot</option>
+                            <option value="tax_deed_filed">Tax Deed Filed</option>
+                            <option value="danger_zone">Danger Zone</option>
+                            <option value="pre_lien">Pre-Lien</option>
+                            <option value="current">Current</option>
+                        </select>
+                        <button class="btn btn-primary" onclick="loadProperties()">Apply</button>
+                        <button class="btn btn-primary" onclick="exportCSV()">📥 Export CSV</button>
+                    </div>
+                    <div id="totalCount" style="color: #718096; font-size: 14px;">Loading...</div>
                 </div>
 
                 <div id="propertiesLoading" class="loading" style="display: none;">
                     <div class="spinner"></div>
                     <p>Loading properties...</p>
+                </div>
+
+                <div id="propertiesError" style="display: none; padding: 40px; text-align: center; background: #fee2e2; color: #991b1b; border-radius: 6px; margin-bottom: 20px;">
+                    <p><strong>⚠️ Database connection timeout</strong></p>
+                    <p>The database may be waking up. Please <a href="#" onclick="location.reload()" style="color: #991b1b; text-decoration: underline;">refresh the page</a> in 30 seconds.</p>
                 </div>
 
                 <div id="propertiesTable">
@@ -316,6 +324,12 @@
                         </thead>
                         <tbody id="propertiesBody"></tbody>
                     </table>
+                    
+                    <div id="paginationControls" style="display: none; margin-top: 20px; display: flex; justify-content: space-between; align-items: center;">
+                        <button class="btn" style="background: #e2e8f0; color: #2d3748;" id="prevBtn" onclick="changePage(-1)">← Previous</button>
+                        <span id="pageInfo" style="color: #718096; font-size: 14px;">Page 1</span>
+                        <button class="btn" style="background: #e2e8f0; color: #2d3748;" id="nextBtn" onclick="changePage(1)">Next →</button>
+                    </div>
                 </div>
             </div>
 
@@ -400,23 +414,36 @@
             }
         }
 
+        let currentPage = 1;
+        let totalPages = 1;
+
         async function loadProperties() {
             const loading = document.getElementById('propertiesLoading');
             const table = document.getElementById('propertiesTable');
+            const errorDiv = document.getElementById('propertiesError');
             const stage = document.getElementById('stageFilter').value;
 
             loading.style.display = 'block';
             table.style.display = 'none';
+            errorDiv.style.display = 'none';
 
             try {
                 const params = new URLSearchParams({
-                    page: 1,
+                    page: currentPage,
                     page_size: 50
                 });
 
                 if (stage) params.append('stage', stage);
 
-                const response = await fetch(`/api/properties?${params}`);
+                // Add 10-second timeout
+                const controller = new AbortController();
+                const timeoutId = setTimeout(() => controller.abort(), 10000);
+
+                const response = await fetch(`/api/properties?${params}`, {
+                    signal: controller.signal
+                });
+                
+                clearTimeout(timeoutId);
                 const data = await response.json();
 
                 if (data.ok && data.rows.length > 0) {
@@ -434,18 +461,44 @@
                         </tr>
                     `).join('');
                     
+                    // Update pagination
+                    totalPages = Math.ceil(data.total / data.page_size);
+                    document.getElementById('pageInfo').textContent = `Page ${currentPage} of ${totalPages}`;
+                    document.getElementById('prevBtn').disabled = currentPage === 1;
+                    document.getElementById('nextBtn').disabled = currentPage === totalPages;
+                    document.getElementById('paginationControls').style.display = 'flex';
+                    
+                    // Update total count
+                    const start = (currentPage - 1) * data.page_size + 1;
+                    const end = Math.min(currentPage * data.page_size, data.total);
+                    document.getElementById('totalCount').textContent = `Showing ${start}-${end} of ${data.total.toLocaleString()} properties`;
+                    
                     table.style.display = 'block';
                 } else {
                     document.getElementById('propertiesBody').innerHTML = '<tr><td colspan="8" style="text-align: center; padding: 40px; color: #718096;">No properties found. Click "📤 Upload Data" to import properties.</td></tr>';
+                    document.getElementById('paginationControls').style.display = 'none';
+                    document.getElementById('totalCount').textContent = 'No properties found';
                     table.style.display = 'block';
                 }
             } catch (error) {
                 console.error('Error loading properties:', error);
-                document.getElementById('propertiesBody').innerHTML = '<tr><td colspan="8" style="text-align: center; padding: 40px; color: #ef4444;">Error loading properties</td></tr>';
-                table.style.display = 'block';
+                if (error.name === 'AbortError') {
+                    // Timeout - database might be sleeping
+                    errorDiv.style.display = 'block';
+                } else {
+                    document.getElementById('propertiesBody').innerHTML = '<tr><td colspan="8" style="text-align: center; padding: 40px; color: #ef4444;">Error loading properties</td></tr>';
+                    table.style.display = 'block';
+                }
             } finally {
                 loading.style.display = 'none';
             }
+        }
+
+        function changePage(delta) {
+            currentPage += delta;
+            if (currentPage < 1) currentPage = 1;
+            if (currentPage > totalPages) currentPage = totalPages;
+            loadProperties();
         }
 
         async function runScraper() {
@@ -481,9 +534,15 @@
 
         function exportCSV() {
             const stage = document.getElementById('stageFilter').value;
+            
+            // Warn about export limit
+            if (!confirm('Export is limited to 1,000 properties. Continue?')) {
+                return;
+            }
+            
             const params = new URLSearchParams({
                 page: 1,
-                page_size: 1000
+                page_size: 1000  // Max 1000 rows
             });
             if (stage) params.append('stage', stage);
             
@@ -543,8 +602,7 @@
             const formData = new FormData();
             formData.append('file', file);
             
-            // Use batch endpoint for Excel files
-        
+            // Always use batch endpoint - it handles Excel, CSV, and TSV
             const endpoint = '/api/upload_batch/duval';
             
             try {
