@@ -807,63 +807,63 @@ def process_excel_batch(rows, county):
         except:
             continue
     
-    # Process each parcel with its own connection to avoid transaction abort cascade
-    for parcel, data in parcel_groups.items():
-        try:
-            row = data['row']
-            face_amount = data['face_amount']
-            
-            # Extract all columns cleanly
-            owner_name = str(row.get('Owner Name', '') or '').strip()
-            owner_address = str(row.get('Owner Address', '') or '').strip()
-            property_address = str(row.get('Property Address', '') or '').strip()
-            deed_status_raw = str(row.get('Deed Status', '') or '').strip()
-            cert_status = str(row.get('Cert Status', '') or '').strip()
-            issued_date = str(row.get('Issued Date', '') or '').strip()
-            
-            # Clean cert number - remove .0 suffix Excel adds
-            cert_raw = str(row.get('Cert #', '') or '').strip()
-            try:
-                cert_number = str(int(float(cert_raw))) if cert_raw and cert_raw not in ['', 'None', 'NULL'] else None
-            except:
-                cert_number = cert_raw if cert_raw else None
-            
-            # Clean face amount
-            face_amount_save = float(face_amount) if face_amount and face_amount > 0 else None
-            
-            # Normalize deed status - treat "-- None --" and empty as no deed
-            deed_status_upper = deed_status_raw.upper()
-            has_real_deed_status = bool(
-                deed_status_upper and 
-                deed_status_upper not in ['-- NONE --', 'NONE', 'NULL', '', 'N/A']
-            )
-            
-            # Save deed_status as None if no real deed status
-            deed_status_save = deed_status_raw if has_real_deed_status else None
-            
-            # has_ntd MUST be True or False - never empty string or None
-            has_ntd = True if has_real_deed_status else False
-            
-            # Parse issued date - handles Excel datetime and string formats
-            years_old = 0
-            try:
-                if '-' in issued_date:
-                    parsed_date = datetime.strptime(issued_date[:10], '%Y-%m-%d')
-                elif '/' in issued_date:
-                    parsed_date = datetime.strptime(issued_date, '%m/%d/%Y')
-                else:
-                    parsed_date = None
-                if parsed_date:
-                    years_old = (datetime.now() - parsed_date).days / 365.25
-            except:
-                years_old = 0
-            
-            # Classify stage
-            stage = classify_stage_from_cert(cert_status, issued_date, deed_status_raw)
-            
-            # Each parcel gets its own transaction to prevent cascade failures
-            with db_conn() as conn:
-                with conn.cursor() as cur:
+    # Process all parcels in a single transaction for speed
+    with db_conn() as conn:
+        with conn.cursor() as cur:
+            for parcel, data in parcel_groups.items():
+                try:
+                    row = data['row']
+                    face_amount = data['face_amount']
+                    
+                    # Extract all columns cleanly
+                    owner_name = str(row.get('Owner Name', '') or '').strip()
+                    owner_address = str(row.get('Owner Address', '') or '').strip()
+                    property_address = str(row.get('Property Address', '') or '').strip()
+                    deed_status_raw = str(row.get('Deed Status', '') or '').strip()
+                    cert_status = str(row.get('Cert Status', '') or '').strip()
+                    issued_date = str(row.get('Issued Date', '') or '').strip()
+                    
+                    # Clean cert number - remove .0 suffix Excel adds
+                    cert_raw = str(row.get('Cert #', '') or '').strip()
+                    try:
+                        cert_number = str(int(float(cert_raw))) if cert_raw and cert_raw not in ['', 'None', 'NULL'] else None
+                    except:
+                        cert_number = cert_raw if cert_raw else None
+                    
+                    # Clean face amount
+                    face_amount_save = float(face_amount) if face_amount and face_amount > 0 else None
+                    
+                    # Normalize deed status - treat "-- None --" and empty as no deed
+                    deed_status_upper = deed_status_raw.upper()
+                    has_real_deed_status = bool(
+                        deed_status_upper and 
+                        deed_status_upper not in ['-- NONE --', 'NONE', 'NULL', '', 'N/A']
+                    )
+                    
+                    # Save deed_status as None if no real deed status
+                    deed_status_save = deed_status_raw if has_real_deed_status else None
+                    
+                    # has_ntd MUST be True or False - never empty string or None
+                    has_ntd = True if has_real_deed_status else False
+                    
+                    # Parse issued date - handles Excel datetime and string formats
+                    years_old = 0
+                    try:
+                        if '-' in issued_date:
+                            parsed_date = datetime.strptime(issued_date[:10], '%Y-%m-%d')
+                        elif '/' in issued_date:
+                            parsed_date = datetime.strptime(issued_date, '%m/%d/%Y')
+                        else:
+                            parsed_date = None
+                        if parsed_date:
+                            years_old = (datetime.now() - parsed_date).days / 365.25
+                    except:
+                        years_old = 0
+                    
+                    # Classify stage
+                    stage = classify_stage_from_cert(cert_status, issued_date, deed_status_raw)
+                    
+                    # Insert/update in single transaction
                     cur.execute("""
                         INSERT INTO properties (
                             parcel, county, stage, owner, owner_address, address,
@@ -895,15 +895,17 @@ def process_excel_batch(rows, county):
                         face_amount_save,
                         has_ntd
                     ))
-                    conn.commit()
+                    
+                    imported += 1
+                    
+                except Exception as e:
+                    print(f"❌ ERROR for parcel {parcel}: {e}")
+                    errors.append(f"Parcel {parcel}: {str(e)}")
+                    if len(errors) > 20:
+                        break
             
-            imported += 1
-            
-        except Exception as e:
-            print(f"❌ ERROR for parcel {parcel}: {e}")
-            errors.append(f"Parcel {parcel}: {str(e)}")
-            if len(errors) > 20:
-                break
+            # Commit all changes at once
+            conn.commit()
     
     return {'imported': imported, 'errors': errors, 'skipped_las': skipped_las}
 
@@ -930,13 +932,15 @@ def api_upload_batch(county="duval"):
         return jsonify({"ok": False, "error": "openpyxl not installed"}), 500
     
     try:
-        BATCH_SIZE = 1000
+        BATCH_SIZE = 1000  # Increased back to 1000 with single-connection optimization
         imported = 0
         skipped = 0
         errors = []
+        row_count = 0
         
         if is_excel:
             # Excel file processing
+            print(f"📊 Starting Excel upload for {county}...")
             wb = load_workbook(file.stream, read_only=True, data_only=True)
             ws = wb.active
             
@@ -950,24 +954,29 @@ def api_upload_batch(county="duval"):
                 
                 if row_dict.get('parcel'):
                     batch.append(row_dict)
+                    row_count += 1
                 else:
                     skipped += 1
                 
                 if len(batch) >= BATCH_SIZE:
+                    print(f"   Processing rows {row_count - BATCH_SIZE + 1} to {row_count}...")
                     result = process_excel_batch(batch, county)
                     imported += result['imported']
                     errors.extend(result['errors'])
                     batch = []
             
             if batch:
+                print(f"   Processing final {len(batch)} rows...")
                 result = process_excel_batch(batch, county)
                 imported += result['imported']
                 errors.extend(result['errors'])
             
             wb.close()
+            print(f"✅ Upload complete: {imported} imported, {skipped} skipped")
         
         else:
             # CSV/TSV file processing
+            print(f"📊 Starting CSV upload for {county}...")
             file_content = file.read().decode('utf-8', errors='ignore')
             
             # Detect delimiter (tab or comma)
@@ -981,19 +990,24 @@ def api_upload_batch(county="duval"):
             for row in csv_reader:
                 if row.get('parcel'):
                     batch.append(row)
+                    row_count += 1
                 else:
                     skipped += 1
                 
                 if len(batch) >= BATCH_SIZE:
+                    print(f"   Processing rows {row_count - BATCH_SIZE + 1} to {row_count}...")
                     result = process_excel_batch(batch, county)
                     imported += result['imported']
                     errors.extend(result['errors'])
                     batch = []
             
             if batch:
+                print(f"   Processing final {len(batch)} rows...")
                 result = process_excel_batch(batch, county)
                 imported += result['imported']
                 errors.extend(result['errors'])
+            
+            print(f"✅ Upload complete: {imported} imported, {skipped} skipped")
         
         return jsonify({
             "ok": True,
