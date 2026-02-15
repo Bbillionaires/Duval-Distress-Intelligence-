@@ -808,6 +808,8 @@ def process_excel_batch(rows, county):
             continue
     
     # Process all parcels in a single transaction for speed
+    print(f"📦 Grouped into {len(parcel_groups)} unique parcels (from {len(rows)} rows)")
+    
     with db_conn() as conn:
         with conn.cursor() as cur:
             for parcel, data in parcel_groups.items():
@@ -899,9 +901,11 @@ def process_excel_batch(rows, county):
                     imported += 1
                     
                 except Exception as e:
-                    print(f"❌ ERROR for parcel {parcel}: {e}")
-                    errors.append(f"Parcel {parcel}: {str(e)}")
+                    error_msg = f"❌ ERROR for parcel {parcel}: {str(e)}"
+                    print(error_msg)
+                    errors.append(error_msg)
                     if len(errors) > 20:
+                        print(f"⚠️ Too many errors, stopping at 20. Total errors so far: {len(errors)}")
                         break
             
             # Commit all changes at once
