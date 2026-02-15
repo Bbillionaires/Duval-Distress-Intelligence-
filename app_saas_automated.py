@@ -1013,7 +1013,7 @@ def api_upload_batch(county="duval"):
             "ok": True,
             "imported": imported,
             "skipped": skipped,
-            "skipped_las": result.get('skipped_las', 0),
+            "skipped_las": result.get('skipped_las', 0) if 'result' in locals() else 0,
             "errors": errors[:10]
         })
     
