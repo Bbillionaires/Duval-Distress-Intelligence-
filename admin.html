@@ -385,7 +385,15 @@
 
         async function loadStats() {
             try {
-                const response = await fetch('/api/stats');
+                // Add 30-second timeout
+                const controller = new AbortController();
+                const timeoutId = setTimeout(() => controller.abort(), 30000);
+                
+                const response = await fetch('/api/stats', {
+                    signal: controller.signal
+                });
+                clearTimeout(timeoutId);
+                
                 const data = await response.json();
 
                 if (data.ok) {
@@ -410,8 +418,39 @@
                     document.getElementById('stageBreakdown').innerHTML = breakdownHtml || '<p style="color: #718096;">No data yet</p>';
                 }
             } catch (error) {
+                if (error.name === 'AbortError') {
+                    // Timeout - show friendly message
+                    showDatabaseWakeupMessage();
+                }
                 console.error('Error loading stats:', error);
             }
+        }
+
+        function showDatabaseWakeupMessage() {
+            const message = document.createElement('div');
+            message.style.cssText = `
+                position: fixed;
+                top: 20px;
+                right: 20px;
+                background: #fef3c7;
+                color: #92400e;
+                padding: 20px;
+                border-radius: 10px;
+                box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+                max-width: 400px;
+                z-index: 9999;
+            `;
+            message.innerHTML = `
+                <strong>⏳ Database Waking Up</strong><br>
+                <p style="margin: 10px 0 0 0; font-size: 14px;">
+                    The database is starting up. Please wait 30 seconds and 
+                    <a href="#" onclick="location.reload(); return false;" style="color: #92400e; text-decoration: underline; font-weight: 600;">refresh the page</a>.
+                </p>
+            `;
+            document.body.appendChild(message);
+            
+            // Auto-remove after 10 seconds
+            setTimeout(() => message.remove(), 10000);
         }
 
         let currentPage = 1;
@@ -606,11 +645,17 @@
             const endpoint = '/api/upload_batch/duval';
             
             try {
+                // Add 60-second timeout for uploads (they take longer)
+                const controller = new AbortController();
+                const timeoutId = setTimeout(() => controller.abort(), 60000);
+
                 const response = await fetch(endpoint, {
                     method: 'POST',
-                    body: formData
+                    body: formData,
+                    signal: controller.signal
                 });
                 
+                clearTimeout(timeoutId);
                 const data = await response.json();
                 
                 progressDiv.style.display = 'none';
@@ -642,7 +687,17 @@
                 resultDiv.style.display = 'block';
                 resultDiv.style.background = '#fee2e2';
                 resultDiv.style.color = '#991b1b';
-                resultDiv.innerHTML = `<strong>❌ Error:</strong> ${error.message}`;
+                
+                if (error.name === 'AbortError') {
+                    resultDiv.innerHTML = `
+                        <strong>⏳ Upload Timeout</strong><br>
+                        Your file is being processed in the background. 
+                        <a href="#" onclick="location.reload(); return false;" style="color: #991b1b; text-decoration: underline;">Refresh the page</a> 
+                        in 30 seconds to see if it completed.
+                    `;
+                } else {
+                    resultDiv.innerHTML = `<strong>❌ Error:</strong> ${error.message}`;
+                }
             }
         }
     </script>
