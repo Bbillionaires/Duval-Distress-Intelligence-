@@ -286,11 +286,12 @@
                         <select id="stageFilter" style="padding: 8px; border-radius: 6px; border: 1px solid #e2e8f0;">
                             <option value="">All Stages</option>
                             <option value="auction_failed">🔥 Auction Failed (HOT!)</option>
-                            <option value="sweet_spot">Sweet Spot</option>
-                            <option value="tax_deed_filed">Tax Deed Filed</option>
-                            <option value="danger_zone">Danger Zone</option>
-                            <option value="pre_lien">Pre-Lien</option>
-                            <option value="current">Current</option>
+                            <option value="sweet_spot">🎯 Sweet Spot (2-5 years)</option>
+                            <option value="danger_zone">🚨 Danger Zone (5+ years)</option>
+                            <option value="tax_deed_filed">📋 Tax Deed Filed</option>
+                            <option value="pre_lien">⚠️ Pre-Lien (1-2 years)</option>
+                            <option value="unpaid_new">🆕 Unpaid New (&lt;1 year)</option>
+                            <option value="current">✅ Paid/Current</option>
                         </select>
                         <button class="btn btn-primary" onclick="loadProperties()">Apply</button>
                         <button class="btn btn-primary" onclick="exportCSV()">📥 Export CSV</button>
@@ -611,11 +612,13 @@
 
         function formatStage(stage) {
             const stages = {
+                'auction_failed': '🔥 Auction Failed',
                 'sweet_spot': '🎯 Sweet Spot',
+                'danger_zone': '🚨 Danger Zone',
                 'pre_lien': '⚠️ Pre-Lien',
+                'unpaid_new': '🆕 Unpaid New',
                 'tax_deed_filed': '📋 Tax Deed Filed',
-                'auction': '⚖️ Auction',
-                'current': '✅ Current'
+                'current': '✅ Paid/Current'
             };
             return stages[stage] || stage;
         }

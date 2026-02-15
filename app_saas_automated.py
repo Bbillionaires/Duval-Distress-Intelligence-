@@ -789,7 +789,7 @@ def classify_stage_from_cert(cert_status, issued_date_str, deed_status):
         if has_deed:
             return 'tax_deed_filed'
         
-        # Classify by certificate age
+        # Classify by certificate age (if we reach here, certificate is unpaid with no deed)
         if years_old >= 2 and years_old <= 5:
             return 'sweet_spot'
         elif years_old > 5:
@@ -797,7 +797,8 @@ def classify_stage_from_cert(cert_status, issued_date_str, deed_status):
         elif years_old >= 1:
             return 'pre_lien'
         else:
-            return 'current'
+            # Certificate exists but less than 1 year old
+            return 'unpaid_new'
     except Exception as e:
         print(f"⚠️ Classification error: {e}, issued_date={issued_date_str}")
         return 'pre_lien'
