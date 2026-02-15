@@ -557,15 +557,6 @@ def api_stats(county=None):
     })
 
 
-@app.get("/api/health")
-def api_health():
-    return jsonify({
-        "status": "ok",
-        "db_url_set": bool(DATABASE_URL),
-        "server_time": datetime.now(timezone.utc).isoformat() + "Z"
-    })
-
-
 # ========== FILE UPLOAD API ==========
 
 def allowed_file(filename):
