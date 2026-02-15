@@ -11,6 +11,7 @@ Features:
 import os
 import subprocess
 import sys
+import time
 from datetime import datetime, timezone
 from pathlib import Path
 import csv
@@ -81,12 +82,29 @@ AVAILABLE_COUNTIES = [
 
 
 def db_conn():
+    """Get database connection with retry logic"""
     if not DATABASE_URL:
         raise RuntimeError("DATABASE_URL is not set")
+    
     dsn = DATABASE_URL
     if "sslmode=" not in dsn:
         dsn = dsn + ("&" if "?" in dsn else "?") + "sslmode=require"
-    return psycopg2.connect(dsn)
+    
+    # Retry logic - 3 attempts with increasing delays
+    for attempt in range(3):
+        try:
+            conn = psycopg2.connect(dsn)
+            if attempt > 0:
+                print(f"✅ Database connection successful on attempt {attempt + 1}")
+            return conn
+        except psycopg2.OperationalError as e:
+            if attempt < 2:  # Not the last attempt
+                wait_time = (attempt + 1) * 3  # 3s, 6s
+                print(f"⚠️ Database connection failed (attempt {attempt + 1}/3), retrying in {wait_time}s...")
+                time.sleep(wait_time)
+            else:
+                print(f"❌ Database connection failed after 3 attempts")
+                raise
 
 
 def db_init():
@@ -462,6 +480,27 @@ def api_properties(county=None):
         "returned": len(rows),
         "rows": rows
     })
+
+
+@app.get("/api/health")
+def api_health():
+    """Health check endpoint - checks database connectivity"""
+    try:
+        with db_conn() as conn:
+            with conn.cursor() as cur:
+                cur.execute("SELECT 1")
+        return jsonify({
+            "status": "healthy",
+            "database": "connected",
+            "timestamp": datetime.now().isoformat()
+        })
+    except Exception as e:
+        return jsonify({
+            "status": "unhealthy",
+            "database": "disconnected",
+            "error": str(e),
+            "timestamp": datetime.now().isoformat()
+        }), 503
 
 
 @app.get("/api/stats")
