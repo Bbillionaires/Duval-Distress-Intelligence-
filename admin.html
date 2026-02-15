@@ -379,9 +379,30 @@
     <script>
         // Load data on page load
         window.addEventListener('DOMContentLoaded', () => {
-            loadStats();
-            loadProperties();
+            checkHealthAndLoad();
         });
+
+        async function checkHealthAndLoad() {
+            try {
+                const response = await fetch('/api/health');
+                const health = await response.json();
+                
+                if (health.status === 'unhealthy') {
+                    showDatabaseWakeupMessage();
+                    // Retry after 30 seconds
+                    setTimeout(() => {
+                        location.reload();
+                    }, 30000);
+                } else {
+                    loadStats();
+                    loadProperties();
+                }
+            } catch (error) {
+                // Health check failed, try loading anyway
+                loadStats();
+                loadProperties();
+            }
+        }
 
         async function loadStats() {
             try {
