@@ -808,7 +808,7 @@ def process_excel_batch(rows, county):
     """Process batch with smart parcel grouping - takes highest Face Amount per parcel"""
     imported = 0
     errors = []
-    skipped_las = 0
+    skipped_filtered = 0  # LAS + Redeemed certificates
     
     # Group rows by parcel and keep the one with highest Face Amount
     parcel_groups = {}
@@ -822,7 +822,13 @@ def process_excel_batch(rows, county):
             # Skip LAS (Lands Available) - getting these from elsewhere
             deed_status_check = str(row.get('Deed Status', '')).strip().upper()
             if deed_status_check == 'LAS':
-                skipped_las += 1
+                skipped_filtered += 1
+                continue
+            
+            # Skip REDEEMED certificates - no opportunity
+            cert_status_check = str(row.get('Cert Status', '')).strip().upper()
+            if 'REDEEMED' in cert_status_check:
+                skipped_filtered += 1
                 continue
             
             # Parse Face Amount
@@ -942,7 +948,7 @@ def process_excel_batch(rows, county):
             # Commit all changes at once
             conn.commit()
     
-    return {'imported': imported, 'errors': errors, 'skipped_las': skipped_las}
+    return {'imported': imported, 'errors': errors, 'skipped_filtered': skipped_filtered}
 
 
 @app.post("/api/upload_batch/<county>")
@@ -1048,7 +1054,7 @@ def api_upload_batch(county="duval"):
             "ok": True,
             "imported": imported,
             "skipped": skipped,
-            "skipped_las": result.get('skipped_las', 0) if 'result' in locals() else 0,
+            "skipped_filtered": result.get('skipped_filtered', 0) if 'result' in locals() else 0,
             "errors": errors[:10]
         })
     
