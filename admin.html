@@ -309,6 +309,15 @@
                     <p>The database may be waking up. Please <a href="#" onclick="location.reload()" style="color: #991b1b; text-decoration: underline;">refresh the page</a> in 30 seconds.</p>
                 </div>
 
+                <!-- Pagination at TOP -->
+                <div id="paginationTop" style="display: none; margin-bottom: 15px; padding: 15px; background: #f7fafc; border-radius: 6px;">
+                    <div style="display: flex; justify-content: space-between; align-items: center;">
+                        <button class="btn" style="background: #e2e8f0; color: #2d3748;" id="prevBtnTop" onclick="changePage(-1)">← Previous</button>
+                        <div id="pageNumbersTop" style="display: flex; gap: 5px; flex-wrap: wrap; justify-content: center;"></div>
+                        <button class="btn" style="background: #e2e8f0; color: #2d3748;" id="nextBtnTop" onclick="changePage(1)">Next →</button>
+                    </div>
+                </div>
+
                 <div id="propertiesTable">
                     <table>
                         <thead>
@@ -326,10 +335,12 @@
                         <tbody id="propertiesBody"></tbody>
                     </table>
                     
-                    <div id="paginationControls" style="display: none; margin-top: 20px; display: flex; justify-content: space-between; align-items: center;">
-                        <button class="btn" style="background: #e2e8f0; color: #2d3748;" id="prevBtn" onclick="changePage(-1)">← Previous</button>
-                        <span id="pageInfo" style="color: #718096; font-size: 14px;">Page 1</span>
-                        <button class="btn" style="background: #e2e8f0; color: #2d3748;" id="nextBtn" onclick="changePage(1)">Next →</button>
+                    <div id="paginationControls" style="display: none; margin-top: 20px; padding: 15px; background: #f7fafc; border-radius: 6px;">
+                        <div style="display: flex; justify-content: space-between; align-items: center;">
+                            <button class="btn" style="background: #e2e8f0; color: #2d3748;" id="prevBtn" onclick="changePage(-1)">← Previous</button>
+                            <div id="pageNumbers" style="display: flex; gap: 5px; flex-wrap: wrap; justify-content: center;"></div>
+                            <button class="btn" style="background: #e2e8f0; color: #2d3748;" id="nextBtn" onclick="changePage(1)">Next →</button>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -524,10 +535,19 @@
                     
                     // Update pagination
                     totalPages = Math.ceil(data.total / data.page_size);
-                    document.getElementById('pageInfo').textContent = `Page ${currentPage} of ${totalPages}`;
+                    
+                    // Generate page number buttons
+                    renderPageNumbers();
+                    
+                    // Update button states
                     document.getElementById('prevBtn').disabled = currentPage === 1;
                     document.getElementById('nextBtn').disabled = currentPage === totalPages;
-                    document.getElementById('paginationControls').style.display = 'flex';
+                    document.getElementById('prevBtnTop').disabled = currentPage === 1;
+                    document.getElementById('nextBtnTop').disabled = currentPage === totalPages;
+                    
+                    // Show pagination controls
+                    document.getElementById('paginationControls').style.display = 'block';
+                    document.getElementById('paginationTop').style.display = 'block';
                     
                     // Update total count
                     const start = (currentPage - 1) * data.page_size + 1;
@@ -538,6 +558,7 @@
                 } else {
                     document.getElementById('propertiesBody').innerHTML = '<tr><td colspan="8" style="text-align: center; padding: 40px; color: #718096;">No properties found. Click "📤 Upload Data" to import properties.</td></tr>';
                     document.getElementById('paginationControls').style.display = 'none';
+                    document.getElementById('paginationTop').style.display = 'none';
                     document.getElementById('totalCount').textContent = 'No properties found';
                     table.style.display = 'block';
                 }
@@ -560,6 +581,57 @@
             if (currentPage < 1) currentPage = 1;
             if (currentPage > totalPages) currentPage = totalPages;
             loadProperties();
+        }
+
+        function goToPage(page) {
+            currentPage = page;
+            loadProperties();
+        }
+
+        function renderPageNumbers() {
+            const pageNumbers = document.getElementById('pageNumbers');
+            const pageNumbersTop = document.getElementById('pageNumbersTop');
+            
+            let html = '';
+            
+            // Show max 10 page buttons
+            let startPage = Math.max(1, currentPage - 5);
+            let endPage = Math.min(totalPages, currentPage + 4);
+            
+            // Adjust if near start
+            if (currentPage < 6) {
+                endPage = Math.min(10, totalPages);
+            }
+            
+            // Adjust if near end
+            if (currentPage > totalPages - 5) {
+                startPage = Math.max(1, totalPages - 9);
+            }
+            
+            // First page button
+            if (startPage > 1) {
+                html += `<button onclick="goToPage(1)" style="padding: 8px 12px; border: 1px solid #e2e8f0; background: white; border-radius: 4px; cursor: pointer; font-size: 14px;">1</button>`;
+                if (startPage > 2) {
+                    html += `<span style="padding: 8px;">...</span>`;
+                }
+            }
+            
+            // Page number buttons
+            for (let i = startPage; i <= endPage; i++) {
+                const isActive = i === currentPage;
+                html += `<button onclick="goToPage(${i})" style="padding: 8px 12px; border: 1px solid ${isActive ? '#667eea' : '#e2e8f0'}; background: ${isActive ? '#667eea' : 'white'}; color: ${isActive ? 'white' : '#2d3748'}; border-radius: 4px; cursor: pointer; font-weight: ${isActive ? 'bold' : 'normal'}; font-size: 14px;">${i}</button>`;
+            }
+            
+            // Last page button
+            if (endPage < totalPages) {
+                if (endPage < totalPages - 1) {
+                    html += `<span style="padding: 8px;">...</span>`;
+                }
+                html += `<button onclick="goToPage(${totalPages})" style="padding: 8px 12px; border: 1px solid #e2e8f0; background: white; border-radius: 4px; cursor: pointer; font-size: 14px;">${totalPages}</button>`;
+            }
+            
+            pageNumbers.innerHTML = html;
+            pageNumbersTop.innerHTML = html;
         }
 
         async function runScraper() {
