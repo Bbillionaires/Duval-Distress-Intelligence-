@@ -272,6 +272,15 @@ def admin_page():
     return send_from_directory(BASE_DIR, "admin.html")
 
 
+@app.get("/va")
+@app.get("/va/")
+@app.get("/va.html")
+@app.get("/va_portal.html")
+def va_portal_page():
+    """Serve VA portal (no auth required - handles login internally)"""
+    return send_from_directory(BASE_DIR, "va_portal.html")
+
+
 @app.get("/login")
 @app.get("/login/")
 @app.get("/login.html")
@@ -1068,6 +1077,291 @@ try:
     print("✅ Database initialized successfully!")
 except Exception as e:
     print(f"⚠️  Database init failed: {e}")
+
+
+# ========== VA PORTAL API ENDPOINTS ==========
+
+@app.post("/api/va/login")
+def api_va_login():
+    """VA login endpoint"""
+    data = request.get_json()
+    email = data.get('email', '').strip().lower()
+    password = data.get('password', '')
+    
+    if not email or not password:
+        return jsonify({"ok": False, "error": "Email and password required"}), 400
+    
+    try:
+        with db_conn() as conn:
+            with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+                cur.execute("""
+                    SELECT id, email, name, phone, total_completed, total_earned, password_hash, active
+                    FROM va_users
+                    WHERE email = %s
+                """, (email,))
+                
+                va = cur.fetchone()
+                
+                if not va:
+                    return jsonify({"ok": False, "error": "Invalid credentials"}), 401
+                
+                if not va['active']:
+                    return jsonify({"ok": False, "error": "Account disabled"}), 401
+                
+                # Check password using werkzeug (bcrypt-compatible)
+                if not check_password_hash(va['password_hash'], password):
+                    return jsonify({"ok": False, "error": "Invalid credentials"}), 401
+                
+                # Update last login
+                cur.execute("UPDATE va_users SET last_login = NOW() WHERE id = %s", (va['id'],))
+                conn.commit()
+                
+                # Return VA data (without password hash)
+                va_data = dict(va)
+                del va_data['password_hash']
+                
+                return jsonify({"ok": True, "va": va_data})
+    
+    except Exception as e:
+        print(f"❌ VA login error: {e}")
+        return jsonify({"ok": False, "error": "Login failed"}), 500
+
+
+@app.get("/api/va/jobs")
+def api_va_jobs():
+    """Get jobs for VA - available, active, and pending review"""
+    va_email = request.headers.get('X-VA-Email', '').strip().lower()
+    
+    if not va_email:
+        return jsonify({"ok": False, "error": "Not authorized"}), 401
+    
+    try:
+        with db_conn() as conn:
+            with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+                # Get VA ID
+                cur.execute("SELECT id FROM va_users WHERE email = %s AND active = TRUE", (va_email,))
+                va = cur.fetchone()
+                
+                if not va:
+                    return jsonify({"ok": False, "error": "VA not found"}), 404
+                
+                va_id = va['id']
+                
+                # Available jobs (pending, not claimed by anyone)
+                cur.execute("""
+                    SELECT * FROM service_requests
+                    WHERE status = 'pending'
+                    ORDER BY created_at ASC
+                    LIMIT 50
+                """)
+                available = cur.fetchall()
+                
+                # Active jobs (claimed by this VA)
+                cur.execute("""
+                    SELECT * FROM service_requests
+                    WHERE claimed_by_va_id = %s 
+                    AND status IN ('claimed', 'in_progress')
+                    ORDER BY claimed_at DESC
+                """, (va_id,))
+                active = cur.fetchall()
+                
+                # Pending review (submitted by this VA)
+                cur.execute("""
+                    SELECT * FROM service_requests
+                    WHERE claimed_by_va_id = %s 
+                    AND status = 'submitted'
+                    ORDER BY submitted_at DESC
+                """, (va_id,))
+                pending_review = cur.fetchall()
+                
+                return jsonify({
+                    "ok": True,
+                    "available": available,
+                    "active": active,
+                    "pending_review": pending_review
+                })
+    
+    except Exception as e:
+        print(f"❌ VA jobs error: {e}")
+        return jsonify({"ok": False, "error": "Failed to load jobs"}), 500
+
+
+@app.post("/api/va/jobs/<int:job_id>/claim")
+def api_va_claim_job(job_id):
+    """Claim a job"""
+    va_email = request.headers.get('X-VA-Email', '').strip().lower()
+    
+    if not va_email:
+        return jsonify({"ok": False, "error": "Not authorized"}), 401
+    
+    try:
+        with db_conn() as conn:
+            with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+                # Get VA
+                cur.execute("SELECT id, name FROM va_users WHERE email = %s AND active = TRUE", (va_email,))
+                va = cur.fetchone()
+                
+                if not va:
+                    return jsonify({"ok": False, "error": "VA not found"}), 404
+                
+                # Check if job is still available
+                cur.execute("""
+                    SELECT status FROM service_requests WHERE id = %s
+                """, (job_id,))
+                
+                job = cur.fetchone()
+                
+                if not job:
+                    return jsonify({"ok": False, "error": "Job not found"}), 404
+                
+                if job['status'] != 'pending':
+                    return jsonify({"ok": False, "error": "Job already claimed"}), 400
+                
+                # Claim the job
+                cur.execute("""
+                    UPDATE service_requests
+                    SET status = 'claimed',
+                        claimed_by_va_id = %s,
+                        claimed_by_va_email = %s,
+                        claimed_at = NOW(),
+                        updated_at = NOW()
+                    WHERE id = %s AND status = 'pending'
+                """, (va['id'], va_email, job_id))
+                
+                if cur.rowcount == 0:
+                    return jsonify({"ok": False, "error": "Job was just claimed by another VA"}), 400
+                
+                # Log activity
+                cur.execute("""
+                    INSERT INTO va_activity_log (va_id, service_request_id, action, notes)
+                    VALUES (%s, %s, 'claimed', 'Job claimed')
+                """, (va['id'], job_id))
+                
+                conn.commit()
+                
+                return jsonify({"ok": True, "message": "Job claimed successfully"})
+    
+    except Exception as e:
+        print(f"❌ Claim job error: {e}")
+        return jsonify({"ok": False, "error": "Failed to claim job"}), 500
+
+
+@app.post("/api/va/jobs/<int:job_id>/submit")
+def api_va_submit_job(job_id):
+    """Submit job results"""
+    va_email = request.headers.get('X-VA-Email', '').strip().lower()
+    data = request.get_json()
+    
+    if not va_email:
+        return jsonify({"ok": False, "error": "Not authorized"}), 401
+    
+    phone = data.get('phone', '').strip()
+    email = data.get('email', '').strip()
+    notes = data.get('notes', '').strip()
+    hours_used = data.get('hours_used')
+    call_outcome = data.get('call_outcome')
+    
+    try:
+        with db_conn() as conn:
+            with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+                # Get VA
+                cur.execute("SELECT id FROM va_users WHERE email = %s AND active = TRUE", (va_email,))
+                va = cur.fetchone()
+                
+                if not va:
+                    return jsonify({"ok": False, "error": "VA not found"}), 404
+                
+                # Check if this VA owns this job
+                cur.execute("""
+                    SELECT status, service_type FROM service_requests 
+                    WHERE id = %s AND claimed_by_va_id = %s
+                """, (job_id, va['id']))
+                
+                job = cur.fetchone()
+                
+                if not job:
+                    return jsonify({"ok": False, "error": "Job not found or not yours"}), 404
+                
+                if job['status'] not in ['claimed', 'in_progress']:
+                    return jsonify({"ok": False, "error": "Job cannot be submitted in current status"}), 400
+                
+                # Update job with results
+                cur.execute("""
+                    UPDATE service_requests
+                    SET status = 'submitted',
+                        phone = %s,
+                        email = %s,
+                        notes = %s,
+                        hours_used = %s,
+                        call_outcome = %s,
+                        submitted_at = NOW(),
+                        updated_at = NOW()
+                    WHERE id = %s
+                """, (phone or None, email or None, notes or None, hours_used, call_outcome, job_id))
+                
+                # Log activity
+                cur.execute("""
+                    INSERT INTO va_activity_log (va_id, service_request_id, action, notes)
+                    VALUES (%s, %s, 'submitted', %s)
+                """, (va['id'], job_id, 'Results submitted for review'))
+                
+                conn.commit()
+                
+                return jsonify({"ok": True, "message": "Results submitted for review"})
+    
+    except Exception as e:
+        print(f"❌ Submit job error: {e}")
+        return jsonify({"ok": False, "error": "Failed to submit results"}), 500
+
+
+@app.post("/api/va/jobs/<int:job_id>/cancel")
+def api_va_cancel_job(job_id):
+    """Cancel a claimed job and return it to queue"""
+    va_email = request.headers.get('X-VA-Email', '').strip().lower()
+    
+    if not va_email:
+        return jsonify({"ok": False, "error": "Not authorized"}), 401
+    
+    try:
+        with db_conn() as conn:
+            with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+                # Get VA
+                cur.execute("SELECT id FROM va_users WHERE email = %s AND active = TRUE", (va_email,))
+                va = cur.fetchone()
+                
+                if not va:
+                    return jsonify({"ok": False, "error": "VA not found"}), 404
+                
+                # Return job to queue
+                cur.execute("""
+                    UPDATE service_requests
+                    SET status = 'pending',
+                        claimed_by_va_id = NULL,
+                        claimed_by_va_email = NULL,
+                        claimed_at = NULL,
+                        updated_at = NOW()
+                    WHERE id = %s AND claimed_by_va_id = %s AND status IN ('claimed', 'in_progress')
+                """, (job_id, va['id']))
+                
+                if cur.rowcount == 0:
+                    return jsonify({"ok": False, "error": "Job not found or cannot be cancelled"}), 400
+                
+                # Log activity
+                cur.execute("""
+                    INSERT INTO va_activity_log (va_id, service_request_id, action, notes)
+                    VALUES (%s, %s, 'cancelled', 'Job cancelled and returned to queue')
+                """, (va['id'], job_id))
+                
+                conn.commit()
+                
+                return jsonify({"ok": True, "message": "Job cancelled and returned to queue"})
+    
+    except Exception as e:
+        print(f"❌ Cancel job error: {e}")
+        return jsonify({"ok": False, "error": "Failed to cancel job"}), 500
+
+
+# ========== END VA PORTAL API ==========
 
 
 if __name__ == "__main__":
