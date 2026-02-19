@@ -1120,6 +1120,10 @@ def api_va_login():
                 va_data = dict(va)
                 del va_data['password_hash']
                 
+                # Convert Decimal to float for JSON
+                if va_data.get('total_earned'):
+                    va_data['total_earned'] = float(va_data['total_earned'])
+                
                 return jsonify({"ok": True, "va": va_data})
     
     except Exception as e:
