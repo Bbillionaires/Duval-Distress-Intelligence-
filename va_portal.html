@@ -1,0 +1,694 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>VA Portal - Service Requests</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+
+        .header {
+            background: white;
+            padding: 20px 30px;
+            border-radius: 10px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 30px;
+        }
+
+        .header h1 {
+            color: #2d3748;
+            font-size: 24px;
+        }
+
+        .header-info {
+            text-align: right;
+        }
+
+        .header-info .va-name {
+            font-weight: 600;
+            color: #2d3748;
+        }
+
+        .header-info .va-stats {
+            font-size: 14px;
+            color: #718096;
+            margin-top: 5px;
+        }
+
+        .btn {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 500;
+            transition: all 0.2s;
+        }
+
+        .btn-primary {
+            background: #667eea;
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: #5568d3;
+        }
+
+        .btn-success {
+            background: #48bb78;
+            color: white;
+        }
+
+        .btn-danger {
+            background: #f56565;
+            color: white;
+        }
+
+        .btn-secondary {
+            background: #e2e8f0;
+            color: #2d3748;
+        }
+
+        .card {
+            background: white;
+            border-radius: 10px;
+            padding: 25px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+
+        .card h2 {
+            color: #2d3748;
+            font-size: 20px;
+            margin-bottom: 20px;
+            padding-bottom: 15px;
+            border-bottom: 2px solid #e2e8f0;
+        }
+
+        .request-item {
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 15px;
+            transition: all 0.2s;
+        }
+
+        .request-item:hover {
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+        }
+
+        .request-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+        }
+
+        .service-badge {
+            padding: 6px 12px;
+            border-radius: 6px;
+            font-size: 13px;
+            font-weight: 600;
+        }
+
+        .badge-skiptrace {
+            background: #bee3f8;
+            color: #2c5282;
+        }
+
+        .badge-cold-call {
+            background: #c6f6d5;
+            color: #22543d;
+        }
+
+        .badge-postcard {
+            background: #fed7d7;
+            color: #742a2a;
+        }
+
+        .badge-door-knock {
+            background: #feebc8;
+            color: #7c2d12;
+        }
+
+        .payout-badge {
+            background: #48bb78;
+            color: white;
+            padding: 6px 12px;
+            border-radius: 6px;
+            font-weight: 600;
+        }
+
+        .property-info {
+            background: #f7fafc;
+            padding: 15px;
+            border-radius: 6px;
+            margin-bottom: 15px;
+        }
+
+        .property-info p {
+            margin: 5px 0;
+            font-size: 14px;
+            color: #4a5568;
+        }
+
+        .property-info strong {
+            color: #2d3748;
+        }
+
+        .form-group {
+            margin-bottom: 15px;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 5px;
+            color: #4a5568;
+            font-weight: 500;
+        }
+
+        .form-group input,
+        .form-group textarea {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #e2e8f0;
+            border-radius: 6px;
+            font-size: 14px;
+        }
+
+        .form-group textarea {
+            min-height: 100px;
+            resize: vertical;
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 60px 20px;
+            color: #718096;
+        }
+
+        .empty-state svg {
+            width: 80px;
+            height: 80px;
+            margin-bottom: 20px;
+            opacity: 0.5;
+        }
+
+        .status-badge {
+            padding: 4px 10px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: 600;
+        }
+
+        .status-pending {
+            background: #fef3c7;
+            color: #92400e;
+        }
+
+        .status-in-progress {
+            background: #dbeafe;
+            color: #1e40af;
+        }
+
+        .status-submitted {
+            background: #e9d5ff;
+            color: #6b21a8;
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-bottom: 30px;
+        }
+
+        .stat-card {
+            background: #f7fafc;
+            padding: 20px;
+            border-radius: 8px;
+            text-align: center;
+        }
+
+        .stat-card .stat-value {
+            font-size: 32px;
+            font-weight: 700;
+            color: #2d3748;
+            margin-bottom: 5px;
+        }
+
+        .stat-card .stat-label {
+            font-size: 14px;
+            color: #718096;
+        }
+
+        .login-container {
+            max-width: 400px;
+            margin: 100px auto;
+        }
+
+        .login-card {
+            background: white;
+            padding: 40px;
+            border-radius: 10px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+
+        .login-card h1 {
+            text-align: center;
+            color: #2d3748;
+            margin-bottom: 30px;
+        }
+
+        .alert {
+            padding: 12px;
+            border-radius: 6px;
+            margin-bottom: 15px;
+        }
+
+        .alert-error {
+            background: #fee2e2;
+            color: #991b1b;
+        }
+
+        .alert-success {
+            background: #d1fae5;
+            color: #065f46;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- Login Screen -->
+        <div id="loginScreen" class="login-container">
+            <div class="login-card">
+                <h1>🎯 VA Portal Login</h1>
+                <div id="loginError" class="alert alert-error" style="display: none;"></div>
+                <form id="loginForm" onsubmit="handleLogin(event)">
+                    <div class="form-group">
+                        <label>Email</label>
+                        <input type="email" id="loginEmail" required placeholder="va@example.com">
+                    </div>
+                    <div class="form-group">
+                        <label>Password</label>
+                        <input type="password" id="loginPassword" required>
+                    </div>
+                    <button type="submit" class="btn btn-primary" style="width: 100%;">Login</button>
+                </form>
+                <p style="text-align: center; margin-top: 20px; font-size: 14px; color: #718096;">
+                    Demo: va@example.com / va123456
+                </p>
+            </div>
+        </div>
+
+        <!-- Dashboard Screen -->
+        <div id="dashboardScreen" style="display: none;">
+            <div class="header">
+                <div>
+                    <h1>🎯 VA Service Portal</h1>
+                </div>
+                <div class="header-info">
+                    <div class="va-name" id="vaName">Loading...</div>
+                    <div class="va-stats">
+                        <span id="vaCompleted">0</span> completed • 
+                        $<span id="vaEarned">0</span> earned
+                    </div>
+                    <button class="btn btn-secondary" onclick="logout()" style="margin-top: 10px;">Logout</button>
+                </div>
+            </div>
+
+            <!-- Stats -->
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <div class="stat-value" id="statAvailable">0</div>
+                    <div class="stat-label">Available Jobs</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value" id="statActive">0</div>
+                    <div class="stat-label">My Active Jobs</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value" id="statPending">0</div>
+                    <div class="stat-label">Pending Review</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value">$<span id="statPotential">0</span></div>
+                    <div class="stat-label">Potential Earnings</div>
+                </div>
+            </div>
+
+            <!-- Available Jobs Queue -->
+            <div class="card">
+                <h2>📋 Available Jobs (Queue)</h2>
+                <div id="availableJobs">
+                    <div class="empty-state">
+                        <p>Loading jobs...</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- My Active Jobs -->
+            <div class="card">
+                <h2>⚡ My Active Jobs</h2>
+                <div id="activeJobs">
+                    <div class="empty-state">
+                        <p>No active jobs</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Pending Review -->
+            <div class="card">
+                <h2>⏳ Pending Admin Review</h2>
+                <div id="pendingReview">
+                    <div class="empty-state">
+                        <p>No jobs pending review</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let currentVA = null;
+
+        // Check if already logged in
+        window.addEventListener('DOMContentLoaded', () => {
+            const vaData = localStorage.getItem('va_user');
+            if (vaData) {
+                currentVA = JSON.parse(vaData);
+                showDashboard();
+            }
+        });
+
+        async function handleLogin(e) {
+            e.preventDefault();
+            const email = document.getElementById('loginEmail').value;
+            const password = document.getElementById('loginPassword').value;
+            const errorDiv = document.getElementById('loginError');
+
+            try {
+                const response = await fetch('/api/va/login', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email, password })
+                });
+
+                const data = await response.json();
+
+                if (data.ok) {
+                    currentVA = data.va;
+                    localStorage.setItem('va_user', JSON.stringify(currentVA));
+                    showDashboard();
+                } else {
+                    errorDiv.textContent = data.error || 'Login failed';
+                    errorDiv.style.display = 'block';
+                }
+            } catch (error) {
+                errorDiv.textContent = 'Connection error. Please try again.';
+                errorDiv.style.display = 'block';
+            }
+        }
+
+        function logout() {
+            localStorage.removeItem('va_user');
+            currentVA = null;
+            document.getElementById('loginScreen').style.display = 'block';
+            document.getElementById('dashboardScreen').style.display = 'none';
+        }
+
+        function showDashboard() {
+            document.getElementById('loginScreen').style.display = 'none';
+            document.getElementById('dashboardScreen').style.display = 'block';
+            document.getElementById('vaName').textContent = currentVA.name;
+            document.getElementById('vaCompleted').textContent = currentVA.total_completed || 0;
+            document.getElementById('vaEarned').textContent = (currentVA.total_earned || 0).toFixed(2);
+            loadJobs();
+            
+            // Refresh every 30 seconds
+            setInterval(loadJobs, 30000);
+        }
+
+        async function loadJobs() {
+            try {
+                const response = await fetch('/api/va/jobs', {
+                    headers: { 'X-VA-Email': currentVA.email }
+                });
+                const data = await response.json();
+
+                if (data.ok) {
+                    renderAvailableJobs(data.available || []);
+                    renderActiveJobs(data.active || []);
+                    renderPendingReview(data.pending_review || []);
+                    updateStats(data);
+                }
+            } catch (error) {
+                console.error('Error loading jobs:', error);
+            }
+        }
+
+        function updateStats(data) {
+            document.getElementById('statAvailable').textContent = (data.available || []).length;
+            document.getElementById('statActive').textContent = (data.active || []).length;
+            document.getElementById('statPending').textContent = (data.pending_review || []).length;
+            
+            const potential = (data.active || []).reduce((sum, job) => sum + parseFloat(job.va_payout || 0), 0);
+            document.getElementById('statPotential').textContent = potential.toFixed(2);
+        }
+
+        function renderAvailableJobs(jobs) {
+            const container = document.getElementById('availableJobs');
+            
+            if (jobs.length === 0) {
+                container.innerHTML = '<div class="empty-state"><p>No available jobs right now. Check back soon!</p></div>';
+                return;
+            }
+
+            container.innerHTML = jobs.map(job => `
+                <div class="request-item">
+                    <div class="request-header">
+                        <span class="service-badge badge-${job.service_type.replace('_', '-')}">${formatServiceType(job.service_type)}</span>
+                        <span class="payout-badge">💰 $${parseFloat(job.va_payout).toFixed(2)}</span>
+                    </div>
+                    <div class="property-info">
+                        <p><strong>Parcel:</strong> ${job.parcel}</p>
+                        <p><strong>Address:</strong> ${job.property_address || 'N/A'}</p>
+                        <p><strong>Owner:</strong> ${job.owner_name || 'N/A'}</p>
+                        ${job.hours_purchased ? `<p><strong>Hours:</strong> ${job.hours_purchased}</p>` : ''}
+                        <p><strong>Requested:</strong> ${new Date(job.created_at).toLocaleString()}</p>
+                    </div>
+                    <button class="btn btn-success" onclick="claimJob(${job.id})">🎯 Claim This Job</button>
+                </div>
+            `).join('');
+        }
+
+        function renderActiveJobs(jobs) {
+            const container = document.getElementById('activeJobs');
+            
+            if (jobs.length === 0) {
+                container.innerHTML = '<div class="empty-state"><p>No active jobs. Claim one from the queue above!</p></div>';
+                return;
+            }
+
+            container.innerHTML = jobs.map(job => `
+                <div class="request-item">
+                    <div class="request-header">
+                        <span class="service-badge badge-${job.service_type.replace('_', '-')}">${formatServiceType(job.service_type)}</span>
+                        <span class="payout-badge">💰 $${parseFloat(job.va_payout).toFixed(2)}</span>
+                    </div>
+                    <div class="property-info">
+                        <p><strong>Parcel:</strong> ${job.parcel}</p>
+                        <p><strong>Address:</strong> ${job.property_address || 'N/A'}</p>
+                        <p><strong>Owner:</strong> ${job.owner_name || 'N/A'}</p>
+                        ${job.hours_purchased ? `<p><strong>Hours:</strong> ${job.hours_purchased} (Used: ${job.hours_used || 0})</p>` : ''}
+                        <p><strong>Claimed:</strong> ${new Date(job.claimed_at).toLocaleString()}</p>
+                    </div>
+                    
+                    <div style="margin-top: 15px; padding-top: 15px; border-top: 1px solid #e2e8f0;">
+                        <button class="btn btn-primary" onclick="showSubmitForm(${job.id})">✅ Submit Results</button>
+                        <button class="btn btn-danger" onclick="cancelJob(${job.id})">❌ Cancel</button>
+                    </div>
+                    
+                    <div id="submitForm${job.id}" style="display: none; margin-top: 15px; padding: 15px; background: #f7fafc; border-radius: 6px;">
+                        <h3 style="margin-bottom: 15px;">Submit Results</h3>
+                        <div class="form-group">
+                            <label>Phone Number</label>
+                            <input type="tel" id="phone${job.id}" placeholder="555-1234">
+                        </div>
+                        <div class="form-group">
+                            <label>Email</label>
+                            <input type="email" id="email${job.id}" placeholder="owner@example.com">
+                        </div>
+                        <div class="form-group">
+                            <label>Notes</label>
+                            <textarea id="notes${job.id}" placeholder="Details about your research..."></textarea>
+                        </div>
+                        ${job.service_type === 'cold_call_block' ? `
+                        <div class="form-group">
+                            <label>Hours Used</label>
+                            <input type="number" step="0.25" id="hoursUsed${job.id}" placeholder="1.5">
+                        </div>
+                        <div class="form-group">
+                            <label>Call Outcome</label>
+                            <select id="outcome${job.id}">
+                                <option value="answered">Answered</option>
+                                <option value="voicemail">Voicemail</option>
+                                <option value="no_answer">No Answer</option>
+                                <option value="wrong_number">Wrong Number</option>
+                                <option value="disconnected">Disconnected</option>
+                            </select>
+                        </div>
+                        ` : ''}
+                        <button class="btn btn-success" onclick="submitJob(${job.id})">Submit for Review</button>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function renderPendingReview(jobs) {
+            const container = document.getElementById('pendingReview');
+            
+            if (jobs.length === 0) {
+                container.innerHTML = '<div class="empty-state"><p>No jobs pending review</p></div>';
+                return;
+            }
+
+            container.innerHTML = jobs.map(job => `
+                <div class="request-item">
+                    <div class="request-header">
+                        <span class="service-badge badge-${job.service_type.replace('_', '-')}">${formatServiceType(job.service_type)}</span>
+                        <span class="status-badge status-submitted">⏳ Pending Review</span>
+                    </div>
+                    <div class="property-info">
+                        <p><strong>Parcel:</strong> ${job.parcel}</p>
+                        <p><strong>Submitted:</strong> ${new Date(job.submitted_at).toLocaleString()}</p>
+                        <p><strong>Will Earn:</strong> $${parseFloat(job.va_payout).toFixed(2)}</p>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function formatServiceType(type) {
+            const types = {
+                'skiptrace': '🔍 Contact Research',
+                'cold_call_block': '📞 Cold Calling',
+                'postcard': '📮 Direct Mail',
+                'door_knock': '🚪 Door Knock'
+            };
+            return types[type] || type;
+        }
+
+        function showSubmitForm(jobId) {
+            const form = document.getElementById(`submitForm${jobId}`);
+            form.style.display = form.style.display === 'none' ? 'block' : 'none';
+        }
+
+        async function claimJob(jobId) {
+            if (!confirm('Claim this job? You\'ll be responsible for completing it.')) return;
+
+            try {
+                const response = await fetch(`/api/va/jobs/${jobId}/claim`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-VA-Email': currentVA.email
+                    }
+                });
+
+                const data = await response.json();
+
+                if (data.ok) {
+                    alert('✅ Job claimed! It\'s now in your active jobs.');
+                    loadJobs();
+                } else {
+                    alert('❌ ' + (data.error || 'Failed to claim job'));
+                }
+            } catch (error) {
+                alert('❌ Connection error');
+            }
+        }
+
+        async function submitJob(jobId) {
+            const phone = document.getElementById(`phone${jobId}`).value;
+            const email = document.getElementById(`email${jobId}`).value;
+            const notes = document.getElementById(`notes${jobId}`).value;
+            const hoursUsedEl = document.getElementById(`hoursUsed${jobId}`);
+            const outcomeEl = document.getElementById(`outcome${jobId}`);
+
+            const results = {
+                phone,
+                email,
+                notes,
+                hours_used: hoursUsedEl ? parseFloat(hoursUsedEl.value) : null,
+                call_outcome: outcomeEl ? outcomeEl.value : null
+            };
+
+            try {
+                const response = await fetch(`/api/va/jobs/${jobId}/submit`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-VA-Email': currentVA.email
+                    },
+                    body: JSON.stringify(results)
+                });
+
+                const data = await response.json();
+
+                if (data.ok) {
+                    alert('✅ Results submitted! Waiting for admin approval.');
+                    loadJobs();
+                } else {
+                    alert('❌ ' + (data.error || 'Failed to submit'));
+                }
+            } catch (error) {
+                alert('❌ Connection error');
+            }
+        }
+
+        async function cancelJob(jobId) {
+            if (!confirm('Cancel this job? It will go back to the queue.')) return;
+
+            try {
+                const response = await fetch(`/api/va/jobs/${jobId}/cancel`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-VA-Email': currentVA.email
+                    }
+                });
+
+                const data = await response.json();
+
+                if (data.ok) {
+                    alert('Job cancelled');
+                    loadJobs();
+                } else {
+                    alert('❌ ' + (data.error || 'Failed to cancel'));
+                }
+            } catch (error) {
+                alert('❌ Connection error');
+            }
+        }
+    </script>
+</body>
+</html>
