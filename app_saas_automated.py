@@ -1120,9 +1120,8 @@ def api_va_login():
                 va_data = dict(va)
                 del va_data['password_hash']
                 
-                # Convert Decimal to float for JSON
-                if va_data.get('total_earned'):
-                    va_data['total_earned'] = float(va_data['total_earned'])
+                # Convert Decimal/string to float for JSON
+                va_data['total_earned'] = float(va_data.get('total_earned') or 0)
                 
                 return jsonify({"ok": True, "va": va_data})
     
