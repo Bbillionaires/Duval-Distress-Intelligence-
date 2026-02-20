@@ -247,6 +247,7 @@
             <div class="header-actions">
                 <button class="btn btn-success" id="runScraperBtn" onclick="runScraper()">🚀 Run Scraper</button>
                 <button class="btn btn-primary" id="uploadBtn" onclick="showUploadDialog()">📤 Upload Data</button>
+                <a href="/pricing" class="btn btn-secondary" style="text-decoration: none;">💰 Pricing</a>
                 <button class="btn btn-danger" onclick="logout()">Logout</button>
             </div>
         </div>
@@ -273,6 +274,19 @@
                 <div class="stat-value" id="lastUpdated" style="font-size: 18px;">-</div>
                 <div class="stat-label">Automated daily</div>
             </div>
+        </div>
+
+        <!-- Service Requests Section -->
+        <div class="card" style="margin-bottom: 30px;">
+            <h2 style="color: #2d3748; font-size: 20px; margin-bottom: 20px; padding-bottom: 15px; border-bottom: 2px solid #e2e8f0;">
+                🔔 Service Requests Pending Review
+            </h2>
+            
+            <div id="serviceRequestsLoading" style="text-align: center; padding: 40px; color: #718096;">
+                Loading requests...
+            </div>
+            
+            <div id="serviceRequestsList"></div>
         </div>
 
         <!-- Main Content -->
@@ -408,11 +422,13 @@
                 } else {
                     loadStats();
                     loadProperties();
+                    loadServiceRequests();
                 }
             } catch (error) {
                 // Health check failed, try loading anyway
                 loadStats();
                 loadProperties();
+                loadServiceRequests();
             }
         }
 
@@ -796,6 +812,133 @@
                 }
             }
         }
+        // ========== SERVICE REQUESTS MANAGEMENT ==========
+        
+        async function loadServiceRequests() {
+            try {
+                const response = await fetch('/api/admin/service-requests?status=submitted');
+                const data = await response.json();
+                
+                document.getElementById('serviceRequestsLoading').style.display = 'none';
+                
+                if (data.ok && data.requests && data.requests.length > 0) {
+                    renderServiceRequests(data.requests);
+                } else {
+                    document.getElementById('serviceRequestsList').innerHTML = `
+                        <div style="text-align: center; padding: 40px; color: #718096;">
+                            <p>✅ No requests pending review</p>
+                        </div>
+                    `;
+                }
+            } catch (error) {
+                console.error('Error loading service requests:', error);
+                document.getElementById('serviceRequestsLoading').style.display = 'none';
+            }
+        }
+
+        function renderServiceRequests(requests) {
+            const container = document.getElementById('serviceRequestsList');
+            
+            container.innerHTML = requests.map(req => `
+                <div style="border: 1px solid #e2e8f0; border-radius: 8px; padding: 20px; margin-bottom: 15px; background: #f7fafc;">
+                    <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 15px;">
+                        <div>
+                            <span style="padding: 6px 12px; border-radius: 6px; font-size: 13px; font-weight: 600; background: #bee3f8; color: #2c5282;">
+                                ${formatServiceType(req.service_type)}
+                            </span>
+                            <span style="padding: 6px 12px; border-radius: 6px; font-size: 13px; font-weight: 600; background: #48bb78; color: white; margin-left: 10px;">
+                                VA Payout: $${parseFloat(req.va_payout || 0).toFixed(2)}
+                            </span>
+                        </div>
+                        <div style="font-size: 12px; color: #718096;">
+                            Submitted: ${new Date(req.submitted_at).toLocaleString()}
+                        </div>
+                    </div>
+                    
+                    <div style="background: white; padding: 15px; border-radius: 6px; margin-bottom: 15px;">
+                        <p style="margin: 5px 0;"><strong>Parcel:</strong> ${req.parcel}</p>
+                        <p style="margin: 5px 0;"><strong>Address:</strong> ${req.property_address || 'N/A'}</p>
+                        <p style="margin: 5px 0;"><strong>Owner:</strong> ${req.owner_name || 'N/A'}</p>
+                        <p style="margin: 5px 0;"><strong>Requested by:</strong> ${req.user_email}</p>
+                        <p style="margin: 5px 0;"><strong>VA:</strong> ${req.claimed_by_va_email}</p>
+                    </div>
+                    
+                    <div style="background: #fff5e6; padding: 15px; border-radius: 6px; border-left: 4px solid #f59e0b; margin-bottom: 15px;">
+                        <h4 style="margin: 0 0 10px 0; color: #2d3748;">VA Results:</h4>
+                        ${req.phone ? `<p style="margin: 5px 0;"><strong>📞 Phone:</strong> ${req.phone}</p>` : ''}
+                        ${req.email ? `<p style="margin: 5px 0;"><strong>📧 Email:</strong> ${req.email}</p>` : ''}
+                        ${req.call_outcome ? `<p style="margin: 5px 0;"><strong>Call Outcome:</strong> ${req.call_outcome}</p>` : ''}
+                        ${req.hours_used ? `<p style="margin: 5px 0;"><strong>Hours Used:</strong> ${req.hours_used}</p>` : ''}
+                        ${req.notes ? `<p style="margin: 10px 0 0 0;"><strong>Notes:</strong><br>${req.notes}</p>` : ''}
+                    </div>
+                    
+                    <div style="display: flex; gap: 10px;">
+                        <button class="btn btn-success" onclick="approveServiceRequest(${req.id})">
+                            ✅ Approve & Pay VA
+                        </button>
+                        <button class="btn btn-danger" onclick="rejectServiceRequest(${req.id})">
+                            ❌ Reject & Return to Queue
+                        </button>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function formatServiceType(type) {
+            const types = {
+                'skiptrace': '🔍 Contact Research',
+                'cold_call_block': '📞 Cold Calling',
+                'postcard': '📮 Direct Mail',
+                'door_knock': '🚪 Door Knock'
+            };
+            return types[type] || type;
+        }
+
+        async function approveServiceRequest(requestId) {
+            if (!confirm('Approve this work? VA will be marked for payment and user will see results.')) return;
+            
+            try {
+                const response = await fetch(`/api/admin/service-requests/${requestId}/approve`, {
+                    method: 'POST'
+                });
+                
+                const data = await response.json();
+                
+                if (data.ok) {
+                    alert('✅ Request approved! VA marked for payment.');
+                    loadServiceRequests();
+                } else {
+                    alert('❌ ' + (data.error || 'Failed to approve'));
+                }
+            } catch (error) {
+                alert('❌ Connection error');
+            }
+        }
+
+        async function rejectServiceRequest(requestId) {
+            const reason = prompt('Reason for rejection (will be sent to VA):');
+            if (!reason) return;
+            
+            try {
+                const response = await fetch(`/api/admin/service-requests/${requestId}/reject`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ reason })
+                });
+                
+                const data = await response.json();
+                
+                if (data.ok) {
+                    alert('❌ Request rejected and returned to queue.');
+                    loadServiceRequests();
+                } else {
+                    alert('❌ ' + (data.error || 'Failed to reject'));
+                }
+            } catch (error) {
+                alert('❌ Connection error');
+            }
+        }
+
     </script>
 </body>
 </html>

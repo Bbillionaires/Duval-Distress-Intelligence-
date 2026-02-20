@@ -281,6 +281,18 @@ def va_portal_page():
     return send_from_directory(BASE_DIR, "va_portal.html")
 
 
+@app.get("/pricing")
+@app.get("/pricing/")
+@app.get("/pricing.html")
+@app.get("/pricing_admin.html")
+def pricing_admin_page():
+    """Serve pricing management page"""
+    u = require_login(admin=True)
+    if not u:
+        return redirect("/login")
+    return send_from_directory(BASE_DIR, "pricing_admin.html")
+
+
 @app.get("/login")
 @app.get("/login/")
 @app.get("/login.html")
@@ -1077,6 +1089,226 @@ try:
     print("✅ Database initialized successfully!")
 except Exception as e:
     print(f"⚠️  Database init failed: {e}")
+
+
+# ========== ADMIN SERVICE REQUEST MANAGEMENT ==========
+
+@app.get("/api/admin/pricing")
+def api_admin_get_pricing():
+    """Get service pricing"""
+    u = require_login(admin=True)
+    if not u:
+        return jsonify({"ok": False, "error": "Not authorized"}), 401
+    
+    try:
+        with db_conn() as conn:
+            with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+                cur.execute("""
+                    SELECT * FROM service_pricing
+                    ORDER BY display_order, service_name
+                """)
+                
+                pricing = cur.fetchall()
+                
+                return jsonify({"ok": True, "pricing": pricing})
+    
+    except Exception as e:
+        print(f"❌ Get pricing error: {e}")
+        return jsonify({"ok": False, "error": "Failed to load pricing"}), 500
+
+
+@app.put("/api/admin/pricing/<int:pricing_id>")
+def api_admin_update_pricing(pricing_id):
+    """Update service pricing"""
+    u = require_login(admin=True)
+    if not u:
+        return jsonify({"ok": False, "error": "Not authorized"}), 401
+    
+    data = request.get_json()
+    price_charged = data.get('price_charged')
+    va_payout = data.get('va_payout')
+    
+    if price_charged is None or va_payout is None:
+        return jsonify({"ok": False, "error": "Missing required fields"}), 400
+    
+    if float(price_charged) < float(va_payout):
+        return jsonify({"ok": False, "error": "Price charged must be >= VA payout"}), 400
+    
+    try:
+        with db_conn() as conn:
+            with conn.cursor() as cur:
+                cur.execute("""
+                    UPDATE service_pricing
+                    SET price_charged = %s,
+                        va_payout = %s,
+                        updated_at = NOW()
+                    WHERE id = %s
+                """, (price_charged, va_payout, pricing_id))
+                
+                conn.commit()
+                
+                return jsonify({"ok": True, "message": "Pricing updated"})
+    
+    except Exception as e:
+        print(f"❌ Update pricing error: {e}")
+        return jsonify({"ok": False, "error": "Failed to update pricing"}), 500
+
+
+@app.put("/api/admin/pricing/<int:pricing_id>/toggle")
+def api_admin_toggle_pricing(pricing_id):
+    """Toggle service active status"""
+    u = require_login(admin=True)
+    if not u:
+        return jsonify({"ok": False, "error": "Not authorized"}), 401
+    
+    data = request.get_json()
+    active = data.get('active', True)
+    
+    try:
+        with db_conn() as conn:
+            with conn.cursor() as cur:
+                cur.execute("""
+                    UPDATE service_pricing
+                    SET active = %s,
+                        updated_at = NOW()
+                    WHERE id = %s
+                """, (active, pricing_id))
+                
+                conn.commit()
+                
+                return jsonify({"ok": True, "message": "Status updated"})
+    
+    except Exception as e:
+        print(f"❌ Toggle pricing error: {e}")
+        return jsonify({"ok": False, "error": "Failed to update status"}), 500
+
+
+@app.get("/api/admin/service-requests")
+def api_admin_get_service_requests():
+    """Get service requests for admin review"""
+    u = require_login(admin=True)
+    if not u:
+        return jsonify({"ok": False, "error": "Not authorized"}), 401
+    
+    status = request.args.get('status', 'submitted')
+    
+    try:
+        with db_conn() as conn:
+            with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+                cur.execute("""
+                    SELECT * FROM service_requests
+                    WHERE status = %s
+                    ORDER BY submitted_at DESC
+                """, (status,))
+                
+                requests = cur.fetchall()
+                
+                return jsonify({"ok": True, "requests": requests})
+    
+    except Exception as e:
+        print(f"❌ Admin service requests error: {e}")
+        return jsonify({"ok": False, "error": "Failed to load requests"}), 500
+
+
+@app.post("/api/admin/service-requests/<int:request_id>/approve")
+def api_admin_approve_request(request_id):
+    """Approve service request - mark VA for payment and complete request"""
+    u = require_login(admin=True)
+    if not u:
+        return jsonify({"ok": False, "error": "Not authorized"}), 401
+    
+    try:
+        with db_conn() as conn:
+            with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+                # Get request details
+                cur.execute("""
+                    SELECT claimed_by_va_id, va_payout, parcel, phone, email, notes
+                    FROM service_requests
+                    WHERE id = %s
+                """, (request_id,))
+                
+                req = cur.fetchone()
+                
+                if not req:
+                    return jsonify({"ok": False, "error": "Request not found"}), 404
+                
+                # Update request status to completed
+                cur.execute("""
+                    UPDATE service_requests
+                    SET status = 'completed',
+                        completed_at = NOW(),
+                        reviewed_by_admin = %s,
+                        reviewed_at = NOW(),
+                        updated_at = NOW()
+                    WHERE id = %s
+                """, (u['email'], request_id))
+                
+                # Update VA stats and mark for payment
+                if req['claimed_by_va_id']:
+                    cur.execute("""
+                        UPDATE va_users
+                        SET total_completed = total_completed + 1,
+                            total_earned = total_earned + %s
+                        WHERE id = %s
+                    """, (req['va_payout'], req['claimed_by_va_id']))
+                
+                # Update property with skiptracing results
+                if req['parcel']:
+                    cur.execute("""
+                        UPDATE properties
+                        SET skiptrace_status = 'completed',
+                            skiptrace_phone = %s,
+                            skiptrace_email = %s,
+                            skiptrace_notes = %s,
+                            skiptrace_completed_at = NOW()
+                        WHERE parcel = %s
+                    """, (req['phone'], req['email'], req['notes'], req['parcel']))
+                
+                conn.commit()
+                
+                return jsonify({"ok": True, "message": "Request approved"})
+    
+    except Exception as e:
+        print(f"❌ Approve request error: {e}")
+        return jsonify({"ok": False, "error": "Failed to approve request"}), 500
+
+
+@app.post("/api/admin/service-requests/<int:request_id>/reject")
+def api_admin_reject_request(request_id):
+    """Reject service request - return to queue"""
+    u = require_login(admin=True)
+    if not u:
+        return jsonify({"ok": False, "error": "Not authorized"}), 401
+    
+    data = request.get_json()
+    reason = data.get('reason', 'No reason provided')
+    
+    try:
+        with db_conn() as conn:
+            with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+                # Return to queue
+                cur.execute("""
+                    UPDATE service_requests
+                    SET status = 'pending',
+                        claimed_by_va_id = NULL,
+                        claimed_by_va_email = NULL,
+                        claimed_at = NULL,
+                        submitted_at = NULL,
+                        rejected_at = NOW(),
+                        rejection_reason = %s,
+                        reviewed_by_admin = %s,
+                        reviewed_at = NOW(),
+                        updated_at = NOW()
+                    WHERE id = %s
+                """, (reason, u['email'], request_id))
+                
+                conn.commit()
+                
+                return jsonify({"ok": True, "message": "Request rejected and returned to queue"})
+    
+    except Exception as e:
+        print(f"❌ Reject request error: {e}")
+        return jsonify({"ok": False, "error": "Failed to reject request"}), 500
 
 
 # ========== VA PORTAL API ENDPOINTS ==========
