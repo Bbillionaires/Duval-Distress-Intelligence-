@@ -1,0 +1,314 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Service Pricing Management</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1000px;
+            margin: 0 auto;
+        }
+
+        .card {
+            background: white;
+            border-radius: 10px;
+            padding: 30px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+
+        h1 {
+            color: #2d3748;
+            margin-bottom: 10px;
+        }
+
+        .subtitle {
+            color: #718096;
+            margin-bottom: 30px;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        th {
+            background: #f7fafc;
+            padding: 15px;
+            text-align: left;
+            font-weight: 600;
+            color: #2d3748;
+            border-bottom: 2px solid #e2e8f0;
+        }
+
+        td {
+            padding: 15px;
+            border-bottom: 1px solid #e2e8f0;
+        }
+
+        input[type="number"] {
+            width: 100px;
+            padding: 8px;
+            border: 1px solid #e2e8f0;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+
+        .btn {
+            padding: 8px 16px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 500;
+        }
+
+        .btn-primary {
+            background: #667eea;
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: #5568d3;
+        }
+
+        .btn-secondary {
+            background: #e2e8f0;
+            color: #2d3748;
+        }
+
+        .profit-badge {
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 13px;
+            font-weight: 600;
+            background: #d1fae5;
+            color: #065f46;
+        }
+
+        .alert {
+            padding: 15px;
+            border-radius: 6px;
+            margin-bottom: 20px;
+        }
+
+        .alert-success {
+            background: #d1fae5;
+            color: #065f46;
+        }
+
+        .toggle-switch {
+            position: relative;
+            width: 50px;
+            height: 24px;
+        }
+
+        .toggle-switch input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+
+        .slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: #ccc;
+            transition: .4s;
+            border-radius: 24px;
+        }
+
+        .slider:before {
+            position: absolute;
+            content: "";
+            height: 16px;
+            width: 16px;
+            left: 4px;
+            bottom: 4px;
+            background-color: white;
+            transition: .4s;
+            border-radius: 50%;
+        }
+
+        input:checked + .slider {
+            background-color: #48bb78;
+        }
+
+        input:checked + .slider:before {
+            transform: translateX(26px);
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="card">
+            <h1>💰 Service Pricing Management</h1>
+            <p class="subtitle">Set prices for each service type. Changes apply immediately.</p>
+
+            <div id="successMessage" class="alert alert-success" style="display: none;"></div>
+
+            <table id="pricingTable">
+                <thead>
+                    <tr>
+                        <th>Service</th>
+                        <th>Description</th>
+                        <th>Price Charged</th>
+                        <th>VA Payout</th>
+                        <th>Your Profit</th>
+                        <th>Active</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="pricingBody">
+                    <tr>
+                        <td colspan="7" style="text-align: center; padding: 40px; color: #718096;">
+                            Loading pricing...
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+
+        <div style="text-align: center;">
+            <a href="/admin" class="btn btn-secondary">← Back to Dashboard</a>
+        </div>
+    </div>
+
+    <script>
+        window.addEventListener('DOMContentLoaded', () => {
+            loadPricing();
+        });
+
+        async function loadPricing() {
+            try {
+                const response = await fetch('/api/admin/pricing');
+                const data = await response.json();
+
+                if (data.ok) {
+                    renderPricing(data.pricing);
+                }
+            } catch (error) {
+                console.error('Error loading pricing:', error);
+            }
+        }
+
+        function renderPricing(pricing) {
+            const tbody = document.getElementById('pricingBody');
+
+            tbody.innerHTML = pricing.map(p => {
+                const profit = (parseFloat(p.price_charged) - parseFloat(p.va_payout)).toFixed(2);
+                
+                return `
+                    <tr>
+                        <td><strong>${p.service_name}</strong></td>
+                        <td style="color: #718096; font-size: 14px;">${p.service_description || ''}</td>
+                        <td>
+                            $<input type="number" step="0.01" value="${parseFloat(p.price_charged).toFixed(2)}" 
+                                    id="price_${p.id}" min="0">
+                        </td>
+                        <td>
+                            $<input type="number" step="0.01" value="${parseFloat(p.va_payout).toFixed(2)}" 
+                                    id="payout_${p.id}" min="0">
+                        </td>
+                        <td>
+                            <span class="profit-badge">$${profit}</span>
+                        </td>
+                        <td>
+                            <label class="toggle-switch">
+                                <input type="checkbox" ${p.active ? 'checked' : ''} 
+                                       onchange="toggleActive(${p.id}, this.checked)">
+                                <span class="slider"></span>
+                            </label>
+                        </td>
+                        <td>
+                            <button class="btn btn-primary" onclick="updatePricing(${p.id})">
+                                💾 Save
+                            </button>
+                        </td>
+                    </tr>
+                `;
+            }).join('');
+        }
+
+        async function updatePricing(id) {
+            const priceCharged = parseFloat(document.getElementById(`price_${id}`).value);
+            const vaPayout = parseFloat(document.getElementById(`payout_${id}`).value);
+
+            if (priceCharged < vaPayout) {
+                alert('⚠️ Price charged must be greater than VA payout!');
+                return;
+            }
+
+            try {
+                const response = await fetch(`/api/admin/pricing/${id}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        price_charged: priceCharged,
+                        va_payout: vaPayout
+                    })
+                });
+
+                const data = await response.json();
+
+                if (data.ok) {
+                    showSuccess('Pricing updated successfully!');
+                    loadPricing(); // Reload to show new profit
+                } else {
+                    alert('❌ ' + (data.error || 'Failed to update'));
+                }
+            } catch (error) {
+                alert('❌ Connection error');
+            }
+        }
+
+        async function toggleActive(id, active) {
+            try {
+                const response = await fetch(`/api/admin/pricing/${id}/toggle`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ active })
+                });
+
+                const data = await response.json();
+
+                if (data.ok) {
+                    showSuccess(active ? 'Service activated' : 'Service deactivated');
+                } else {
+                    alert('❌ ' + (data.error || 'Failed to update'));
+                    loadPricing(); // Reload to reset toggle
+                }
+            } catch (error) {
+                alert('❌ Connection error');
+                loadPricing();
+            }
+        }
+
+        function showSuccess(message) {
+            const div = document.getElementById('successMessage');
+            div.textContent = '✅ ' + message;
+            div.style.display = 'block';
+            setTimeout(() => {
+                div.style.display = 'none';
+            }, 3000);
+        }
+    </script>
+</body>
+</html>
