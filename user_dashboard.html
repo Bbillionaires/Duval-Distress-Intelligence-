@@ -1,0 +1,629 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>My Properties - Duval Intelligence</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1600px;
+            margin: 0 auto;
+        }
+
+        .header {
+            background: white;
+            padding: 20px 30px;
+            border-radius: 10px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 30px;
+        }
+
+        .header h1 {
+            color: #2d3748;
+            font-size: 28px;
+        }
+
+        .header-info {
+            color: #718096;
+            font-size: 14px;
+        }
+
+        .tabs {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 30px;
+        }
+
+        .tab {
+            padding: 12px 24px;
+            background: white;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 500;
+            color: #718096;
+            transition: all 0.2s;
+        }
+
+        .tab.active {
+            background: #667eea;
+            color: white;
+        }
+
+        .card {
+            background: white;
+            border-radius: 10px;
+            padding: 25px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+
+        .card h2 {
+            color: #2d3748;
+            font-size: 20px;
+            margin-bottom: 20px;
+            padding-bottom: 15px;
+            border-bottom: 2px solid #e2e8f0;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        th {
+            background: #f7fafc;
+            padding: 12px;
+            text-align: left;
+            font-weight: 600;
+            color: #2d3748;
+            font-size: 13px;
+            border-bottom: 2px solid #e2e8f0;
+        }
+
+        td {
+            padding: 12px;
+            border-bottom: 1px solid #e2e8f0;
+            font-size: 14px;
+        }
+
+        .btn {
+            padding: 8px 16px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 13px;
+            font-weight: 500;
+            transition: all 0.2s;
+        }
+
+        .btn-primary {
+            background: #667eea;
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: #5568d3;
+        }
+
+        .btn-success {
+            background: #48bb78;
+            color: white;
+        }
+
+        .btn-danger {
+            background: #f56565;
+            color: white;
+        }
+
+        .btn-secondary {
+            background: #e2e8f0;
+            color: #2d3748;
+        }
+
+        .badge {
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: 600;
+        }
+
+        .badge-sweet-spot {
+            background: #48bb78;
+            color: white;
+        }
+
+        .badge-danger-zone {
+            background: #f56565;
+            color: white;
+        }
+
+        .badge-tax-deed-filed {
+            background: #ed8936;
+            color: white;
+        }
+
+        .badge-pre-lien {
+            background: #ecc94b;
+            color: #744210;
+        }
+
+        .badge-unpaid-new {
+            background: #9f7aea;
+            color: white;
+        }
+
+        .badge-auction-failed {
+            background: #f56565;
+            color: white;
+        }
+
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.5);
+            z-index: 1000;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .modal-content {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            max-width: 600px;
+            width: 90%;
+            max-height: 80vh;
+            overflow-y: auto;
+        }
+
+        .service-option {
+            border: 2px solid #e2e8f0;
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 15px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .service-option:hover {
+            border-color: #667eea;
+            background: #f7fafc;
+        }
+
+        .service-option.selected {
+            border-color: #667eea;
+            background: #edf2f7;
+        }
+
+        .service-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+
+        .service-name {
+            font-weight: 600;
+            font-size: 16px;
+            color: #2d3748;
+        }
+
+        .service-price {
+            font-weight: 700;
+            font-size: 18px;
+            color: #48bb78;
+        }
+
+        .service-description {
+            color: #718096;
+            font-size: 14px;
+        }
+
+        .status-badge {
+            padding: 6px 12px;
+            border-radius: 6px;
+            font-size: 12px;
+            font-weight: 600;
+        }
+
+        .status-pending {
+            background: #fef3c7;
+            color: #92400e;
+        }
+
+        .status-in-progress {
+            background: #dbeafe;
+            color: #1e40af;
+        }
+
+        .status-completed {
+            background: #d1fae5;
+            color: #065f46;
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 60px 20px;
+            color: #718096;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 40px;
+            color: #718096;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <div>
+                <h1>🏘️ My Properties</h1>
+                <div class="header-info">Duval Intelligence - Premium Access</div>
+            </div>
+            <button class="btn btn-danger" onclick="logout()">Logout</button>
+        </div>
+
+        <!-- Tabs -->
+        <div class="tabs">
+            <button class="tab active" onclick="switchTab('properties')">
+                📊 My Properties
+            </button>
+            <button class="tab" onclick="switchTab('requests')">
+                🔔 My Service Requests
+            </button>
+        </div>
+
+        <!-- Properties Tab -->
+        <div id="propertiesTab">
+            <div class="card">
+                <h2>Available Properties</h2>
+                
+                <div style="margin-bottom: 20px; display: flex; gap: 10px;">
+                    <select id="stageFilter" style="padding: 8px; border-radius: 6px; border: 1px solid #e2e8f0;">
+                        <option value="">All Stages</option>
+                        <option value="sweet_spot">🎯 Sweet Spot</option>
+                        <option value="danger_zone">🚨 Danger Zone</option>
+                        <option value="pre_lien">⚠️ Pre-Lien</option>
+                        <option value="unpaid_new">🆕 Unpaid New</option>
+                    </select>
+                    <button class="btn btn-primary" onclick="loadProperties()">Apply Filter</button>
+                </div>
+
+                <div id="propertiesLoading" class="loading">
+                    Loading properties...
+                </div>
+
+                <div id="propertiesTable" style="display: none;">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Parcel</th>
+                                <th>Stage</th>
+                                <th>Address</th>
+                                <th>Owner</th>
+                                <th>Amount Due</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="propertiesBody"></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- Service Requests Tab -->
+        <div id="requestsTab" style="display: none;">
+            <div class="card">
+                <h2>My Service Requests</h2>
+                <div id="requestsLoading" class="loading">
+                    Loading requests...
+                </div>
+                <div id="requestsList"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Request Service Modal -->
+    <div id="serviceModal" class="modal">
+        <div class="modal-content">
+            <h2 style="margin-bottom: 20px;">Request Service</h2>
+            <p style="color: #718096; margin-bottom: 20px;">
+                <strong>Property:</strong> <span id="modalParcel"></span><br>
+                <strong>Address:</strong> <span id="modalAddress"></span>
+            </p>
+
+            <div id="serviceOptions"></div>
+
+            <div style="display: flex; gap: 10px; margin-top: 20px;">
+                <button class="btn btn-primary" onclick="submitServiceRequest()">
+                    Continue to Payment
+                </button>
+                <button class="btn btn-secondary" onclick="closeServiceModal()">
+                    Cancel
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let currentTab = 'properties';
+        let selectedService = null;
+        let selectedProperty = null;
+
+        window.addEventListener('DOMContentLoaded', () => {
+            loadProperties();
+            loadServiceRequests();
+            loadServicePricing();
+        });
+
+        function switchTab(tab) {
+            currentTab = tab;
+            
+            // Update tab buttons
+            document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+            event.target.classList.add('active');
+            
+            // Show/hide content
+            document.getElementById('propertiesTab').style.display = tab === 'properties' ? 'block' : 'none';
+            document.getElementById('requestsTab').style.display = tab === 'requests' ? 'block' : 'none';
+        }
+
+        async function loadProperties() {
+            const loading = document.getElementById('propertiesLoading');
+            const table = document.getElementById('propertiesTable');
+            const stage = document.getElementById('stageFilter').value;
+
+            loading.style.display = 'block';
+            table.style.display = 'none';
+
+            try {
+                const params = new URLSearchParams({ page: 1, page_size: 100 });
+                if (stage) params.append('stage', stage);
+
+                const response = await fetch(`/api/properties?${params}`);
+                const data = await response.json();
+
+                if (data.ok && data.rows.length > 0) {
+                    renderProperties(data.rows);
+                    table.style.display = 'block';
+                } else {
+                    document.getElementById('propertiesBody').innerHTML = `
+                        <tr><td colspan="6" class="empty-state">No properties available</td></tr>
+                    `;
+                    table.style.display = 'block';
+                }
+            } catch (error) {
+                console.error('Error loading properties:', error);
+            } finally {
+                loading.style.display = 'none';
+            }
+        }
+
+        function renderProperties(properties) {
+            const tbody = document.getElementById('propertiesBody');
+            
+            tbody.innerHTML = properties.map(prop => `
+                <tr>
+                    <td><strong>${prop.parcel}</strong></td>
+                    <td><span class="badge badge-${prop.stage.replace('_', '-')}">${formatStage(prop.stage)}</span></td>
+                    <td>${prop.address || '-'}</td>
+                    <td>${prop.owner || '-'}</td>
+                    <td><strong>$${parseFloat(prop.current_total_due || 0).toLocaleString()}</strong></td>
+                    <td>
+                        <button class="btn btn-success" onclick='openServiceModal(${JSON.stringify(prop).replace(/'/g, "&apos;")})'>
+                            🎯 Request Service
+                        </button>
+                    </td>
+                </tr>
+            `).join('');
+        }
+
+        function formatStage(stage) {
+            const stages = {
+                'sweet_spot': '🎯 Sweet Spot',
+                'danger_zone': '🚨 Danger Zone',
+                'pre_lien': '⚠️ Pre-Lien',
+                'unpaid_new': '🆕 Unpaid New',
+                'tax_deed_filed': '📋 Tax Deed Filed',
+                'auction_failed': '🔥 Auction Failed',
+                'current': '✅ Current'
+            };
+            return stages[stage] || stage;
+        }
+
+        let servicePricing = [];
+
+        async function loadServicePricing() {
+            try {
+                const response = await fetch('/api/pricing/active');
+                const data = await response.json();
+                if (data.ok) {
+                    servicePricing = data.pricing;
+                }
+            } catch (error) {
+                console.error('Error loading pricing:', error);
+            }
+        }
+
+        function openServiceModal(property) {
+            selectedProperty = property;
+            selectedService = null;
+            
+            document.getElementById('modalParcel').textContent = property.parcel;
+            document.getElementById('modalAddress').textContent = property.address || 'N/A';
+            
+            const options = document.getElementById('serviceOptions');
+            options.innerHTML = servicePricing.map(service => `
+                <div class="service-option" onclick="selectService('${service.service_type}')">
+                    <div class="service-header">
+                        <div class="service-name">${service.service_name}</div>
+                        <div class="service-price">$${parseFloat(service.price_charged).toFixed(2)}</div>
+                    </div>
+                    <div class="service-description">${service.service_description || ''}</div>
+                </div>
+            `).join('');
+            
+            document.getElementById('serviceModal').style.display = 'flex';
+        }
+
+        function selectService(serviceType) {
+            selectedService = serviceType;
+            
+            document.querySelectorAll('.service-option').forEach(opt => {
+                opt.classList.remove('selected');
+            });
+            event.currentTarget.classList.add('selected');
+        }
+
+        function closeServiceModal() {
+            document.getElementById('serviceModal').style.display = 'none';
+            selectedService = null;
+            selectedProperty = null;
+        }
+
+        async function submitServiceRequest() {
+            if (!selectedService) {
+                alert('Please select a service');
+                return;
+            }
+
+            const pricing = servicePricing.find(s => s.service_type === selectedService);
+            
+            if (!confirm(`Request ${pricing.service_name} for $${parseFloat(pricing.price_charged).toFixed(2)}?`)) {
+                return;
+            }
+
+            try {
+                const response = await fetch('/api/user/service-request', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        property_id: selectedProperty.id,
+                        parcel: selectedProperty.parcel,
+                        service_type: selectedService
+                    })
+                });
+
+                const data = await response.json();
+
+                if (data.ok) {
+                    alert('✅ Service request submitted! A VA will work on it soon.');
+                    closeServiceModal();
+                    switchTab('requests');
+                    loadServiceRequests();
+                } else {
+                    alert('❌ ' + (data.error || 'Failed to submit request'));
+                }
+            } catch (error) {
+                alert('❌ Connection error');
+            }
+        }
+
+        async function loadServiceRequests() {
+            try {
+                const response = await fetch('/api/user/service-requests');
+                const data = await response.json();
+
+                document.getElementById('requestsLoading').style.display = 'none';
+
+                if (data.ok && data.requests && data.requests.length > 0) {
+                    renderServiceRequests(data.requests);
+                } else {
+                    document.getElementById('requestsList').innerHTML = `
+                        <div class="empty-state">
+                            <p>No service requests yet</p>
+                            <p style="margin-top: 10px;">
+                                <button class="btn btn-primary" onclick="switchTab('properties')">
+                                    Browse Properties
+                                </button>
+                            </p>
+                        </div>
+                    `;
+                }
+            } catch (error) {
+                console.error('Error loading requests:', error);
+                document.getElementById('requestsLoading').style.display = 'none';
+            }
+        }
+
+        function renderServiceRequests(requests) {
+            const container = document.getElementById('requestsList');
+            
+            container.innerHTML = requests.map(req => `
+                <div style="border: 1px solid #e2e8f0; border-radius: 8px; padding: 20px; margin-bottom: 15px;">
+                    <div style="display: flex; justify-content: space-between; margin-bottom: 15px;">
+                        <div>
+                            <strong>${formatServiceType(req.service_type)}</strong><br>
+                            <span style="color: #718096; font-size: 14px;">Parcel: ${req.parcel}</span>
+                        </div>
+                        <span class="status-badge status-${req.status}">${formatStatus(req.status)}</span>
+                    </div>
+                    
+                    ${req.status === 'completed' && (req.phone || req.email) ? `
+                    <div style="background: #d1fae5; padding: 15px; border-radius: 6px; margin-top: 15px;">
+                        <strong>Results:</strong><br>
+                        ${req.phone ? `📞 Phone: ${req.phone}<br>` : ''}
+                        ${req.email ? `📧 Email: ${req.email}<br>` : ''}
+                        ${req.notes ? `Notes: ${req.notes}` : ''}
+                    </div>
+                    ` : ''}
+                    
+                    <div style="margin-top: 10px; font-size: 13px; color: #718096;">
+                        Requested: ${new Date(req.created_at).toLocaleDateString()}
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function formatServiceType(type) {
+            const types = {
+                'skiptrace': '🔍 Contact Research',
+                'cold_call_block': '📞 Cold Calling',
+                'postcard': '📮 Direct Mail',
+                'door_knock': '🚪 Door Knock'
+            };
+            return types[type] || type;
+        }
+
+        function formatStatus(status) {
+            const statuses = {
+                'pending': '⏳ Pending',
+                'claimed': '🎯 Assigned to VA',
+                'in_progress': '⚡ In Progress',
+                'submitted': '⏳ Under Review',
+                'completed': '✅ Completed'
+            };
+            return statuses[status] || status;
+        }
+
+        function logout() {
+            if (confirm('Log out?')) {
+                window.location.href = '/logout';
+            }
+        }
+    </script>
+</body>
+</html>

@@ -293,6 +293,18 @@ def pricing_admin_page():
     return send_from_directory(BASE_DIR, "pricing_admin.html")
 
 
+@app.get("/dashboard")
+@app.get("/dashboard/")
+@app.get("/dashboard.html")
+@app.get("/user_dashboard.html")
+def user_dashboard_page():
+    """Serve user dashboard"""
+    u = require_login(admin=False)  # Regular users only
+    if not u:
+        return redirect("/login")
+    return send_from_directory(BASE_DIR, "user_dashboard.html")
+
+
 @app.get("/login")
 @app.get("/login/")
 @app.get("/login.html")
@@ -1089,6 +1101,133 @@ try:
     print("✅ Database initialized successfully!")
 except Exception as e:
     print(f"⚠️  Database init failed: {e}")
+
+
+# ========== USER SERVICE REQUEST API ==========
+
+@app.get("/api/pricing/active")
+def api_get_active_pricing():
+    """Get active service pricing for users"""
+    try:
+        with db_conn() as conn:
+            with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+                cur.execute("""
+                    SELECT service_type, service_name, service_description, price_charged, display_order
+                    FROM service_pricing
+                    WHERE active = TRUE
+                    ORDER BY display_order, service_name
+                """)
+                
+                pricing = cur.fetchall()
+                
+                return jsonify({"ok": True, "pricing": pricing})
+    
+    except Exception as e:
+        print(f"❌ Get active pricing error: {e}")
+        return jsonify({"ok": False, "error": "Failed to load pricing"}), 500
+
+
+@app.post("/api/user/service-request")
+def api_user_create_service_request():
+    """User creates a service request"""
+    u = require_login(admin=False)
+    if not u:
+        return jsonify({"ok": False, "error": "Not authorized"}), 401
+    
+    data = request.get_json()
+    property_id = data.get('property_id')
+    parcel = data.get('parcel')
+    service_type = data.get('service_type')
+    
+    if not parcel or not service_type:
+        return jsonify({"ok": False, "error": "Missing required fields"}), 400
+    
+    try:
+        with db_conn() as conn:
+            with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+                # Get pricing
+                cur.execute("""
+                    SELECT price_charged, va_payout, service_name
+                    FROM service_pricing
+                    WHERE service_type = %s AND active = TRUE
+                """, (service_type,))
+                
+                pricing = cur.fetchone()
+                
+                if not pricing:
+                    return jsonify({"ok": False, "error": "Service not available"}), 404
+                
+                # Get property details
+                cur.execute("""
+                    SELECT address, owner
+                    FROM properties
+                    WHERE parcel = %s
+                """, (parcel,))
+                
+                prop = cur.fetchone()
+                
+                # Create service request
+                cur.execute("""
+                    INSERT INTO service_requests (
+                        service_type,
+                        property_id,
+                        parcel,
+                        property_address,
+                        owner_name,
+                        user_email,
+                        status,
+                        amount_charged,
+                        va_payout
+                    ) VALUES (%s, %s, %s, %s, %s, %s, 'pending', %s, %s)
+                    RETURNING id
+                """, (
+                    service_type,
+                    property_id,
+                    parcel,
+                    prop['address'] if prop else None,
+                    prop['owner'] if prop else None,
+                    u['email'],
+                    pricing['price_charged'],
+                    pricing['va_payout']
+                ))
+                
+                request_id = cur.fetchone()['id']
+                conn.commit()
+                
+                return jsonify({
+                    "ok": True,
+                    "request_id": request_id,
+                    "message": "Service request created"
+                })
+    
+    except Exception as e:
+        print(f"❌ Create service request error: {e}")
+        return jsonify({"ok": False, "error": "Failed to create request"}), 500
+
+
+@app.get("/api/user/service-requests")
+def api_user_get_service_requests():
+    """Get user's service requests"""
+    u = require_login(admin=False)
+    if not u:
+        return jsonify({"ok": False, "error": "Not authorized"}), 401
+    
+    try:
+        with db_conn() as conn:
+            with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+                cur.execute("""
+                    SELECT * FROM service_requests
+                    WHERE user_email = %s
+                    ORDER BY created_at DESC
+                """, (u['email'],))
+                
+                requests = cur.fetchall()
+                
+                return jsonify({"ok": True, "requests": requests})
+    
+    except Exception as e:
+        print(f"❌ Get user service requests error: {e}")
+        return jsonify({"ok": False, "error": "Failed to load requests"}), 500
 
 
 # ========== ADMIN SERVICE REQUEST MANAGEMENT ==========
