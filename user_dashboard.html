@@ -495,14 +495,14 @@
 
                 if (data.ok) {
                     document.getElementById('heroTotalProperties').textContent = 
-                        (data.total_properties || 0).toLocaleString();
+                        (data.overall.total_properties || 0).toLocaleString();
                     
-                    const totalAmount = data.total_amount_due || 0;
+                    const totalAmount = parseFloat(data.overall.total_amount_due) || 0;
                     document.getElementById('heroTotalAmount').textContent = 
                         '$' + (totalAmount / 1000000).toFixed(1) + 'M+';
                     
                     document.getElementById('heroSweetSpot').textContent = 
-                        (data.sweet_spot_count || 0).toLocaleString();
+                        (data.overall.sweet_spot_count || 0).toLocaleString();
                 }
             } catch (error) {
                 console.error('Error loading stats:', error);
