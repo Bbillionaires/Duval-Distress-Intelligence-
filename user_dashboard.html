@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>My Properties - Duval Intelligence</title>
+    <script src="https://js.stripe.com/v3/"></script>
     <style>
         * {
             margin: 0;
@@ -170,11 +171,6 @@
             color: white;
         }
 
-        .badge-auction-failed {
-            background: #f56565;
-            color: white;
-        }
-
         .modal {
             display: none;
             position: fixed;
@@ -274,6 +270,19 @@
             padding: 40px;
             color: #718096;
         }
+
+        #card-element {
+            border: 1px solid #e2e8f0;
+            border-radius: 6px;
+            padding: 12px;
+            margin: 20px 0;
+        }
+
+        #card-errors {
+            color: #f56565;
+            margin-top: 10px;
+            font-size: 14px;
+        }
     </style>
 </head>
 <body>
@@ -358,7 +367,7 @@
             <div id="serviceOptions"></div>
 
             <div style="display: flex; gap: 10px; margin-top: 20px;">
-                <button class="btn btn-primary" onclick="submitServiceRequest()">
+                <button class="btn btn-primary" onclick="proceedToPayment()">
                     Continue to Payment
                 </button>
                 <button class="btn btn-secondary" onclick="closeServiceModal()">
@@ -368,25 +377,59 @@
         </div>
     </div>
 
+    <!-- Payment Modal -->
+    <div id="paymentModal" class="modal">
+        <div class="modal-content">
+            <h2 style="margin-bottom: 20px;">💳 Payment</h2>
+            <p style="color: #718096; margin-bottom: 20px;">
+                <strong>Service:</strong> <span id="paymentService"></span><br>
+                <strong>Amount:</strong> $<span id="paymentAmount"></span>
+            </p>
+
+            <form id="payment-form">
+                <div id="card-element"></div>
+                <div id="card-errors"></div>
+
+                <div style="display: flex; gap: 10px; margin-top: 20px;">
+                    <button type="submit" class="btn btn-success" id="submitPayment">
+                        Pay Now
+                    </button>
+                    <button type="button" class="btn btn-secondary" onclick="closePaymentModal()">
+                        Back
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
     <script>
         let currentTab = 'properties';
         let selectedService = null;
         let selectedProperty = null;
+        let servicePricing = [];
+        let stripe, elements, cardElement;
 
-        window.addEventListener('DOMContentLoaded', () => {
+        window.addEventListener('DOMContentLoaded', async () => {
             loadProperties();
             loadServiceRequests();
-            loadServicePricing();
+            await loadServicePricing();
+            await initStripe();
         });
+
+        async function initStripe() {
+            const response = await fetch('/api/stripe/config');
+            const { publishableKey } = await response.json();
+            stripe = Stripe(publishableKey);
+            elements = stripe.elements();
+            cardElement = elements.create('card');
+        }
 
         function switchTab(tab) {
             currentTab = tab;
             
-            // Update tab buttons
             document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
             event.target.classList.add('active');
             
-            // Show/hide content
             document.getElementById('propertiesTab').style.display = tab === 'properties' ? 'block' : 'none';
             document.getElementById('requestsTab').style.display = tab === 'requests' ? 'block' : 'none';
         }
@@ -454,8 +497,6 @@
             return stages[stage] || stage;
         }
 
-        let servicePricing = [];
-
         async function loadServicePricing() {
             try {
                 const response = await fetch('/api/pricing/active');
@@ -504,7 +545,7 @@
             selectedProperty = null;
         }
 
-        async function submitServiceRequest() {
+        function proceedToPayment() {
             if (!selectedService) {
                 alert('Please select a service');
                 return;
@@ -512,35 +553,67 @@
 
             const pricing = servicePricing.find(s => s.service_type === selectedService);
             
-            if (!confirm(`Request ${pricing.service_name} for $${parseFloat(pricing.price_charged).toFixed(2)}?`)) {
-                return;
-            }
+            document.getElementById('paymentService').textContent = pricing.service_name;
+            document.getElementById('paymentAmount').textContent = parseFloat(pricing.price_charged).toFixed(2);
+            
+            document.getElementById('serviceModal').style.display = 'none';
+            document.getElementById('paymentModal').style.display = 'flex';
+            
+            // Mount card element
+            cardElement.mount('#card-element');
+        }
+
+        function closePaymentModal() {
+            document.getElementById('paymentModal').style.display = 'none';
+            cardElement.unmount();
+            document.getElementById('serviceModal').style.display = 'flex';
+        }
+
+        document.getElementById('payment-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+
+            const submitBtn = document.getElementById('submitPayment');
+            submitBtn.disabled = true;
+            submitBtn.textContent = 'Processing...';
 
             try {
-                const response = await fetch('/api/user/service-request', {
+                // Create payment intent
+                const response = await fetch('/api/stripe/create-payment-intent', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
-                        property_id: selectedProperty.id,
+                        service_type: selectedService,
                         parcel: selectedProperty.parcel,
-                        service_type: selectedService
+                        property_id: selectedProperty.id
                     })
                 });
 
-                const data = await response.json();
+                const { clientSecret } = await response.json();
 
-                if (data.ok) {
-                    alert('✅ Service request submitted! A VA will work on it soon.');
+                // Confirm payment
+                const { error } = await stripe.confirmCardPayment(clientSecret, {
+                    payment_method: {
+                        card: cardElement
+                    }
+                });
+
+                if (error) {
+                    document.getElementById('card-errors').textContent = error.message;
+                    submitBtn.disabled = false;
+                    submitBtn.textContent = 'Pay Now';
+                } else {
+                    alert('✅ Payment successful! Your service request has been submitted.');
+                    closePaymentModal();
                     closeServiceModal();
                     switchTab('requests');
                     loadServiceRequests();
-                } else {
-                    alert('❌ ' + (data.error || 'Failed to submit request'));
                 }
             } catch (error) {
-                alert('❌ Connection error');
+                alert('❌ Payment failed');
+                submitBtn.disabled = false;
+                submitBtn.textContent = 'Pay Now';
             }
-        }
+        });
 
         async function loadServiceRequests() {
             try {
@@ -592,7 +665,8 @@
                     ` : ''}
                     
                     <div style="margin-top: 10px; font-size: 13px; color: #718096;">
-                        Requested: ${new Date(req.created_at).toLocaleDateString()}
+                        Requested: ${new Date(req.created_at).toLocaleDateString()}<br>
+                        Paid: $${parseFloat(req.amount_charged).toFixed(2)}
                     </div>
                 </div>
             `).join('');
