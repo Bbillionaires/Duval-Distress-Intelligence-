@@ -24,6 +24,7 @@ from flask import Flask, jsonify, request, send_from_directory, redirect, make_r
 from werkzeug.security import generate_password_hash, check_password_hash
 from werkzeug.utils import secure_filename
 import secrets
+import stripe
 
 # Import openpyxl for Excel handling
 try:
@@ -44,6 +45,11 @@ app = Flask(__name__)
 app.config["SECRET_KEY"] = APP_SECRET
 app.config["MAX_CONTENT_LENGTH"] = 16 * 1024 * 1024  # 16MB max file size
 app.config["UPLOAD_FOLDER"] = BASE_DIR / "uploads"
+
+# Stripe configuration
+stripe.api_key = os.getenv("STRIPE_SECRET_KEY")
+STRIPE_PUBLISHABLE_KEY = os.getenv("STRIPE_PUBLISHABLE_KEY")
+STRIPE_WEBHOOK_SECRET = os.getenv("STRIPE_WEBHOOK_SECRET")
 
 # Allowed file extensions for upload
 ALLOWED_EXTENSIONS = {'xlsx', 'xls', 'csv'}
@@ -1101,6 +1107,158 @@ try:
     print("✅ Database initialized successfully!")
 except Exception as e:
     print(f"⚠️  Database init failed: {e}")
+
+
+# ========== STRIPE PAYMENT API ==========
+
+@app.post("/api/stripe/create-payment-intent")
+def create_payment_intent():
+    """Create Stripe payment intent for service request"""
+    u = require_login(admin=False)
+    if not u:
+        return jsonify({"ok": False, "error": "Not authorized"}), 401
+    
+    data = request.get_json()
+    service_type = data.get('service_type')
+    parcel = data.get('parcel')
+    property_id = data.get('property_id')
+    
+    if not service_type or not parcel:
+        return jsonify({"ok": False, "error": "Missing required fields"}), 400
+    
+    try:
+        with db_conn() as conn:
+            with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+                # Get pricing
+                cur.execute("""
+                    SELECT price_charged, service_name
+                    FROM service_pricing
+                    WHERE service_type = %s AND active = TRUE
+                """, (service_type,))
+                
+                pricing = cur.fetchone()
+                
+                if not pricing:
+                    return jsonify({"ok": False, "error": "Service not available"}), 404
+                
+                # Create Stripe PaymentIntent
+                amount_cents = int(float(pricing['price_charged']) * 100)  # Convert to cents
+                
+                payment_intent = stripe.PaymentIntent.create(
+                    amount=amount_cents,
+                    currency='usd',
+                    metadata={
+                        'service_type': service_type,
+                        'parcel': parcel,
+                        'property_id': property_id or '',
+                        'user_email': u['email']
+                    },
+                    description=f"{pricing['service_name']} for {parcel}"
+                )
+                
+                return jsonify({
+                    "ok": True,
+                    "clientSecret": payment_intent.client_secret,
+                    "amount": pricing['price_charged']
+                })
+    
+    except Exception as e:
+        print(f"❌ Create payment intent error: {e}")
+        return jsonify({"ok": False, "error": "Payment failed"}), 500
+
+
+@app.post("/api/stripe/webhook")
+def stripe_webhook():
+    """Handle Stripe webhook events"""
+    payload = request.data
+    sig_header = request.headers.get('Stripe-Signature')
+    
+    try:
+        event = stripe.Webhook.construct_event(
+            payload, sig_header, STRIPE_WEBHOOK_SECRET
+        )
+    except ValueError:
+        return jsonify({"error": "Invalid payload"}), 400
+    except stripe.error.SignatureVerificationError:
+        return jsonify({"error": "Invalid signature"}), 400
+    
+    # Handle payment_intent.succeeded
+    if event['type'] == 'payment_intent.succeeded':
+        payment_intent = event['data']['object']
+        
+        try:
+            with db_conn() as conn:
+                with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+                    # Get metadata
+                    metadata = payment_intent.get('metadata', {})
+                    service_type = metadata.get('service_type')
+                    parcel = metadata.get('parcel')
+                    property_id = metadata.get('property_id')
+                    user_email = metadata.get('user_email')
+                    
+                    # Get pricing
+                    cur.execute("""
+                        SELECT price_charged, va_payout
+                        FROM service_pricing
+                        WHERE service_type = %s
+                    """, (service_type,))
+                    
+                    pricing = cur.fetchone()
+                    
+                    # Get property details
+                    cur.execute("""
+                        SELECT address, owner
+                        FROM properties
+                        WHERE parcel = %s
+                    """, (parcel,))
+                    
+                    prop = cur.fetchone()
+                    
+                    # Create service request
+                    cur.execute("""
+                        INSERT INTO service_requests (
+                            service_type,
+                            property_id,
+                            parcel,
+                            property_address,
+                            owner_name,
+                            user_email,
+                            status,
+                            amount_charged,
+                            va_payout,
+                            stripe_payment_intent_id,
+                            payment_status,
+                            paid_at
+                        ) VALUES (%s, %s, %s, %s, %s, %s, 'pending', %s, %s, %s, 'paid', NOW())
+                        RETURNING id
+                    """, (
+                        service_type,
+                        int(property_id) if property_id else None,
+                        parcel,
+                        prop['address'] if prop else None,
+                        prop['owner'] if prop else None,
+                        user_email,
+                        pricing['price_charged'],
+                        pricing['va_payout'],
+                        payment_intent['id']
+                    ))
+                    
+                    conn.commit()
+                    print(f"✅ Service request created from payment: {payment_intent['id']}")
+        
+        except Exception as e:
+            print(f"❌ Webhook processing error: {e}")
+            return jsonify({"error": "Processing failed"}), 500
+    
+    return jsonify({"ok": True})
+
+
+@app.get("/api/stripe/config")
+def get_stripe_config():
+    """Get Stripe publishable key"""
+    return jsonify({
+        "publishableKey": STRIPE_PUBLISHABLE_KEY
+    })
 
 
 # ========== USER SERVICE REQUEST API ==========
