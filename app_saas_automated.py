@@ -1101,12 +1101,17 @@ def api_upload_batch(county="duval"):
         return jsonify({"ok": False, "error": str(e)}), 500
 
 
-# Initialize database tables on startup
-try:
-    db_init()
-    print("✅ Database initialized successfully!")
-except Exception as e:
-    print(f"⚠️  Database init failed: {e}")
+# Initialize database tables on startup - DISABLED TEMPORARILY
+# All tables already exist, commenting out to avoid init error
+# try:
+#     db_init()
+#     print("✅ Database initialized successfully!")
+# except Exception as e:
+#     import traceback
+#     print(f"⚠️  Database init failed: {e}")
+#     print(f"⚠️  Full traceback: {traceback.format_exc()}")
+
+print("⚠️  db_init() disabled - tables already exist in database")
 
 
 # ========== STRIPE PAYMENT API ==========
