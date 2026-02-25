@@ -1,19 +1,16 @@
-# Gunicorn configuration for Render
-# Allows long-running uploads and requests
+import os
 
-# Timeout for worker processes (10 minutes = 600 seconds)
-# This allows large file uploads to complete
-timeout = 600
+# Render provides $PORT
+bind = f"0.0.0.0:{os.environ.get('PORT', '8000')}"
 
-# Keep-alive connections
+# Worker settings
+workers = 1
+worker_class = "sync"
+worker_connections = 1000
+timeout = 120  # Increased from 30 to 120 seconds
 keepalive = 5
 
-# Worker class
-worker_class = 'sync'
-
-# Log level
-loglevel = 'info'
-
-# Access log format
-accesslog = '-'
-errorlog = '-'
+# Logging
+loglevel = "info"
+accesslog = "-"
+errorlog = "-"
