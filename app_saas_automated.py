@@ -2029,3 +2029,182 @@ def delete_property_note(property_id, note_id):
     except Exception as e:
         print(f"❌ Delete note error: {e}")
         return jsonify({"ok": False, "error": "Failed to delete note"}), 500
+
+
+# File Upload API
+@app.post("/api/va/jobs/<int:job_id>/upload")
+def upload_job_file(job_id):
+    """Upload proof of work file for a job"""
+    va_email = request.headers.get('X-VA-Email', '').strip().lower()
+    
+    if not va_email:
+        return jsonify({"ok": False, "error": "Not authorized"}), 401
+    
+    if 'file' not in request.files:
+        return jsonify({"ok": False, "error": "No file provided"}), 400
+    
+    file = request.files['file']
+    
+    if file.filename == '':
+        return jsonify({"ok": False, "error": "No file selected"}), 400
+    
+    # Check file size (50MB limit)
+    file.seek(0, 2)  # Seek to end
+    file_size = file.tell()
+    file.seek(0)  # Seek back to start
+    
+    if file_size > 50 * 1024 * 1024:  # 50MB
+        return jsonify({"ok": False, "error": "File too large (max 50MB)"}), 400
+    
+    try:
+        with db_conn() as conn:
+            with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+                # Verify VA owns this job
+                cur.execute("""
+                    SELECT id FROM service_requests 
+                    WHERE id = %s AND claimed_by_va_email = %s
+                    AND status IN ('claimed', 'in_progress')
+                """, (job_id, va_email))
+                
+                job = cur.fetchone()
+                
+                if not job:
+                    return jsonify({"ok": False, "error": "Job not found or not yours"}), 404
+                
+                # Check total file size for this request
+                cur.execute("""
+                    SELECT COALESCE(SUM(file_size), 0) as total_size
+                    FROM service_request_files
+                    WHERE service_request_id = %s
+                """, (job_id,))
+                
+                result = cur.fetchone()
+                current_total = result['total_size']
+                
+                if current_total + file_size > 200 * 1024 * 1024:  # 200MB total
+                    return jsonify({"ok": False, "error": "Total file size limit exceeded (max 200MB)"}), 400
+                
+                # Generate unique filename
+                import os
+                import uuid
+                from werkzeug.utils import secure_filename
+                
+                original_filename = secure_filename(file.filename)
+                file_ext = os.path.splitext(original_filename)[1]
+                unique_filename = f"{uuid.uuid4().hex}{file_ext}"
+                
+                # Save to /mnt/user-data/outputs/uploads (temporary - should use S3/Supabase Storage in production)
+                upload_dir = "/mnt/user-data/outputs/uploads"
+                os.makedirs(upload_dir, exist_ok=True)
+                file_path = os.path.join(upload_dir, unique_filename)
+                file.save(file_path)
+                
+                # For now, just store filename. In production, upload to S3/Supabase Storage
+                file_url = f"/uploads/{unique_filename}"
+                
+                # Store file record
+                cur.execute("""
+                    INSERT INTO service_request_files (
+                        service_request_id,
+                        filename,
+                        original_filename,
+                        file_size,
+                        file_type,
+                        file_url,
+                        uploaded_by_va_email
+                    ) VALUES (%s, %s, %s, %s, %s, %s, %s)
+                    RETURNING id
+                """, (
+                    job_id,
+                    unique_filename,
+                    original_filename,
+                    file_size,
+                    file.content_type or 'application/octet-stream',
+                    file_url,
+                    va_email
+                ))
+                
+                file_record = cur.fetchone()
+                conn.commit()
+                
+                return jsonify({
+                    "ok": True,
+                    "file_id": file_record['id'],
+                    "filename": original_filename,
+                    "size": file_size
+                })
+    
+    except Exception as e:
+        print(f"❌ File upload error: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({"ok": False, "error": "Failed to upload file"}), 500
+
+
+@app.get("/api/va/jobs/<int:job_id>/files")
+def get_job_files(job_id):
+    """Get all uploaded files for a job"""
+    # Can be accessed by VA who owns job or admin
+    try:
+        with db_conn() as conn:
+            with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+                cur.execute("""
+                    SELECT id, original_filename, file_size, file_type, 
+                           file_url, uploaded_at
+                    FROM service_request_files
+                    WHERE service_request_id = %s
+                    ORDER BY uploaded_at DESC
+                """, (job_id,))
+                
+                files = cur.fetchall()
+                
+                return jsonify({
+                    "ok": True,
+                    "files": files
+                })
+    
+    except Exception as e:
+        print(f"❌ Get files error: {e}")
+        return jsonify({"ok": False, "error": "Failed to load files"}), 500
+
+
+@app.delete("/api/va/jobs/<int:job_id>/files/<int:file_id>")
+def delete_job_file(job_id, file_id):
+    """Delete an uploaded file"""
+    va_email = request.headers.get('X-VA-Email', '').strip().lower()
+    
+    if not va_email:
+        return jsonify({"ok": False, "error": "Not authorized"}), 401
+    
+    try:
+        with db_conn() as conn:
+            with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+                # Verify ownership
+                cur.execute("""
+                    SELECT f.filename, f.file_url
+                    FROM service_request_files f
+                    JOIN service_requests sr ON sr.id = f.service_request_id
+                    WHERE f.id = %s AND f.service_request_id = %s
+                    AND sr.claimed_by_va_email = %s
+                """, (file_id, job_id, va_email))
+                
+                file_record = cur.fetchone()
+                
+                if not file_record:
+                    return jsonify({"ok": False, "error": "File not found"}), 404
+                
+                # Delete file from disk
+                import os
+                file_path = os.path.join("/mnt/user-data/outputs/uploads", file_record['filename'])
+                if os.path.exists(file_path):
+                    os.remove(file_path)
+                
+                # Delete from database
+                cur.execute("DELETE FROM service_request_files WHERE id = %s", (file_id,))
+                conn.commit()
+                
+                return jsonify({"ok": True, "message": "File deleted"})
+    
+    except Exception as e:
+        print(f"❌ Delete file error: {e}")
+        return jsonify({"ok": False, "error": "Failed to delete file"}), 500
