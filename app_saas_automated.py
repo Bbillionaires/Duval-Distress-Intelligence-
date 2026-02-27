@@ -1761,6 +1761,7 @@ def api_va_claim_job(job_id):
                         claimed_by_va_id = %s,
                         claimed_by_va_email = %s,
                         claimed_at = NOW(),
+                        timer_started_at = NOW(),
                         updated_at = NOW()
                     WHERE id = %s AND status = 'pending'
                 """, (va['id'], va_email, job_id))
@@ -1810,7 +1811,7 @@ def api_va_submit_job(job_id):
                 
                 # Check if this VA owns this job
                 cur.execute("""
-                    SELECT status, service_type FROM service_requests 
+                    SELECT status, service_type, timer_started_at FROM service_requests 
                     WHERE id = %s AND claimed_by_va_id = %s
                 """, (job_id, va['id']))
                 
@@ -1822,6 +1823,13 @@ def api_va_submit_job(job_id):
                 if job['status'] not in ['claimed', 'in_progress']:
                     return jsonify({"ok": False, "error": "Job cannot be submitted in current status"}), 400
                 
+                # Calculate total time worked
+                total_seconds = 0
+                if job['timer_started_at']:
+                    from datetime import datetime, timezone
+                    elapsed = datetime.now(timezone.utc) - job['timer_started_at'].replace(tzinfo=timezone.utc)
+                    total_seconds = int(elapsed.total_seconds())
+                
                 # Update job with results
                 cur.execute("""
                     UPDATE service_requests
@@ -1831,10 +1839,11 @@ def api_va_submit_job(job_id):
                         notes = %s,
                         hours_used = %s,
                         call_outcome = %s,
+                        total_time_seconds = %s,
                         submitted_at = NOW(),
                         updated_at = NOW()
                     WHERE id = %s
-                """, (phone or None, email or None, notes or None, hours_used, call_outcome, job_id))
+                """, (phone or None, email or None, notes or None, hours_used, call_outcome, total_seconds, job_id))
                 
                 # Log activity
                 cur.execute("""
