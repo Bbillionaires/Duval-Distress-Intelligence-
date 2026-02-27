@@ -1127,6 +1127,7 @@ def create_payment_intent():
     service_type = data.get('service_type')
     parcel = data.get('parcel')
     property_id = data.get('property_id')
+    tip_amount = float(data.get('tip_amount', 0))
     
     if not service_type or not parcel:
         return jsonify({"ok": False, "error": "Missing required fields"}), 400
@@ -1146,8 +1147,10 @@ def create_payment_intent():
                 if not pricing:
                     return jsonify({"ok": False, "error": "Service not available"}), 404
                 
-                # Create Stripe PaymentIntent
-                amount_cents = int(float(pricing['price_charged']) * 100)  # Convert to cents
+                # Calculate total amount (service + tip)
+                service_amount = float(pricing['price_charged'])
+                total_amount = service_amount + tip_amount
+                amount_cents = int(total_amount * 100)  # Convert to cents
                 
                 payment_intent = stripe.PaymentIntent.create(
                     amount=amount_cents,
@@ -1156,15 +1159,16 @@ def create_payment_intent():
                         'service_type': service_type,
                         'parcel': parcel,
                         'property_id': property_id or '',
-                        'user_email': u['email']
+                        'user_email': u['email'],
+                        'tip_amount': str(tip_amount)
                     },
-                    description=f"{pricing['service_name']} for {parcel}"
+                    description=f"{pricing['service_name']} for {parcel}" + (f" + ${tip_amount:.2f} tip" if tip_amount > 0 else "")
                 )
                 
                 return jsonify({
                     "ok": True,
                     "clientSecret": payment_intent.client_secret,
-                    "amount": pricing['price_charged']
+                    "amount": total_amount
                 })
     
     except Exception as e:
@@ -1200,6 +1204,7 @@ def stripe_webhook():
                     parcel = metadata.get('parcel')
                     property_id = metadata.get('property_id')
                     user_email = metadata.get('user_email')
+                    tip_amount = float(metadata.get('tip_amount', 0))
                     
                     # Get pricing
                     cur.execute("""
@@ -1231,10 +1236,11 @@ def stripe_webhook():
                             status,
                             amount_charged,
                             va_payout,
+                            tip_amount,
                             stripe_payment_intent_id,
                             payment_status,
                             paid_at
-                        ) VALUES (%s, %s, %s, %s, %s, %s, 'pending', %s, %s, %s, 'paid', NOW())
+                        ) VALUES (%s, %s, %s, %s, %s, %s, 'pending', %s, %s, %s, %s, 'paid', NOW())
                         RETURNING id
                     """, (
                         service_type,
@@ -1245,6 +1251,7 @@ def stripe_webhook():
                         user_email,
                         pricing['price_charged'],
                         pricing['va_payout'],
+                        tip_amount,
                         payment_intent['id']
                     ))
                     
@@ -1913,3 +1920,112 @@ def api_va_cancel_job(job_id):
 if __name__ == "__main__":
     port = int(os.getenv("PORT", "10000"))
     app.run(host="0.0.0.0", port=port, debug=True)
+
+
+# Property Notes API
+@app.get("/api/properties/<int:property_id>/notes")
+def get_property_notes(property_id):
+    """Get all notes for a property"""
+    u = require_login(admin=False)
+    if not u:
+        return jsonify({"ok": False, "error": "Not authorized"}), 401
+    
+    try:
+        with db_conn() as conn:
+            with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+                cur.execute("""
+                    SELECT id, note, user_email, created_at, updated_at
+                    FROM property_notes
+                    WHERE property_id = %s
+                    ORDER BY created_at DESC
+                """, (property_id,))
+                
+                notes = cur.fetchall()
+                
+                return jsonify({
+                    "ok": True,
+                    "notes": notes
+                })
+    
+    except Exception as e:
+        print(f"❌ Get notes error: {e}")
+        return jsonify({"ok": False, "error": "Failed to load notes"}), 500
+
+
+@app.post("/api/properties/<int:property_id>/notes")
+def add_property_note(property_id):
+    """Add a note to a property"""
+    u = require_login(admin=False)
+    if not u:
+        return jsonify({"ok": False, "error": "Not authorized"}), 401
+    
+    data = request.get_json()
+    note_text = data.get('note', '').strip()
+    
+    if not note_text:
+        return jsonify({"ok": False, "error": "Note cannot be empty"}), 400
+    
+    try:
+        with db_conn() as conn:
+            with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+                # Get property parcel
+                cur.execute("SELECT parcel FROM properties WHERE id = %s", (property_id,))
+                prop = cur.fetchone()
+                
+                if not prop:
+                    return jsonify({"ok": False, "error": "Property not found"}), 404
+                
+                # Add note
+                cur.execute("""
+                    INSERT INTO property_notes (property_id, parcel, user_email, note)
+                    VALUES (%s, %s, %s, %s)
+                    RETURNING id, created_at
+                """, (property_id, prop['parcel'], u['email'], note_text))
+                
+                result = cur.fetchone()
+                conn.commit()
+                
+                return jsonify({
+                    "ok": True,
+                    "note_id": result['id'],
+                    "created_at": result['created_at'].isoformat()
+                })
+    
+    except Exception as e:
+        print(f"❌ Add note error: {e}")
+        return jsonify({"ok": False, "error": "Failed to add note"}), 500
+
+
+@app.delete("/api/properties/<int:property_id>/notes/<int:note_id>")
+def delete_property_note(property_id, note_id):
+    """Delete a note (admin or note creator only)"""
+    u = require_login(admin=False)
+    if not u:
+        return jsonify({"ok": False, "error": "Not authorized"}), 401
+    
+    try:
+        with db_conn() as conn:
+            with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+                # Check if user owns this note or is admin
+                cur.execute("""
+                    SELECT user_email FROM property_notes
+                    WHERE id = %s AND property_id = %s
+                """, (note_id, property_id))
+                
+                note = cur.fetchone()
+                
+                if not note:
+                    return jsonify({"ok": False, "error": "Note not found"}), 404
+                
+                if note['user_email'] != u['email'] and not u.get('is_admin'):
+                    return jsonify({"ok": False, "error": "Not authorized to delete this note"}), 403
+                
+                # Delete note
+                cur.execute("DELETE FROM property_notes WHERE id = %s", (note_id,))
+                conn.commit()
+                
+                return jsonify({"ok": True, "message": "Note deleted"})
+    
+    except Exception as e:
+        print(f"❌ Delete note error: {e}")
+        return jsonify({"ok": False, "error": "Failed to delete note"}), 500
