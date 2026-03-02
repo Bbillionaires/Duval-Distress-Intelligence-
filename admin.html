@@ -3,942 +3,388 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Real Estate Intelligence - Admin Dashboard</title>
+    <title>Admin Dashboard</title>
     <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-
+        * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             min-height: 100vh;
             padding: 20px;
         }
-
-        .container {
-            max-width: 1600px;
-            margin: 0 auto;
-        }
-
+        .container { max-width: 1800px; margin: 0 auto; }
         .header {
             background: white;
             padding: 20px 30px;
             border-radius: 10px;
             box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            margin-bottom: 30px;
             display: flex;
             justify-content: space-between;
             align-items: center;
-            margin-bottom: 30px;
         }
-
-        .header-left h1 {
-            color: #2d3748;
-            font-size: 28px;
-            margin-bottom: 5px;
-        }
-
-        .header-left .tagline {
-            color: #718096;
-            font-size: 14px;
-        }
-
-        .header-actions {
-            display: flex;
-            gap: 15px;
-            align-items: center;
-        }
-
         .btn {
             padding: 10px 20px;
-            border-radius: 6px;
             border: none;
+            border-radius: 6px;
             cursor: pointer;
             font-size: 14px;
-            font-weight: 600;
-            transition: all 0.3s;
+            font-weight: 500;
+            transition: all 0.2s;
         }
-
-        .btn-primary {
-            background: #667eea;
-            color: white;
-        }
-
-        .btn-primary:hover {
-            background: #5568d3;
-            transform: translateY(-2px);
-        }
-
-        .btn-success {
-            background: #10b981;
-            color: white;
-        }
-
-        .btn-success:hover {
-            background: #059669;
-        }
-
-        .btn-success:disabled {
-            background: #6b7280;
-            cursor: not-allowed;
-        }
-
-        .btn-danger {
-            background: #f56565;
-            color: white;
-        }
-
-        /* Stats Grid */
-        .stats-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-            gap: 20px;
-            margin-bottom: 30px;
-        }
-
-        .stat-card {
-            background: white;
-            padding: 25px;
-            border-radius: 10px;
-            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-        }
-
-        .stat-card h3 {
-            color: #718096;
-            font-size: 14px;
-            font-weight: 600;
-            text-transform: uppercase;
-            margin-bottom: 10px;
-        }
-
-        .stat-card .stat-value {
-            font-size: 36px;
-            font-weight: 700;
-            color: #2d3748;
-            margin-bottom: 5px;
-        }
-
-        .stat-card .stat-label {
-            color: #a0aec0;
-            font-size: 14px;
-        }
-
-        .stat-card.highlight {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-        }
-
-        .stat-card.highlight h3,
-        .stat-card.highlight .stat-value,
-        .stat-card.highlight .stat-label {
-            color: white;
-        }
-
-        /* Main Content */
-        .main-content {
-            display: grid;
-            grid-template-columns: 2fr 1fr;
-            gap: 30px;
-        }
-
+        .btn-primary { background: #667eea; color: white; }
+        .btn-success { background: #48bb78; color: white; }
+        .btn-danger { background: #f56565; color: white; }
+        .btn-secondary { background: #e2e8f0; color: #2d3748; }
+        .btn-sm { padding: 6px 12px; font-size: 12px; }
         .card {
             background: white;
             border-radius: 10px;
             padding: 25px;
             box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-        }
-
-        .card h2 {
-            color: #2d3748;
-            font-size: 20px;
             margin-bottom: 20px;
-            padding-bottom: 15px;
-            border-bottom: 2px solid #e2e8f0;
         }
-
-        /* Table */
-        table {
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
             width: 100%;
-            border-collapse: collapse;
+            height: 100%;
+            background: rgba(0,0,0,0.5);
+            z-index: 1000;
+            align-items: center;
+            justify-content: center;
         }
-
+        .modal-content {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            max-width: 600px;
+            width: 90%;
+            max-height: 80vh;
+            overflow-y: auto;
+        }
+        table { width: 100%; border-collapse: collapse; }
         th {
             background: #f7fafc;
             padding: 12px;
             text-align: left;
-            font-size: 12px;
-            font-weight: 700;
-            text-transform: uppercase;
-            color: #4a5568;
+            font-weight: 600;
+            color: #2d3748;
+            font-size: 13px;
+            border-bottom: 2px solid #e2e8f0;
         }
-
         td {
             padding: 12px;
             border-bottom: 1px solid #e2e8f0;
             font-size: 14px;
-            color: #2d3748;
         }
-
-        tr:hover {
+        textarea {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #e2e8f0;
+            border-radius: 6px;
+            font-family: inherit;
+            resize: vertical;
+        }
+        .note-card {
+            border: 1px solid #e2e8f0;
+            padding: 15px;
+            margin: 10px 0;
+            border-radius: 6px;
             background: #f7fafc;
         }
-
-        .badge {
-            display: inline-block;
-            padding: 4px 12px;
-            border-radius: 12px;
-            font-size: 11px;
-            font-weight: 600;
-            text-transform: uppercase;
-        }
-
-        .badge-sweet-spot {
-            background: #667eea;
-            color: white;
-        }
-
-        .badge-early {
-            background: #fbbf24;
-            color: white;
-        }
-
-        .badge-late {
-            background: #f59e0b;
-            color: white;
-        }
-
-        .loading {
-            text-align: center;
-            padding: 40px;
+        .note-header {
+            display: flex;
+            justify-content: space-between;
             color: #718096;
-        }
-
-        .spinner {
-            border: 3px solid #f3f3f3;
-            border-top: 3px solid #667eea;
-            border-radius: 50%;
-            width: 40px;
-            height: 40px;
-            animation: spin 1s linear infinite;
-            margin: 0 auto 15px;
-        }
-
-        @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
-        }
-
-        @media (max-width: 768px) {
-            .main-content {
-                grid-template-columns: 1fr;
-            }
+            font-size: 12px;
+            margin-bottom: 8px;
         }
     </style>
 </head>
 <body>
     <div class="container">
-        <!-- Header -->
         <div class="header">
-            <div class="header-left">
-                <h1>🏘️ Duval Intelligence</h1>
-                <p class="tagline">Tax Lead Platform - $99/month</p>
+            <div>
+                <h1>🏘️ Admin Dashboard</h1>
+                <div style="color: #718096; font-size: 14px;">Property Management</div>
             </div>
-            <div class="header-actions">
-                <button class="btn btn-success" id="runScraperBtn" onclick="runScraper()">🚀 Run Scraper</button>
-                <button class="btn btn-primary" id="uploadBtn" onclick="showUploadDialog()">📤 Upload Data</button>
-                <a href="/pricing" class="btn btn-secondary" style="text-decoration: none;">💰 Pricing</a>
+            <div style="display: flex; gap: 10px;">
+                <button class="btn btn-primary" onclick="window.location.href='/pricing'">💰 Pricing</button>
                 <button class="btn btn-danger" onclick="logout()">Logout</button>
             </div>
         </div>
 
-        <!-- Stats Grid -->
-        <div class="stats-grid">
-            <div class="stat-card highlight">
-                <h3>Sweet Spot Leads</h3>
-                <div class="stat-value" id="sweetSpotCount">-</div>
-                <div class="stat-label">Duval County</div>
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 20px; margin-bottom: 30px;">
+            <div class="card" style="text-align: center;">
+                <div style="font-size: 32px; font-weight: 700; color: #667eea;" id="totalProperties">0</div>
+                <div style="color: #718096;">Total Properties</div>
             </div>
-            <div class="stat-card">
-                <h3>Total Properties</h3>
-                <div class="stat-value" id="totalCount">-</div>
-                <div class="stat-label">With certificates</div>
+            <div class="card" style="text-align: center;">
+                <div style="font-size: 32px; font-weight: 700; color: #48bb78;" id="sweetSpot">0</div>
+                <div style="color: #718096;">Sweet Spot</div>
             </div>
-            <div class="stat-card">
-                <h3>Total Amount Due</h3>
-                <div class="stat-value" id="totalAmountDue">-</div>
-                <div class="stat-label">Across all properties</div>
+            <div class="card" style="text-align: center;">
+                <div style="font-size: 32px; font-weight: 700; color: #f56565;" id="dangerZone">0</div>
+                <div style="color: #718096;">Danger Zone</div>
             </div>
-            <div class="stat-card">
-                <h3>Last Updated</h3>
-                <div class="stat-value" id="lastUpdated" style="font-size: 18px;">-</div>
-                <div class="stat-label">Automated daily</div>
+            <div class="card" style="text-align: center;">
+                <div style="font-size: 32px; font-weight: 700; color: #2d3748;" id="totalDue">$0</div>
+                <div style="color: #718096;">Total Due</div>
             </div>
         </div>
 
-        <!-- Service Requests Section -->
-        <div class="card" style="margin-bottom: 30px;">
-            <h2 style="color: #2d3748; font-size: 20px; margin-bottom: 20px; padding-bottom: 15px; border-bottom: 2px solid #e2e8f0;">
-                🔔 Service Requests Pending Review
-            </h2>
-            
-            <div id="serviceRequestsLoading" style="text-align: center; padding: 40px; color: #718096;">
-                Loading requests...
+        <div class="card">
+            <h2 style="margin-bottom: 20px;">📊 Properties</h2>
+            <div style="margin-bottom: 20px; display: flex; gap: 10px; flex-wrap: wrap;">
+                <select id="stageFilter" style="padding: 8px; border-radius: 6px; border: 1px solid #e2e8f0;">
+                    <option value="">All Stages</option>
+                    <option value="sweet_spot">Sweet Spot</option>
+                    <option value="danger_zone">Danger Zone</option>
+                    <option value="pre_lien">Pre-Lien</option>
+                </select>
+                <button class="btn btn-primary" onclick="loadProperties()">Apply Filter</button>
             </div>
-            
-            <div id="serviceRequestsList"></div>
-        </div>
-
-        <!-- Main Content -->
-        <div class="main-content">
-            <!-- Properties -->
-            <div class="card">
-                <h2>Properties - Duval County</h2>
-                
-                <div style="margin-bottom: 20px; display: flex; gap: 10px; align-items: center; justify-content: space-between;">
-                    <div style="display: flex; gap: 10px; align-items: center;">
-                        <select id="stageFilter" style="padding: 8px; border-radius: 6px; border: 1px solid #e2e8f0;">
-                            <option value="">All Stages</option>
-                            <option value="auction_failed">🔥 Auction Failed (HOT!)</option>
-                            <option value="sweet_spot">🎯 Sweet Spot (2-5 years)</option>
-                            <option value="danger_zone">🚨 Danger Zone (5+ years)</option>
-                            <option value="tax_deed_filed">📋 Tax Deed Filed</option>
-                            <option value="pre_lien">⚠️ Pre-Lien (1-2 years)</option>
-                            <option value="unpaid_new">🆕 Unpaid New (&lt;1 year)</option>
-                            <option value="current">✅ Paid/Current</option>
-                        </select>
-                        <button class="btn btn-primary" onclick="loadProperties()">Apply</button>
-                        <button class="btn btn-primary" onclick="exportCSV()">📥 Export CSV</button>
-                    </div>
-                    <div id="totalCount" style="color: #718096; font-size: 14px;">Loading...</div>
-                </div>
-
-                <div id="propertiesLoading" class="loading" style="display: none;">
-                    <div class="spinner"></div>
-                    <p>Loading properties...</p>
-                </div>
-
-                <div id="propertiesError" style="display: none; padding: 40px; text-align: center; background: #fee2e2; color: #991b1b; border-radius: 6px; margin-bottom: 20px;">
-                    <p><strong>⚠️ Database connection timeout</strong></p>
-                    <p>The database may be waking up. Please <a href="#" onclick="location.reload()" style="color: #991b1b; text-decoration: underline;">refresh the page</a> in 30 seconds.</p>
-                </div>
-
-                <!-- Pagination at TOP -->
-                <div id="paginationTop" style="display: none; margin-bottom: 15px; padding: 15px; background: #f7fafc; border-radius: 6px;">
-                    <div style="display: flex; justify-content: space-between; align-items: center;">
-                        <button class="btn" style="background: #e2e8f0; color: #2d3748;" id="prevBtnTop" onclick="changePage(-1)">← Previous</button>
-                        <div id="pageNumbersTop" style="display: flex; gap: 5px; flex-wrap: wrap; justify-content: center;"></div>
-                        <button class="btn" style="background: #e2e8f0; color: #2d3748;" id="nextBtnTop" onclick="changePage(1)">Next →</button>
-                    </div>
-                </div>
-
-                <div id="propertiesTable">
-                    <table>
-                        <thead>
-                            <tr>
-                                <th>Parcel</th>
-                                <th>Stage</th>
-                                <th>Property Address</th>
-                                <th>Owner Name</th>
-                                <th>Owner Mailing Address</th>
-                                <th>Deed Status</th>
-                                <th>Amount Due</th>
-                                <th>Certificate #</th>
-                            </tr>
-                        </thead>
-                        <tbody id="propertiesBody"></tbody>
-                    </table>
-                    
-                    <div id="paginationControls" style="display: none; margin-top: 20px; padding: 15px; background: #f7fafc; border-radius: 6px;">
-                        <div style="display: flex; justify-content: space-between; align-items: center;">
-                            <button class="btn" style="background: #e2e8f0; color: #2d3748;" id="prevBtn" onclick="changePage(-1)">← Previous</button>
-                            <div id="pageNumbers" style="display: flex; gap: 5px; flex-wrap: wrap; justify-content: center;"></div>
-                            <button class="btn" style="background: #e2e8f0; color: #2d3748;" id="nextBtn" onclick="changePage(1)">Next →</button>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Sidebar -->
-            <div>
-                <!-- Stage Breakdown -->
-                <div class="card">
-                    <h2>Stage Breakdown</h2>
-                    <div id="stageBreakdown"></div>
-                </div>
-            </div>
+            <div id="propertiesTable"></div>
+            <div id="pagination" style="margin-top: 20px; display: flex; gap: 10px; justify-content: center;"></div>
         </div>
     </div>
 
-    <!-- Upload Modal -->
-    <div id="uploadModal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 1000; align-items: center; justify-content: center;">
-        <div style="background: white; padding: 30px; border-radius: 10px; max-width: 500px; width: 90%;">
-            <h2 style="margin-bottom: 20px;">📤 Upload Property Data</h2>
+    <!-- Notes Modal -->
+    <div id="notesModal" class="modal">
+        <div class="modal-content">
+            <h2 style="margin-bottom: 20px;">📝 Notes for <span id="notesParcel"></span></h2>
             
             <div style="margin-bottom: 20px;">
-                <p style="color: #718096; font-size: 14px; margin-bottom: 15px;">
-                    Upload Excel (.xlsx) or CSV file with property data. Large files (10,000+ rows) are automatically processed in batches.
-                </p>
-                <p style="color: #718096; font-size: 13px; margin-bottom: 10px;">
-                    <strong>For county-taxes.net files:</strong> Just upload the Excel file directly!<br>
-                    <strong>Required column:</strong> parcel<br>
-                    <strong>Optional columns:</strong> Owner Name, Property Address, Cert #, Face Amount, etc.
-                </p>
+                <textarea id="newNote" placeholder="Add a note..." rows="3" style="margin-bottom: 10px;"></textarea>
+                <button class="btn btn-primary" onclick="addNote()">💾 Save Note</button>
             </div>
-            
-            <input type="file" id="fileInput" accept=".xlsx,.xls,.csv" style="margin-bottom: 20px; padding: 10px; border: 2px dashed #e2e8f0; border-radius: 6px; width: 100%;">
-            
-            <div id="uploadProgress" style="display: none; margin-bottom: 20px;">
-                <div class="spinner" style="width: 30px; height: 30px;"></div>
-                <p style="text-align: center; color: #718096;">Uploading and processing...</p>
-            </div>
-            
-            <div id="uploadResult" style="display: none; margin-bottom: 20px; padding: 15px; border-radius: 6px;"></div>
-            
-            <div style="display: flex; gap: 10px; justify-content: flex-end;">
-                <button class="btn" style="background: #e2e8f0; color: #2d3748;" onclick="closeUploadDialog()">Cancel</button>
-                <button class="btn btn-primary" onclick="uploadFile()">Upload</button>
+
+            <div id="notesList"></div>
+
+            <div style="margin-top: 20px;">
+                <button class="btn btn-secondary" onclick="closeNotesModal()">Close</button>
             </div>
         </div>
     </div>
 
     <script>
-        // Load data on page load
-        window.addEventListener('DOMContentLoaded', () => {
-            checkHealthAndLoad();
-        });
+        let currentPage = 1;
+        let currentPropertyId = null;
 
-        async function checkHealthAndLoad() {
-            try {
-                const response = await fetch('/api/health');
-                const health = await response.json();
-                
-                if (health.status === 'unhealthy') {
-                    showDatabaseWakeupMessage();
-                    // Retry after 30 seconds
-                    setTimeout(() => {
-                        location.reload();
-                    }, 30000);
-                } else {
-                    loadStats();
-                    loadProperties();
-                    loadServiceRequests();
-                }
-            } catch (error) {
-                // Health check failed, try loading anyway
-                loadStats();
-                loadProperties();
-                loadServiceRequests();
-            }
-        }
+        window.addEventListener('DOMContentLoaded', () => {
+            loadStats();
+            loadProperties();
+        });
 
         async function loadStats() {
             try {
-                // Add 30-second timeout
-                const controller = new AbortController();
-                const timeoutId = setTimeout(() => controller.abort(), 30000);
-                
-                const response = await fetch('/api/stats', {
-                    signal: controller.signal
-                });
-                clearTimeout(timeoutId);
-                
+                const response = await fetch('/api/stats');
                 const data = await response.json();
-
                 if (data.ok) {
-                    document.getElementById('sweetSpotCount').textContent = 
-                        data.by_stage.find(s => s.stage === 'sweet_spot')?.count || 0;
-                    document.getElementById('totalCount').textContent = 
-                        data.overall.total_properties || 0;
-                    document.getElementById('totalAmountDue').textContent = 
-                        '$' + (parseFloat(data.overall.total_amount_due) || 0).toLocaleString('en-US', {maximumFractionDigits: 0});
-                    document.getElementById('lastUpdated').textContent = 
-                        new Date().toLocaleDateString();
-
-                    // Stage breakdown
-                    const breakdownHtml = data.by_stage.map(stage => `
-                        <div style="padding: 10px; border-bottom: 1px solid #e2e8f0;">
-                            <div style="display: flex; justify-content: space-between;">
-                                <span>${formatStage(stage.stage)}</span>
-                                <span class="badge badge-${stage.stage.replace('_', '-')}">${stage.count}</span>
-                            </div>
-                        </div>
-                    `).join('');
-                    document.getElementById('stageBreakdown').innerHTML = breakdownHtml || '<p style="color: #718096;">No data yet</p>';
+                    document.getElementById('totalProperties').textContent = (data.overall.total_properties || 0).toLocaleString();
+                    document.getElementById('sweetSpot').textContent = (data.overall.sweet_spot_count || 0).toLocaleString();
+                    const dangerZone = data.by_stage.find(s => s.stage === 'danger_zone');
+                    document.getElementById('dangerZone').textContent = (dangerZone?.count || 0).toLocaleString();
+                    const totalDue = parseFloat(data.overall.total_amount_due || 0);
+                    document.getElementById('totalDue').textContent = '$' + (totalDue / 1000000).toFixed(1) + 'M';
                 }
             } catch (error) {
-                if (error.name === 'AbortError') {
-                    // Timeout - show friendly message
-                    showDatabaseWakeupMessage();
-                }
                 console.error('Error loading stats:', error);
             }
         }
 
-        function showDatabaseWakeupMessage() {
-            const message = document.createElement('div');
-            message.style.cssText = `
-                position: fixed;
-                top: 20px;
-                right: 20px;
-                background: #fef3c7;
-                color: #92400e;
-                padding: 20px;
-                border-radius: 10px;
-                box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-                max-width: 400px;
-                z-index: 9999;
-            `;
-            message.innerHTML = `
-                <strong>⏳ Database Waking Up</strong><br>
-                <p style="margin: 10px 0 0 0; font-size: 14px;">
-                    The database is starting up. Please wait 30 seconds and 
-                    <a href="#" onclick="location.reload(); return false;" style="color: #92400e; text-decoration: underline; font-weight: 600;">refresh the page</a>.
-                </p>
-            `;
-            document.body.appendChild(message);
-            
-            // Auto-remove after 10 seconds
-            setTimeout(() => message.remove(), 10000);
-        }
-
-        let currentPage = 1;
-        let totalPages = 1;
-
         async function loadProperties() {
-            const loading = document.getElementById('propertiesLoading');
-            const table = document.getElementById('propertiesTable');
-            const errorDiv = document.getElementById('propertiesError');
             const stage = document.getElementById('stageFilter').value;
-
-            loading.style.display = 'block';
-            table.style.display = 'none';
-            errorDiv.style.display = 'none';
+            const params = new URLSearchParams({ page: currentPage, page_size: 50 });
+            if (stage) params.append('stage', stage);
 
             try {
-                const params = new URLSearchParams({
-                    page: currentPage,
-                    page_size: 50
-                });
-
-                if (stage) params.append('stage', stage);
-
-                // Add 10-second timeout
-                const controller = new AbortController();
-                const timeoutId = setTimeout(() => controller.abort(), 10000);
-
-                const response = await fetch(`/api/properties?${params}`, {
-                    signal: controller.signal
-                });
-                
-                clearTimeout(timeoutId);
+                const response = await fetch(`/api/properties?${params}`);
                 const data = await response.json();
-
+                
                 if (data.ok && data.rows.length > 0) {
-                    const tbody = document.getElementById('propertiesBody');
-                    tbody.innerHTML = data.rows.map(prop => `
-                        <tr>
-                            <td><strong>${prop.parcel || '-'}</strong></td>
-                            <td><span class="badge badge-${prop.stage.replace('_', '-')}">${formatStage(prop.stage)}</span></td>
-                            <td>${prop.address || '-'}</td>
-                            <td>${prop.owner || '-'}</td>
-                            <td>${prop.owner_address || '-'}</td>
-                            <td>${prop.deed_status || '-'}</td>
-                            <td><strong>$${parseFloat(prop.current_total_due || 0).toLocaleString('en-US', {maximumFractionDigits: 2})}</strong></td>
-                            <td>${prop.certificate_number || '-'}</td>
-                        </tr>
-                    `).join('');
-                    
-                    // Update pagination
-                    totalPages = Math.ceil(data.total / data.page_size);
-                    
-                    // Generate page number buttons
-                    renderPageNumbers();
-                    
-                    // Update button states
-                    document.getElementById('prevBtn').disabled = currentPage === 1;
-                    document.getElementById('nextBtn').disabled = currentPage === totalPages;
-                    document.getElementById('prevBtnTop').disabled = currentPage === 1;
-                    document.getElementById('nextBtnTop').disabled = currentPage === totalPages;
-                    
-                    // Show pagination controls
-                    document.getElementById('paginationControls').style.display = 'block';
-                    document.getElementById('paginationTop').style.display = 'block';
-                    
-                    // Update total count
-                    const start = (currentPage - 1) * data.page_size + 1;
-                    const end = Math.min(currentPage * data.page_size, data.total);
-                    document.getElementById('totalCount').textContent = `Showing ${start}-${end} of ${data.total.toLocaleString()} properties`;
-                    
-                    table.style.display = 'block';
-                } else {
-                    document.getElementById('propertiesBody').innerHTML = '<tr><td colspan="8" style="text-align: center; padding: 40px; color: #718096;">No properties found. Click "📤 Upload Data" to import properties.</td></tr>';
-                    document.getElementById('paginationControls').style.display = 'none';
-                    document.getElementById('paginationTop').style.display = 'none';
-                    document.getElementById('totalCount').textContent = 'No properties found';
-                    table.style.display = 'block';
+                    renderProperties(data.rows);
+                    renderPagination(data.total);
                 }
             } catch (error) {
                 console.error('Error loading properties:', error);
-                if (error.name === 'AbortError') {
-                    // Timeout - database might be sleeping
-                    errorDiv.style.display = 'block';
-                } else {
-                    document.getElementById('propertiesBody').innerHTML = '<tr><td colspan="8" style="text-align: center; padding: 40px; color: #ef4444;">Error loading properties</td></tr>';
-                    table.style.display = 'block';
-                }
-            } finally {
-                loading.style.display = 'none';
             }
         }
 
-        function changePage(delta) {
-            currentPage += delta;
-            if (currentPage < 1) currentPage = 1;
-            if (currentPage > totalPages) currentPage = totalPages;
-            loadProperties();
+        function renderProperties(properties) {
+            const container = document.getElementById('propertiesTable');
+            container.innerHTML = `
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Parcel</th>
+                            <th>Stage</th>
+                            <th>Address</th>
+                            <th>Owner</th>
+                            <th>Amount Due</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${properties.map(prop => `
+                            <tr>
+                                <td><strong>${prop.parcel}</strong></td>
+                                <td><span style="padding: 4px 8px; border-radius: 4px; font-size: 12px; background: ${getStageColor(prop.stage)}; color: white;">${formatStage(prop.stage)}</span></td>
+                                <td>${prop.address || '-'}</td>
+                                <td>${prop.owner || '-'}</td>
+                                <td><strong>$${parseFloat(prop.current_total_due || 0).toLocaleString()}</strong></td>
+                                <td>
+                                    <button class="btn btn-primary btn-sm" onclick="openNotesModal(${prop.id}, '${prop.parcel}')">
+                                        📝 Notes
+                                    </button>
+                                </td>
+                            </tr>
+                        `).join('')}
+                    </tbody>
+                </table>
+            `;
         }
 
-        function goToPage(page) {
+        function renderPagination(total) {
+            const totalPages = Math.ceil(total / 50);
+            const container = document.getElementById('pagination');
+            let html = '';
+            
+            if (currentPage > 1) {
+                html += `<button class="btn btn-secondary" onclick="changePage(${currentPage - 1})">← Previous</button>`;
+            }
+            
+            html += `<span style="padding: 10px;">Page ${currentPage} of ${totalPages}</span>`;
+            
+            if (currentPage < totalPages) {
+                html += `<button class="btn btn-secondary" onclick="changePage(${currentPage + 1})">Next →</button>`;
+            }
+            
+            container.innerHTML = html;
+        }
+
+        function changePage(page) {
             currentPage = page;
             loadProperties();
         }
 
-        function renderPageNumbers() {
-            const pageNumbers = document.getElementById('pageNumbers');
-            const pageNumbersTop = document.getElementById('pageNumbersTop');
-            
-            let html = '';
-            
-            // Show max 10 page buttons
-            let startPage = Math.max(1, currentPage - 5);
-            let endPage = Math.min(totalPages, currentPage + 4);
-            
-            // Adjust if near start
-            if (currentPage < 6) {
-                endPage = Math.min(10, totalPages);
-            }
-            
-            // Adjust if near end
-            if (currentPage > totalPages - 5) {
-                startPage = Math.max(1, totalPages - 9);
-            }
-            
-            // First page button
-            if (startPage > 1) {
-                html += `<button onclick="goToPage(1)" style="padding: 8px 12px; border: 1px solid #e2e8f0; background: white; border-radius: 4px; cursor: pointer; font-size: 14px;">1</button>`;
-                if (startPage > 2) {
-                    html += `<span style="padding: 8px;">...</span>`;
-                }
-            }
-            
-            // Page number buttons
-            for (let i = startPage; i <= endPage; i++) {
-                const isActive = i === currentPage;
-                html += `<button onclick="goToPage(${i})" style="padding: 8px 12px; border: 1px solid ${isActive ? '#667eea' : '#e2e8f0'}; background: ${isActive ? '#667eea' : 'white'}; color: ${isActive ? 'white' : '#2d3748'}; border-radius: 4px; cursor: pointer; font-weight: ${isActive ? 'bold' : 'normal'}; font-size: 14px;">${i}</button>`;
-            }
-            
-            // Last page button
-            if (endPage < totalPages) {
-                if (endPage < totalPages - 1) {
-                    html += `<span style="padding: 8px;">...</span>`;
-                }
-                html += `<button onclick="goToPage(${totalPages})" style="padding: 8px 12px; border: 1px solid #e2e8f0; background: white; border-radius: 4px; cursor: pointer; font-size: 14px;">${totalPages}</button>`;
-            }
-            
-            pageNumbers.innerHTML = html;
-            pageNumbersTop.innerHTML = html;
-        }
-
-        async function runScraper() {
-            if (!confirm('Run the scraper now? This will collect new tax deed properties from Duval County. It may take 5-10 minutes.')) {
-                return;
-            }
-            
-            const btn = document.getElementById('runScraperBtn');
-            const originalText = btn.textContent;
-            btn.disabled = true;
-            btn.textContent = '⏳ Running scraper...';
-            
-            try {
-                const response = await fetch('/api/trigger_scrape', {
-                    method: 'POST',
-                    headers: {'Content-Type': 'application/json'}
-                });
-                
-                const data = await response.json();
-                
-                if (data.ok) {
-                    alert('✅ Scraper started successfully! The system is now collecting properties. Refresh this page in 5-10 minutes to see new data.');
-                } else {
-                    alert('❌ Error: ' + (data.error || 'Unknown error'));
-                }
-            } catch (error) {
-                alert('❌ Error starting scraper: ' + error.message);
-            } finally {
-                btn.disabled = false;
-                btn.textContent = originalText;
-            }
-        }
-
-        function exportCSV() {
-            const stage = document.getElementById('stageFilter').value;
-            
-            // Warn about export limit
-            if (!confirm('Export is limited to 1,000 properties. Continue?')) {
-                return;
-            }
-            
-            const params = new URLSearchParams({
-                page: 1,
-                page_size: 1000  // Max 1000 rows
-            });
-            if (stage) params.append('stage', stage);
-            
-            window.location.href = `/api/properties?${params}&format=csv`;
+        function getStageColor(stage) {
+            const colors = {
+                'sweet_spot': '#48bb78',
+                'danger_zone': '#f56565',
+                'pre_lien': '#ecc94b',
+                'unpaid_new': '#9f7aea',
+                'tax_deed_filed': '#ed8936'
+            };
+            return colors[stage] || '#718096';
         }
 
         function formatStage(stage) {
             const stages = {
-                'auction_failed': '🔥 Auction Failed',
-                'sweet_spot': '🎯 Sweet Spot',
-                'danger_zone': '🚨 Danger Zone',
-                'pre_lien': '⚠️ Pre-Lien',
-                'unpaid_new': '🆕 Unpaid New',
-                'tax_deed_filed': '📋 Tax Deed Filed',
-                'current': '✅ Paid/Current'
+                'sweet_spot': 'Sweet Spot',
+                'danger_zone': 'Danger Zone',
+                'pre_lien': 'Pre-Lien',
+                'unpaid_new': 'Unpaid New',
+                'tax_deed_filed': 'Tax Deed Filed'
             };
             return stages[stage] || stage;
         }
 
-        function logout() {
-            fetch('/api/logout', { method: 'POST' })
-                .then(() => window.location.href = '/login');
+        // Notes Functions
+        async function openNotesModal(propertyId, parcel) {
+            currentPropertyId = propertyId;
+            document.getElementById('notesParcel').textContent = parcel;
+            document.getElementById('notesModal').style.display = 'flex';
+            await loadNotes();
         }
 
-        function showUploadDialog() {
-            document.getElementById('uploadModal').style.display = 'flex';
-            document.getElementById('uploadResult').style.display = 'none';
-            document.getElementById('fileInput').value = '';
+        function closeNotesModal() {
+            document.getElementById('notesModal').style.display = 'none';
+            currentPropertyId = null;
+            document.getElementById('newNote').value = '';
         }
 
-        function closeUploadDialog() {
-            document.getElementById('uploadModal').style.display = 'none';
-        }
-
-        async function uploadFile() {
-            const fileInput = document.getElementById('fileInput');
-            const file = fileInput.files[0];
+        async function loadNotes() {
+            if (!currentPropertyId) return;
             
-            if (!file) {
-                alert('Please select a file first');
+            try {
+                const response = await fetch(`/api/properties/${currentPropertyId}/notes`);
+                const data = await response.json();
+                
+                const container = document.getElementById('notesList');
+                
+                if (!data.ok || data.notes.length === 0) {
+                    container.innerHTML = '<p style="color: #718096; text-align: center; padding: 20px;">No notes yet</p>';
+                    return;
+                }
+                
+                container.innerHTML = data.notes.map(note => `
+                    <div class="note-card">
+                        <div class="note-header">
+                            <span>${new Date(note.created_at).toLocaleString()} - ${note.user_email}</span>
+                            <button onclick="deleteNote(${note.id})" style="background: none; border: none; cursor: pointer; color: #f56565;">🗑️</button>
+                        </div>
+                        <div style="color: #2d3748;">${note.note}</div>
+                    </div>
+                `).join('');
+            } catch (error) {
+                console.error('Error loading notes:', error);
+            }
+        }
+
+        async function addNote() {
+            const noteText = document.getElementById('newNote').value.trim();
+            if (!noteText) {
+                alert('Please enter a note');
                 return;
             }
             
-            const progressDiv = document.getElementById('uploadProgress');
-            const resultDiv = document.getElementById('uploadResult');
-            
-            progressDiv.style.display = 'block';
-            resultDiv.style.display = 'none';
-            
-            // Update progress text for large files
-            const fileSize = file.size / (1024 * 1024); // MB
-            if (fileSize > 1) {
-                progressDiv.innerHTML = `
-                    <div class="spinner" style="width: 30px; height: 30px;"></div>
-                    <p style="text-align: center; color: #718096;">Processing large file in batches...<br>This may take 1-2 minutes</p>
-                `;
-            }
-            
-            const formData = new FormData();
-            formData.append('file', file);
-            
-            // Always use batch endpoint - it handles Excel, CSV, and TSV
-            const endpoint = '/api/upload_batch/duval';
-            
             try {
-                // Add 60-second timeout for uploads (they take longer)
-                const controller = new AbortController();
-                const timeoutId = setTimeout(() => controller.abort(), 60000);
-
-                const response = await fetch(endpoint, {
+                const response = await fetch(`/api/properties/${currentPropertyId}/notes`, {
                     method: 'POST',
-                    body: formData,
-                    signal: controller.signal
-                });
-                
-                clearTimeout(timeoutId);
-                const data = await response.json();
-                
-                progressDiv.style.display = 'none';
-                resultDiv.style.display = 'block';
-                
-                if (data.ok) {
-                    resultDiv.style.background = '#d1fae5';
-                    resultDiv.style.color = '#065f46';
-                    resultDiv.innerHTML = `
-                        <strong>✅ Upload Successful!</strong><br>
-                        📊 Imported: ${data.imported.toLocaleString()}<br>
-                        ${data.skipped ? `⚠️ Skipped: ${data.skipped}<br>` : ''}
-                        ${data.errors && data.errors.length > 0 ? `<br>⚠️ Some errors occurred (${data.errors.length})` : ''}
-                    `;
-                    
-                    // Reload data after 2 seconds
-                    setTimeout(() => {
-                        closeUploadDialog();
-                        loadStats();
-                        loadProperties();
-                    }, 2000);
-                } else {
-                    resultDiv.style.background = '#fee2e2';
-                    resultDiv.style.color = '#991b1b';
-                    resultDiv.innerHTML = `<strong>❌ Error:</strong> ${data.error}`;
-                }
-            } catch (error) {
-                progressDiv.style.display = 'none';
-                resultDiv.style.display = 'block';
-                resultDiv.style.background = '#fee2e2';
-                resultDiv.style.color = '#991b1b';
-                
-                if (error.name === 'AbortError') {
-                    resultDiv.innerHTML = `
-                        <strong>⏳ Upload Timeout</strong><br>
-                        Your file is being processed in the background. 
-                        <a href="#" onclick="location.reload(); return false;" style="color: #991b1b; text-decoration: underline;">Refresh the page</a> 
-                        in 30 seconds to see if it completed.
-                    `;
-                } else {
-                    resultDiv.innerHTML = `<strong>❌ Error:</strong> ${error.message}`;
-                }
-            }
-        }
-        // ========== SERVICE REQUESTS MANAGEMENT ==========
-        
-        async function loadServiceRequests() {
-            try {
-                const response = await fetch('/api/admin/service-requests?status=submitted');
-                const data = await response.json();
-                
-                document.getElementById('serviceRequestsLoading').style.display = 'none';
-                
-                if (data.ok && data.requests && data.requests.length > 0) {
-                    renderServiceRequests(data.requests);
-                } else {
-                    document.getElementById('serviceRequestsList').innerHTML = `
-                        <div style="text-align: center; padding: 40px; color: #718096;">
-                            <p>✅ No requests pending review</p>
-                        </div>
-                    `;
-                }
-            } catch (error) {
-                console.error('Error loading service requests:', error);
-                document.getElementById('serviceRequestsLoading').style.display = 'none';
-            }
-        }
-
-        function renderServiceRequests(requests) {
-            const container = document.getElementById('serviceRequestsList');
-            
-            container.innerHTML = requests.map(req => `
-                <div style="border: 1px solid #e2e8f0; border-radius: 8px; padding: 20px; margin-bottom: 15px; background: #f7fafc;">
-                    <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 15px;">
-                        <div>
-                            <span style="padding: 6px 12px; border-radius: 6px; font-size: 13px; font-weight: 600; background: #bee3f8; color: #2c5282;">
-                                ${formatServiceType(req.service_type)}
-                            </span>
-                            <span style="padding: 6px 12px; border-radius: 6px; font-size: 13px; font-weight: 600; background: #48bb78; color: white; margin-left: 10px;">
-                                VA Payout: $${parseFloat(req.va_payout || 0).toFixed(2)}
-                            </span>
-                        </div>
-                        <div style="font-size: 12px; color: #718096;">
-                            Submitted: ${new Date(req.submitted_at).toLocaleString()}
-                        </div>
-                    </div>
-                    
-                    <div style="background: white; padding: 15px; border-radius: 6px; margin-bottom: 15px;">
-                        <p style="margin: 5px 0;"><strong>Parcel:</strong> ${req.parcel}</p>
-                        <p style="margin: 5px 0;"><strong>Address:</strong> ${req.property_address || 'N/A'}</p>
-                        <p style="margin: 5px 0;"><strong>Owner:</strong> ${req.owner_name || 'N/A'}</p>
-                        <p style="margin: 5px 0;"><strong>Requested by:</strong> ${req.user_email}</p>
-                        <p style="margin: 5px 0;"><strong>VA:</strong> ${req.claimed_by_va_email}</p>
-                    </div>
-                    
-                    <div style="background: #fff5e6; padding: 15px; border-radius: 6px; border-left: 4px solid #f59e0b; margin-bottom: 15px;">
-                        <h4 style="margin: 0 0 10px 0; color: #2d3748;">VA Results:</h4>
-                        ${req.phone ? `<p style="margin: 5px 0;"><strong>📞 Phone:</strong> ${req.phone}</p>` : ''}
-                        ${req.email ? `<p style="margin: 5px 0;"><strong>📧 Email:</strong> ${req.email}</p>` : ''}
-                        ${req.call_outcome ? `<p style="margin: 5px 0;"><strong>Call Outcome:</strong> ${req.call_outcome}</p>` : ''}
-                        ${req.hours_used ? `<p style="margin: 5px 0;"><strong>Hours Used:</strong> ${req.hours_used}</p>` : ''}
-                        ${req.notes ? `<p style="margin: 10px 0 0 0;"><strong>Notes:</strong><br>${req.notes}</p>` : ''}
-                    </div>
-                    
-                    <div style="display: flex; gap: 10px;">
-                        <button class="btn btn-success" onclick="approveServiceRequest(${req.id})">
-                            ✅ Approve & Pay VA
-                        </button>
-                        <button class="btn btn-danger" onclick="rejectServiceRequest(${req.id})">
-                            ❌ Reject & Return to Queue
-                        </button>
-                    </div>
-                </div>
-            `).join('');
-        }
-
-        function formatServiceType(type) {
-            const types = {
-                'skiptrace': '🔍 Contact Research',
-                'cold_call_block': '📞 Cold Calling',
-                'postcard': '📮 Direct Mail',
-                'door_knock': '🚪 Door Knock'
-            };
-            return types[type] || type;
-        }
-
-        async function approveServiceRequest(requestId) {
-            if (!confirm('Approve this work? VA will be marked for payment and user will see results.')) return;
-            
-            try {
-                const response = await fetch(`/api/admin/service-requests/${requestId}/approve`, {
-                    method: 'POST'
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({note: noteText})
                 });
                 
                 const data = await response.json();
                 
                 if (data.ok) {
-                    alert('✅ Request approved! VA marked for payment.');
-                    loadServiceRequests();
+                    document.getElementById('newNote').value = '';
+                    await loadNotes();
                 } else {
-                    alert('❌ ' + (data.error || 'Failed to approve'));
+                    alert('Failed to add note: ' + (data.error || 'Unknown error'));
                 }
             } catch (error) {
-                alert('❌ Connection error');
+                alert('Error adding note');
             }
         }
 
-        async function rejectServiceRequest(requestId) {
-            const reason = prompt('Reason for rejection (will be sent to VA):');
-            if (!reason) return;
+        async function deleteNote(noteId) {
+            if (!confirm('Delete this note?')) return;
             
             try {
-                const response = await fetch(`/api/admin/service-requests/${requestId}/reject`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ reason })
+                const response = await fetch(`/api/properties/${currentPropertyId}/notes/${noteId}`, {
+                    method: 'DELETE'
                 });
                 
-                const data = await response.json();
-                
-                if (data.ok) {
-                    alert('❌ Request rejected and returned to queue.');
-                    loadServiceRequests();
+                if (response.ok) {
+                    await loadNotes();
                 } else {
-                    alert('❌ ' + (data.error || 'Failed to reject'));
+                    alert('Failed to delete note');
                 }
             } catch (error) {
-                alert('❌ Connection error');
+                alert('Error deleting note');
             }
         }
 
+        function logout() {
+            if (confirm('Log out?')) {
+                window.location.href = '/logout';
+            }
+        }
     </script>
 </body>
 </html>
