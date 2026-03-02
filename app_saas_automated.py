@@ -2094,7 +2094,7 @@ def upload_job_file(job_id):
                 unique_filename = f"{uuid.uuid4().hex}{file_ext}"
                 
                 # Save to /mnt/user-data/outputs/uploads (temporary - should use S3/Supabase Storage in production)
-                upload_dir = "/mnt/user-data/outputs/uploads"
+                upload_dir = "/tmp/uploads"
                 os.makedirs(upload_dir, exist_ok=True)
                 file_path = os.path.join(upload_dir, unique_filename)
                 file.save(file_path)
