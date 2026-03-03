@@ -446,12 +446,48 @@
             <h2 style="margin-bottom: 20px;">💳 Payment</h2>
             <p style="color: #718096; margin-bottom: 20px;">
                 <strong>Service:</strong> <span id="paymentService"></span><br>
-                <strong>Amount:</strong> $<span id="paymentAmount"></span>
+                <strong>Service Amount:</strong> $<span id="paymentAmount"></span>
             </p>
 
             <form id="payment-form">
+                <!-- Tip Section -->
+                <div style="background: #f7fafc; padding: 15px; border-radius: 6px; margin-bottom: 20px;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                        <strong>💝 Tip Your VA (Optional)</strong>
+                        <div style="font-size: 12px; color: #718096;">100% goes to the VA</div>
+                    </div>
+                    <div style="display: flex; gap: 10px; margin-bottom: 10px;">
+                        <button type="button" class="btn btn-secondary" style="flex: 1;" onclick="setTip(1)">$1</button>
+                        <button type="button" class="btn btn-secondary" style="flex: 1;" onclick="setTip(3)">$3</button>
+                        <button type="button" class="btn btn-secondary" style="flex: 1;" onclick="setTip(5)">$5</button>
+                        <button type="button" class="btn btn-secondary" style="flex: 1;" onclick="setTip(10)">$10</button>
+                    </div>
+                    <input type="number" id="tipAmount" placeholder="Or enter custom amount" 
+                           step="0.50" min="0" max="1000" 
+                           style="width: 100%; padding: 8px; border: 1px solid #e2e8f0; border-radius: 6px;"
+                           oninput="updateTotal()">
+                </div>
+
+                <!-- Total -->
+                <div style="background: #e6f7ff; padding: 15px; border-radius: 6px; margin-bottom: 20px;">
+                    <div style="display: flex; justify-content: space-between; align-items: center;">
+                        <strong style="font-size: 18px;">Total:</strong>
+                        <strong style="font-size: 24px; color: #2d3748;">$<span id="totalAmount">0.00</span></strong>
+                    </div>
+                </div>
+
                 <div id="card-element"></div>
                 <div id="card-errors"></div>
+
+                <!-- No Refunds Disclaimer -->
+                <div style="background: #fff3cd; border: 1px solid #ffc107; padding: 12px; border-radius: 6px; margin: 15px 0;">
+                    <div style="display: flex; align-items: center; gap: 8px;">
+                        <span style="font-size: 18px;">⚠️</span>
+                        <div style="font-size: 13px; color: #856404;">
+                            <strong>No Refunds Policy:</strong> All payments are final and non-refundable. Services will be completed within 48 hours of payment.
+                        </div>
+                    </div>
+                </div>
 
                 <div style="display: flex; gap: 10px; margin-top: 20px;">
                     <button type="submit" class="btn btn-success" id="submitPayment">
@@ -639,11 +675,26 @@
             
             document.getElementById('paymentService').textContent = pricing.service_name;
             document.getElementById('paymentAmount').textContent = parseFloat(pricing.price_charged).toFixed(2);
+            document.getElementById('tipAmount').value = '';
+            document.getElementById('totalAmount').textContent = parseFloat(pricing.price_charged).toFixed(2);
             
             document.getElementById('serviceModal').style.display = 'none';
             document.getElementById('paymentModal').style.display = 'flex';
             
             cardElement.mount('#card-element');
+        }
+
+        function setTip(amount) {
+            document.getElementById('tipAmount').value = amount;
+            updateTotal();
+        }
+
+        function updateTotal() {
+            const pricing = servicePricing.find(s => s.service_type === selectedService);
+            const serviceAmount = parseFloat(pricing.price_charged);
+            const tip = parseFloat(document.getElementById('tipAmount').value) || 0;
+            const total = serviceAmount + tip;
+            document.getElementById('totalAmount').textContent = total.toFixed(2);
         }
 
         function closePaymentModal() {
@@ -659,6 +710,8 @@
             submitBtn.disabled = true;
             submitBtn.textContent = 'Processing...';
 
+            const tipAmount = parseFloat(document.getElementById('tipAmount').value) || 0;
+
             try {
                 const response = await fetch('/api/stripe/create-payment-intent', {
                     method: 'POST',
@@ -666,7 +719,8 @@
                     body: JSON.stringify({
                         service_type: selectedService,
                         parcel: selectedProperty.parcel,
-                        property_id: selectedProperty.id
+                        property_id: selectedProperty.id,
+                        tip_amount: tipAmount
                     })
                 });
 
