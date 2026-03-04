@@ -146,13 +146,15 @@
         <div class="card">
             <h2 style="margin-bottom: 20px;">📊 Properties</h2>
             <div style="margin-bottom: 20px; display: flex; gap: 10px; flex-wrap: wrap;">
+                <input type="text" id="searchInput" placeholder="🔍 Search by address, parcel, zip, or owner..." 
+                       style="flex: 1; min-width: 300px; padding: 8px 12px; border-radius: 6px; border: 1px solid #e2e8f0; font-size: 14px;">
                 <select id="stageFilter" style="padding: 8px; border-radius: 6px; border: 1px solid #e2e8f0;">
                     <option value="">All Stages</option>
                     <option value="sweet_spot">Sweet Spot</option>
                     <option value="danger_zone">Danger Zone</option>
                     <option value="pre_lien">Pre-Lien</option>
                 </select>
-                <button class="btn btn-primary" onclick="loadProperties()">Apply Filter</button>
+                <button class="btn btn-primary" onclick="loadProperties()">🔍 Search</button>
             </div>
             <div id="propertiesTable"></div>
             <div id="pagination" style="margin-top: 20px; display: flex; gap: 10px; justify-content: center;"></div>
@@ -307,8 +309,10 @@
 
         async function loadProperties() {
             const stage = document.getElementById('stageFilter').value;
+            const search = document.getElementById('searchInput').value.trim();
             const params = new URLSearchParams({ page: currentPage, page_size: 10 });
             if (stage) params.append('stage', stage);
+            if (search) params.append('search', search);
 
             try {
                 const response = await fetch(`/api/properties?${params}`);
