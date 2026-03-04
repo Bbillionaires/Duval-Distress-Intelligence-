@@ -136,6 +136,13 @@
             </div>
         </div>
 
+        <!-- VA Jobs Pending Approval -->
+        <div class="card">
+            <h2 style="margin-bottom: 20px;">✅ VA Jobs - Pending Approval</h2>
+            <div id="pendingJobsTable"></div>
+        </div>
+
+        <!-- Properties -->
         <div class="card">
             <h2 style="margin-bottom: 20px;">📊 Properties</h2>
             <div style="margin-bottom: 20px; display: flex; gap: 10px; flex-wrap: wrap;">
@@ -177,6 +184,8 @@
         window.addEventListener('DOMContentLoaded', () => {
             loadStats();
             loadProperties();
+            loadPendingJobs();
+            setInterval(loadPendingJobs, 60000); // Refresh every minute
         });
 
         async function loadStats() {
@@ -196,9 +205,109 @@
             }
         }
 
+        async function loadPendingJobs() {
+            try {
+                const response = await fetch('/api/admin/service-requests?status=submitted');
+                const data = await response.json();
+                renderPendingJobs(data.requests || []);
+            } catch (error) {
+                console.error('Error loading pending jobs:', error);
+            }
+        }
+
+        function renderPendingJobs(jobs) {
+            const container = document.getElementById('pendingJobsTable');
+            
+            if (jobs.length === 0) {
+                container.innerHTML = '<p style="color: #718096; text-align: center; padding: 20px;">No jobs pending approval</p>';
+                return;
+            }
+            
+            container.innerHTML = `
+                <table>
+                    <thead>
+                        <tr>
+                            <th>VA</th>
+                            <th>Service</th>
+                            <th>Parcel</th>
+                            <th>Results</th>
+                            <th>Time</th>
+                            <th>Payout</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${jobs.map(job => `
+                            <tr>
+                                <td>${job.claimed_by_va_email}</td>
+                                <td>${formatServiceType(job.service_type)}</td>
+                                <td><strong>${job.parcel}</strong></td>
+                                <td>
+                                    ${job.phone ? `📞 ${job.phone}<br>` : ''}
+                                    ${job.email ? `📧 ${job.email}<br>` : ''}
+                                    ${job.notes ? `<small>${job.notes}</small>` : ''}
+                                </td>
+                                <td>${job.total_time_seconds ? formatTime(job.total_time_seconds) : '-'}</td>
+                                <td><strong>$${parseFloat(job.va_payout).toFixed(2)}</strong></td>
+                                <td>
+                                    <button class="btn btn-success btn-sm" onclick="approveJob(${job.id})">✅ Approve</button>
+                                    <button class="btn btn-danger btn-sm" onclick="rejectJob(${job.id})">❌ Reject</button>
+                                </td>
+                            </tr>
+                        `).join('')}
+                    </tbody>
+                </table>
+            `;
+        }
+
+        async function approveJob(jobId) {
+            if (!confirm('Approve this job and pay the VA?')) return;
+            
+            try {
+                const response = await fetch(`/api/admin/service-requests/${jobId}/approve`, {
+                    method: 'POST'
+                });
+                
+                const data = await response.json();
+                
+                if (data.ok) {
+                    alert('✅ Job approved! VA will be paid.');
+                    loadPendingJobs();
+                } else {
+                    alert('Failed: ' + (data.error || 'Unknown error'));
+                }
+            } catch (error) {
+                alert('Error approving job');
+            }
+        }
+
+        async function rejectJob(jobId) {
+            const reason = prompt('Why are you rejecting this job?');
+            if (!reason) return;
+            
+            try {
+                const response = await fetch(`/api/admin/service-requests/${jobId}/reject`, {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({reason})
+                });
+                
+                const data = await response.json();
+                
+                if (data.ok) {
+                    alert('❌ Job rejected and returned to VA');
+                    loadPendingJobs();
+                } else {
+                    alert('Failed: ' + (data.error || 'Unknown error'));
+                }
+            } catch (error) {
+                alert('Error rejecting job');
+            }
+        }
+
         async function loadProperties() {
             const stage = document.getElementById('stageFilter').value;
-            const params = new URLSearchParams({ page: currentPage, page_size: 50 });
+            const params = new URLSearchParams({ page: currentPage, page_size: 10 });
             if (stage) params.append('stage', stage);
 
             try {
@@ -249,7 +358,7 @@
         }
 
         function renderPagination(total) {
-            const totalPages = Math.ceil(total / 50);
+            const totalPages = Math.ceil(total / 10);
             const container = document.getElementById('pagination');
             let html = '';
             
@@ -291,6 +400,23 @@
                 'tax_deed_filed': 'Tax Deed Filed'
             };
             return stages[stage] || stage;
+        }
+
+        function formatTime(seconds) {
+            const hours = Math.floor(seconds / 3600);
+            const minutes = Math.floor((seconds % 3600) / 60);
+            return `${hours}h ${minutes}m`;
+        }
+
+        function formatServiceType(type) {
+            const types = {
+                'skiptrace': '🔍 Skip Trace',
+                'cold_call_block': '📞 Cold Call',
+                'postcard': '📮 Postcard',
+                'door_knock': '🚪 Door Knock',
+                'test_service': '🧪 Test'
+            };
+            return types[type] || type;
         }
 
         // Notes Functions
