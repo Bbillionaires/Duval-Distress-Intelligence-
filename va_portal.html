@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>VA Portal - Service Requests</title>
+    <title>VA Portal</title>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
@@ -103,26 +103,33 @@
             </div>
         </div>
 
+        <!-- Search Bar -->
+        <div style="margin-bottom: 15px;">
+            <input type="text" id="jobSearchInput" placeholder="🔍 Search by parcel, address, or service type..." 
+                   style="width: 100%; padding: 12px; border-radius: 6px; border: 1px solid #e2e8f0; font-size: 14px;"
+                   oninput="applySearchAndFilter()">
+        </div>
+
         <!-- Filter Tabs -->
         <div style="display: flex; gap: 10px; margin-bottom: 20px; flex-wrap: wrap;">
-            <button class="btn btn-primary" id="filter-all" onclick="filterJobs('all')">📋 All Jobs</button>
-            <button class="btn btn-secondary" id="filter-available" onclick="filterJobs('available')">🎯 Available Only</button>
-            <button class="btn btn-secondary" id="filter-active" onclick="filterJobs('active')">⚡ My Active</button>
-            <button class="btn btn-secondary" id="filter-pending" onclick="filterJobs('pending')">⏳ Pending Review</button>
+            <button class="btn btn-primary" id="filter-all" onclick="setFilter('all')">📋 All Jobs</button>
+            <button class="btn btn-secondary" id="filter-available" onclick="setFilter('available')">🎯 Available</button>
+            <button class="btn btn-secondary" id="filter-active" onclick="setFilter('active')">⚡ Active</button>
+            <button class="btn btn-secondary" id="filter-pending" onclick="setFilter('pending')">⏳ Pending</button>
         </div>
 
         <div class="card" id="availableSection">
-            <h2 style="margin-bottom: 20px;">🎯 Available Jobs</h2>
+            <h2 style="margin-bottom: 20px;">🎯 Available Jobs (<span id="availableFiltered">0</span>)</h2>
             <div id="availableJobs"></div>
         </div>
 
         <div class="card" id="activeSection">
-            <h2 style="margin-bottom: 20px;">⚡ My Active Jobs</h2>
+            <h2 style="margin-bottom: 20px;">⚡ My Active Jobs (<span id="activeFiltered">0</span>)</h2>
             <div id="activeJobs"></div>
         </div>
 
         <div class="card" id="pendingSection">
-            <h2 style="margin-bottom: 20px;">⏳ Pending Review</h2>
+            <h2 style="margin-bottom: 20px;">⏳ Pending Review (<span id="pendingFiltered">0</span>)</h2>
             <div id="pendingJobs"></div>
         </div>
     </div>
@@ -131,6 +138,7 @@
         let currentVA = null;
         let jobTimers = {};
         let currentFilter = 'all';
+        let allJobsData = { available: [], active: [], pending_review: [] };
 
         window.addEventListener('DOMContentLoaded', () => {
             const vaData = sessionStorage.getItem('vaData');
@@ -184,16 +192,35 @@
             setInterval(loadJobs, 30000);
         }
 
-        function filterJobs(filter) {
+        async function loadJobs() {
+            try {
+                const response = await fetch('/api/va/jobs', {
+                    headers: {'X-VA-Email': currentVA.email}
+                });
+                const data = await response.json();
+                if (data.ok) {
+                    allJobsData = {
+                        available: data.available || [],
+                        active: data.active || [],
+                        pending_review: data.pending_review || []
+                    };
+                    
+                    document.getElementById('availableCount').textContent = allJobsData.available.length;
+                    document.getElementById('activeCount').textContent = allJobsData.active.length;
+                    document.getElementById('pendingCount').textContent = allJobsData.pending_review.length;
+                    
+                    applySearchAndFilter();
+                }
+            } catch (error) {
+                console.error('Error loading jobs:', error);
+            }
+        }
+
+        function setFilter(filter) {
             currentFilter = filter;
-            
-            // Update button styles
-            document.querySelectorAll('[id^="filter-"]').forEach(btn => {
-                btn.className = 'btn btn-secondary';
-            });
+            document.querySelectorAll('[id^="filter-"]').forEach(btn => btn.className = 'btn btn-secondary');
             document.getElementById(`filter-${filter}`).className = 'btn btn-primary';
             
-            // Show/hide sections
             const sections = {
                 'available': document.getElementById('availableSection'),
                 'active': document.getElementById('activeSection'),
@@ -204,38 +231,41 @@
                 Object.values(sections).forEach(s => s.classList.remove('hidden'));
             } else {
                 Object.entries(sections).forEach(([key, section]) => {
-                    if (key === filter) {
-                        section.classList.remove('hidden');
-                    } else {
-                        section.classList.add('hidden');
-                    }
+                    section.classList.toggle('hidden', key !== filter);
                 });
             }
         }
 
-        async function loadJobs() {
-            try {
-                const response = await fetch('/api/va/jobs', {
-                    headers: {'X-VA-Email': currentVA.email}
+        function applySearchAndFilter() {
+            const searchTerm = document.getElementById('jobSearchInput').value.toLowerCase().trim();
+            
+            const filterJobs = (jobs) => {
+                if (!searchTerm) return jobs;
+                return jobs.filter(job => {
+                    const parcelMatch = job.parcel && job.parcel.toLowerCase().includes(searchTerm);
+                    const addressMatch = job.property_address && job.property_address.toLowerCase().includes(searchTerm);
+                    const serviceMatch = formatServiceType(job.service_type).toLowerCase().includes(searchTerm);
+                    return parcelMatch || addressMatch || serviceMatch;
                 });
-                const data = await response.json();
-                if (data.ok) {
-                    document.getElementById('availableCount').textContent = data.available.length;
-                    document.getElementById('activeCount').textContent = data.active.length;
-                    document.getElementById('pendingCount').textContent = data.pending_review.length;
-                    renderAvailableJobs(data.available);
-                    renderActiveJobs(data.active);
-                    renderPendingJobs(data.pending_review);
-                }
-            } catch (error) {
-                console.error('Error loading jobs:', error);
-            }
+            };
+            
+            const filteredAvailable = filterJobs(allJobsData.available);
+            const filteredActive = filterJobs(allJobsData.active);
+            const filteredPending = filterJobs(allJobsData.pending_review);
+            
+            document.getElementById('availableFiltered').textContent = filteredAvailable.length;
+            document.getElementById('activeFiltered').textContent = filteredActive.length;
+            document.getElementById('pendingFiltered').textContent = filteredPending.length;
+            
+            renderAvailableJobs(filteredAvailable);
+            renderActiveJobs(filteredActive);
+            renderPendingJobs(filteredPending);
         }
 
         function renderAvailableJobs(jobs) {
             const container = document.getElementById('availableJobs');
             if (jobs.length === 0) {
-                container.innerHTML = '<p style="color: #718096;">No jobs available right now.</p>';
+                container.innerHTML = '<p style="color: #718096;">No jobs match your search.</p>';
                 return;
             }
             container.innerHTML = jobs.map(job => `
@@ -257,7 +287,7 @@
         function renderActiveJobs(jobs) {
             const container = document.getElementById('activeJobs');
             if (jobs.length === 0) {
-                container.innerHTML = '<p style="color: #718096;">No active jobs.</p>';
+                container.innerHTML = '<p style="color: #718096;">No active jobs match your search.</p>';
                 return;
             }
             container.innerHTML = jobs.map(job => {
@@ -277,8 +307,8 @@
                         </div>
                         
                         <div style="background: #fff; padding: 15px; border-radius: 6px; margin-bottom: 15px; border: 2px dashed #e2e8f0;">
-                            <strong style="color: #667eea;">📎 Upload Proof of Work</strong>
-                            <input type="file" id="file-${job.id}" accept="image/*,audio/*,video/*,.pdf,.doc,.docx,.zip" 
+                            <strong style="color: #667eea;">📎 Upload Proof</strong>
+                            <input type="file" id="file-${job.id}" accept="image/*,audio/*,video/*,.pdf" 
                                    style="display: block; margin: 10px 0; width: 100%; padding: 8px; border: 1px solid #e2e8f0; border-radius: 6px;">
                             <div style="display: flex; gap: 10px; align-items: center;">
                                 <button class="btn btn-primary" onclick="uploadFile(${job.id})">📤 Upload</button>
@@ -287,10 +317,10 @@
                             <div id="files-list-${job.id}" style="margin-top: 10px;"></div>
                         </div>
 
-                        <input type="text" placeholder="Phone Number" id="phone-${job.id}">
-                        <input type="email" placeholder="Email Address" id="email-${job.id}">
-                        <textarea placeholder="Notes (optional)" id="notes-${job.id}" rows="3"></textarea>
-                        <button class="btn btn-primary" onclick="submitJob(${job.id})">✅ Submit Results</button>
+                        <input type="text" placeholder="Phone" id="phone-${job.id}">
+                        <input type="email" placeholder="Email" id="email-${job.id}">
+                        <textarea placeholder="Notes" id="notes-${job.id}" rows="3"></textarea>
+                        <button class="btn btn-primary" onclick="submitJob(${job.id})">✅ Submit</button>
                     </div>
                 `;
             }).join('');
@@ -300,7 +330,7 @@
         function renderPendingJobs(jobs) {
             const container = document.getElementById('pendingJobs');
             if (jobs.length === 0) {
-                container.innerHTML = '<p style="color: #718096;">No jobs pending review.</p>';
+                container.innerHTML = '<p style="color: #718096;">No pending jobs match your search.</p>';
                 return;
             }
             container.innerHTML = jobs.map(job => `
@@ -353,7 +383,7 @@
             const fileInput = document.getElementById(`file-${jobId}`);
             const statusEl = document.getElementById(`upload-status-${jobId}`);
             if (!fileInput.files || fileInput.files.length === 0) {
-                alert('Please select a file');
+                alert('Select a file');
                 return;
             }
             const file = fileInput.files[0];
@@ -378,7 +408,7 @@
                     setTimeout(() => statusEl.textContent = '', 3000);
                     await loadJobFiles(jobId);
                 } else {
-                    alert('Upload failed: ' + data.error);
+                    alert('Upload failed');
                     statusEl.textContent = '';
                 }
             } catch (error) {
@@ -394,16 +424,14 @@
                 const container = document.getElementById(`files-list-${jobId}`);
                 if (!container) return;
                 if (!data.ok || data.files.length === 0) {
-                    container.innerHTML = '<div style="color: #718096; font-size: 13px; margin-top: 5px;">No files yet</div>';
+                    container.innerHTML = '<div style="color: #718096; font-size: 13px; margin-top: 5px;">No files</div>';
                     return;
                 }
                 container.innerHTML = '<div style="font-weight: 600; margin-top: 10px; font-size: 13px;">Uploaded:</div>' +
                     data.files.map(f => `
-                        <div style="display: flex; justify-content: space-between; align-items: center; 
-                                    padding: 8px; background: white; border-radius: 4px; margin: 5px 0; font-size: 13px;">
+                        <div style="display: flex; justify-content: space-between; padding: 8px; background: white; border-radius: 4px; margin: 5px 0; font-size: 13px;">
                             <div>📎 ${f.original_filename} <span style="color: #718096;">(${formatFileSize(f.file_size)})</span></div>
-                            <button onclick="deleteFile(${jobId}, ${f.id})" 
-                                    style="background: none; border: none; cursor: pointer; color: #f56565;">🗑️</button>
+                            <button onclick="deleteFile(${jobId}, ${f.id})" style="background: none; border: none; cursor: pointer; color: #f56565;">🗑️</button>
                         </div>
                     `).join('');
             } catch (error) {
@@ -412,7 +440,7 @@
         }
 
         async function deleteFile(jobId, fileId) {
-            if (!confirm('Delete this file?')) return;
+            if (!confirm('Delete?')) return;
             try {
                 await fetch(`/api/va/jobs/${jobId}/files/${fileId}`, {
                     method: 'DELETE',
@@ -432,13 +460,13 @@
                 });
                 const data = await response.json();
                 if (data.ok) {
-                    alert('✅ Job claimed! Timer started.');
+                    alert('✅ Job claimed!');
                     loadJobs();
                 } else {
-                    alert('❌ ' + (data.error || 'Failed to claim job'));
+                    alert('❌ ' + data.error);
                 }
             } catch (error) {
-                alert('❌ Connection error');
+                alert('❌ Error');
             }
         }
 
@@ -447,7 +475,7 @@
             const email = document.getElementById(`email-${jobId}`).value;
             const notes = document.getElementById(`notes-${jobId}`).value;
             if (!phone && !email) {
-                alert('Please provide at least phone or email');
+                alert('Provide phone or email');
                 return;
             }
             try {
@@ -461,27 +489,27 @@
                 });
                 const data = await response.json();
                 if (data.ok) {
-                    alert('✅ Results submitted!');
+                    alert('✅ Submitted!');
                     if (jobTimers[jobId]) {
                         clearInterval(jobTimers[jobId]);
                         delete jobTimers[jobId];
                     }
                     loadJobs();
                 } else {
-                    alert('❌ ' + (data.error || 'Failed to submit'));
+                    alert('❌ ' + data.error);
                 }
             } catch (error) {
-                alert('❌ Connection error');
+                alert('❌ Error');
             }
         }
 
         function formatServiceType(type) {
             const types = {
-                'skiptrace': '🔍 Contact Research',
-                'cold_call_block': '📞 Cold Calling',
-                'postcard': '📮 Direct Mail',
+                'skiptrace': '🔍 Skip Trace',
+                'cold_call_block': '📞 Cold Call',
+                'postcard': '📮 Postcard',
                 'door_knock': '🚪 Door Knock',
-                'test_service': '🧪 Test Service'
+                'test_service': '🧪 Test'
             };
             return types[type] || type;
         }
