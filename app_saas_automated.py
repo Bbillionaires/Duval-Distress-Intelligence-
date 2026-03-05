@@ -461,6 +461,7 @@ def api_properties(county=None):
     stage = request.args.get("stage")
     min_due = request.args.get("min_due")
     zip_code = request.args.get("zip")
+    search = request.args.get("search", "").strip()
     
     try:
         page = max(1, int(request.args.get("page", "1")))
@@ -487,6 +488,12 @@ def api_properties(county=None):
             params.append(float(min_due))
         except:
             pass
+    
+    if search:
+        # Search in address, parcel, zip, or owner
+        where_clauses.append("(LOWER(address) LIKE %s OR LOWER(parcel) LIKE %s OR LOWER(zip) LIKE %s OR LOWER(owner) LIKE %s)")
+        search_term = f"%{search.lower()}%"
+        params.extend([search_term, search_term, search_term, search_term])
     
     if zip_code:
         where_clauses.append("zip LIKE %s")
@@ -2094,7 +2101,7 @@ def upload_job_file(job_id):
                 unique_filename = f"{uuid.uuid4().hex}{file_ext}"
                 
                 # Save to /mnt/user-data/outputs/uploads (temporary - should use S3/Supabase Storage in production)
-                upload_dir = "/tmp/uploads"
+                upload_dir = "/mnt/user-data/outputs/uploads"
                 os.makedirs(upload_dir, exist_ok=True)
                 file_path = os.path.join(upload_dir, unique_filename)
                 file.save(file_path)

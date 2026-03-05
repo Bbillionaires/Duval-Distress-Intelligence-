@@ -571,7 +571,7 @@
             table.style.display = 'none';
 
             try {
-                const params = new URLSearchParams({ page: 1, page_size: 100 });
+                const params = new URLSearchParams({ page: 1, page_size: 10000 });
                 if (stage) params.append('stage', stage);
 
                 const response = await fetch(`/api/properties?${params}`);
