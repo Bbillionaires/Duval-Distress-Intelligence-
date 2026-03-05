@@ -139,6 +139,11 @@
         <!-- VA Jobs Pending Approval -->
         <div class="card">
             <h2 style="margin-bottom: 20px;">✅ VA Jobs - Pending Approval</h2>
+            <div style="margin-bottom: 15px;">
+                <input type="text" id="pendingSearchInput" placeholder="🔍 Search pending jobs by VA, parcel, or service..." 
+                       style="width: 100%; padding: 12px; border-radius: 6px; border: 1px solid #e2e8f0; font-size: 14px;"
+                       oninput="searchPendingJobs()">
+            </div>
             <div id="pendingJobsTable"></div>
         </div>
 
@@ -182,6 +187,7 @@
     <script>
         let currentPage = 1;
         let currentPropertyId = null;
+        let allPendingJobs = [];
 
         window.addEventListener('DOMContentLoaded', () => {
             loadStats();
@@ -211,10 +217,29 @@
             try {
                 const response = await fetch('/api/admin/service-requests?status=submitted');
                 const data = await response.json();
-                renderPendingJobs(data.requests || []);
+                allPendingJobs = data.requests || [];
+                searchPendingJobs();
             } catch (error) {
                 console.error('Error loading pending jobs:', error);
             }
+        }
+
+        function searchPendingJobs() {
+            const searchTerm = document.getElementById('pendingSearchInput').value.toLowerCase().trim();
+            
+            const filteredJobs = allPendingJobs.filter(job => {
+                if (!searchTerm) return true;
+                
+                const vaMatch = job.claimed_by_va_email && job.claimed_by_va_email.toLowerCase().includes(searchTerm);
+                const parcelMatch = job.parcel && job.parcel.toLowerCase().includes(searchTerm);
+                const serviceMatch = formatServiceType(job.service_type).toLowerCase().includes(searchTerm);
+                const phoneMatch = job.phone && job.phone.includes(searchTerm);
+                const emailMatch = job.email && job.email.toLowerCase().includes(searchTerm);
+                
+                return vaMatch || parcelMatch || serviceMatch || phoneMatch || emailMatch;
+            });
+            
+            renderPendingJobs(filteredJobs);
         }
 
         function renderPendingJobs(jobs) {

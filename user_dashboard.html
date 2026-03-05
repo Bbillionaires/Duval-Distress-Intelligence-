@@ -374,6 +374,12 @@
             <div class="card">
                 <h2>Available Properties</h2>
                 
+                <div style="margin-bottom: 15px;">
+                    <input type="text" id="propertySearchInput" placeholder="🔍 Search by address, parcel, zip, or owner..." 
+                           style="width: 100%; padding: 12px; border-radius: 6px; border: 1px solid #e2e8f0; font-size: 14px;"
+                           oninput="searchProperties()">
+                </div>
+                
                 <div style="margin-bottom: 20px; display: flex; gap: 10px;">
                     <select id="stageFilter" style="padding: 8px; border-radius: 6px; border: 1px solid #e2e8f0;">
                         <option value="">All Stages</option>
@@ -507,6 +513,7 @@
         let selectedProperty = null;
         let servicePricing = [];
         let stripe, elements, cardElement;
+        let allProperties = [];
 
         window.addEventListener('DOMContentLoaded', async () => {
             await loadHeroStats();
@@ -571,7 +578,8 @@
                 const data = await response.json();
 
                 if (data.ok && data.rows.length > 0) {
-                    renderProperties(data.rows);
+                    allProperties = data.rows;
+                    searchProperties();
                     table.style.display = 'block';
                 } else {
                     document.getElementById('propertiesBody').innerHTML = `
@@ -584,6 +592,23 @@
             } finally {
                 loading.style.display = 'none';
             }
+        }
+
+        function searchProperties() {
+            const searchTerm = document.getElementById('propertySearchInput').value.toLowerCase().trim();
+            
+            const filtered = allProperties.filter(prop => {
+                if (!searchTerm) return true;
+                
+                const addressMatch = prop.address && prop.address.toLowerCase().includes(searchTerm);
+                const parcelMatch = prop.parcel && prop.parcel.toLowerCase().includes(searchTerm);
+                const zipMatch = prop.zip && prop.zip.includes(searchTerm);
+                const ownerMatch = prop.owner && prop.owner.toLowerCase().includes(searchTerm);
+                
+                return addressMatch || parcelMatch || zipMatch || ownerMatch;
+            });
+            
+            renderProperties(filtered);
         }
 
         function renderProperties(properties) {
