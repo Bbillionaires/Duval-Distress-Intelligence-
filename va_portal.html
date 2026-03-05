@@ -61,6 +61,7 @@
         .btn-success { background: #48bb78; color: white; }
         .btn-primary { background: #667eea; color: white; }
         .btn-danger { background: #f56565; color: white; }
+        .btn-secondary { background: #e2e8f0; color: #2d3748; }
         textarea, input[type="text"], input[type="email"] {
             width: 100%;
             padding: 10px;
@@ -70,6 +71,7 @@
             font-size: 14px;
             margin-bottom: 10px;
         }
+        .hidden { display: none !important; }
     </style>
 </head>
 <body>
@@ -101,17 +103,25 @@
             </div>
         </div>
 
-        <div class="card">
+        <!-- Filter Tabs -->
+        <div style="display: flex; gap: 10px; margin-bottom: 20px; flex-wrap: wrap;">
+            <button class="btn btn-primary" id="filter-all" onclick="filterJobs('all')">📋 All Jobs</button>
+            <button class="btn btn-secondary" id="filter-available" onclick="filterJobs('available')">🎯 Available Only</button>
+            <button class="btn btn-secondary" id="filter-active" onclick="filterJobs('active')">⚡ My Active</button>
+            <button class="btn btn-secondary" id="filter-pending" onclick="filterJobs('pending')">⏳ Pending Review</button>
+        </div>
+
+        <div class="card" id="availableSection">
             <h2 style="margin-bottom: 20px;">🎯 Available Jobs</h2>
             <div id="availableJobs"></div>
         </div>
 
-        <div class="card">
+        <div class="card" id="activeSection">
             <h2 style="margin-bottom: 20px;">⚡ My Active Jobs</h2>
             <div id="activeJobs"></div>
         </div>
 
-        <div class="card">
+        <div class="card" id="pendingSection">
             <h2 style="margin-bottom: 20px;">⏳ Pending Review</h2>
             <div id="pendingJobs"></div>
         </div>
@@ -120,6 +130,7 @@
     <script>
         let currentVA = null;
         let jobTimers = {};
+        let currentFilter = 'all';
 
         window.addEventListener('DOMContentLoaded', () => {
             const vaData = sessionStorage.getItem('vaData');
@@ -171,6 +182,35 @@
             document.getElementById('totalEarned').textContent = '$' + parseFloat(currentVA.total_earned || 0).toFixed(2);
             loadJobs();
             setInterval(loadJobs, 30000);
+        }
+
+        function filterJobs(filter) {
+            currentFilter = filter;
+            
+            // Update button styles
+            document.querySelectorAll('[id^="filter-"]').forEach(btn => {
+                btn.className = 'btn btn-secondary';
+            });
+            document.getElementById(`filter-${filter}`).className = 'btn btn-primary';
+            
+            // Show/hide sections
+            const sections = {
+                'available': document.getElementById('availableSection'),
+                'active': document.getElementById('activeSection'),
+                'pending': document.getElementById('pendingSection')
+            };
+            
+            if (filter === 'all') {
+                Object.values(sections).forEach(s => s.classList.remove('hidden'));
+            } else {
+                Object.entries(sections).forEach(([key, section]) => {
+                    if (key === filter) {
+                        section.classList.remove('hidden');
+                    } else {
+                        section.classList.add('hidden');
+                    }
+                });
+            }
         }
 
         async function loadJobs() {
@@ -236,7 +276,6 @@
                             <div style="font-size: 20px; font-weight: 700; color: #48bb78;">$${parseFloat(job.va_payout).toFixed(2)}</div>
                         </div>
                         
-                        <!-- File Upload Section -->
                         <div style="background: #fff; padding: 15px; border-radius: 6px; margin-bottom: 15px; border: 2px dashed #e2e8f0;">
                             <strong style="color: #667eea;">📎 Upload Proof of Work</strong>
                             <input type="file" id="file-${job.id}" accept="image/*,audio/*,video/*,.pdf,.doc,.docx,.zip" 
