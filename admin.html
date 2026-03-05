@@ -152,7 +152,8 @@
             <h2 style="margin-bottom: 20px;">📊 Properties</h2>
             <div style="margin-bottom: 20px; display: flex; gap: 10px; flex-wrap: wrap;">
                 <input type="text" id="searchInput" placeholder="🔍 Search by address, parcel, zip, or owner..." 
-                       style="flex: 1; min-width: 300px; padding: 8px 12px; border-radius: 6px; border: 1px solid #e2e8f0; font-size: 14px;">
+                       style="flex: 1; min-width: 300px; padding: 8px 12px; border-radius: 6px; border: 1px solid #e2e8f0; font-size: 14px;"
+                       onkeyup="if(event.key === 'Enter') loadProperties()">
                 <select id="stageFilter" style="padding: 8px; border-radius: 6px; border: 1px solid #e2e8f0;">
                     <option value="">All Stages</option>
                     <option value="sweet_spot">Sweet Spot</option>
@@ -180,6 +181,19 @@
 
             <div style="margin-top: 20px;">
                 <button class="btn btn-secondary" onclick="closeNotesModal()">Close</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Files Modal -->
+    <div id="filesModal" class="modal">
+        <div class="modal-content">
+            <h2 style="margin-bottom: 20px;">📎 Uploaded Files</h2>
+            
+            <div id="filesList"></div>
+
+            <div style="margin-top: 20px;">
+                <button class="btn btn-secondary" onclick="closeFilesModal()">Close</button>
             </div>
         </div>
     </div>
@@ -258,6 +272,7 @@
                             <th>Service</th>
                             <th>Parcel</th>
                             <th>Results</th>
+                            <th>Files</th>
                             <th>Time</th>
                             <th>Payout</th>
                             <th>Actions</th>
@@ -273,6 +288,11 @@
                                     ${job.phone ? `📞 ${job.phone}<br>` : ''}
                                     ${job.email ? `📧 ${job.email}<br>` : ''}
                                     ${job.notes ? `<small>${job.notes}</small>` : ''}
+                                </td>
+                                <td>
+                                    <button class="btn btn-secondary btn-sm" onclick="viewJobFiles(${job.id})">
+                                        📎 View Files
+                                    </button>
                                 </td>
                                 <td>${job.total_time_seconds ? formatTime(job.total_time_seconds) : '-'}</td>
                                 <td><strong>$${parseFloat(job.va_payout).toFixed(2)}</strong></td>
@@ -539,6 +559,50 @@
             if (confirm('Log out?')) {
                 window.location.href = '/logout';
             }
+        }
+
+        // File viewing functions
+        async function viewJobFiles(jobId) {
+            try {
+                const response = await fetch(`/api/va/jobs/${jobId}/files`);
+                const data = await response.json();
+                
+                const container = document.getElementById('filesList');
+                
+                if (!data.ok || data.files.length === 0) {
+                    container.innerHTML = '<p style="color: #718096; text-align: center; padding: 20px;">No files uploaded for this job</p>';
+                } else {
+                    container.innerHTML = data.files.map(f => `
+                        <div style="border: 1px solid #e2e8f0; padding: 15px; margin: 10px 0; border-radius: 6px; background: #f7fafc;">
+                            <div style="display: flex; justify-content: space-between; align-items: center;">
+                                <div>
+                                    <strong>📎 ${f.original_filename}</strong><br>
+                                    <span style="color: #718096; font-size: 13px;">
+                                        ${formatFileSize(f.file_size)} • Uploaded ${new Date(f.uploaded_at).toLocaleString()}
+                                    </span>
+                                </div>
+                                <a href="${f.file_url}" target="_blank" class="btn btn-primary btn-sm">
+                                    👁️ View
+                                </a>
+                            </div>
+                        </div>
+                    `).join('');
+                }
+                
+                document.getElementById('filesModal').style.display = 'flex';
+            } catch (error) {
+                alert('Error loading files');
+            }
+        }
+
+        function closeFilesModal() {
+            document.getElementById('filesModal').style.display = 'none';
+        }
+
+        function formatFileSize(bytes) {
+            if (bytes < 1024) return bytes + ' B';
+            if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+            return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
         }
     </script>
 </body>
