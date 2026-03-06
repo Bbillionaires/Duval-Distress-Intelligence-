@@ -60,7 +60,7 @@
             background: white;
             padding: 30px;
             border-radius: 10px;
-            max-width: 600px;
+            max-width: 800px;
             width: 90%;
             max-height: 80vh;
             overflow-y: auto;
@@ -102,6 +102,46 @@
             font-size: 12px;
             margin-bottom: 8px;
         }
+        .upload-area {
+            border: 2px dashed #e2e8f0;
+            border-radius: 8px;
+            padding: 40px;
+            text-align: center;
+            background: #f7fafc;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .upload-area:hover {
+            border-color: #667eea;
+            background: #eef2ff;
+        }
+        .column-mapping {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+            margin: 10px 0;
+            padding: 10px;
+            background: #f7fafc;
+            border-radius: 6px;
+        }
+        .progress-bar {
+            width: 100%;
+            height: 30px;
+            background: #e2e8f0;
+            border-radius: 6px;
+            overflow: hidden;
+            margin: 20px 0;
+        }
+        .progress-fill {
+            height: 100%;
+            background: #48bb78;
+            transition: width 0.3s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: 600;
+        }
     </style>
 </head>
 <body>
@@ -112,6 +152,7 @@
                 <div style="color: #718096; font-size: 14px;">Property Management</div>
             </div>
             <div style="display: flex; gap: 10px;">
+                <button class="btn btn-success" onclick="openUploadModal()">📤 Upload Properties</button>
                 <button class="btn btn-primary" onclick="window.location.href='/pricing'">💰 Pricing</button>
                 <button class="btn btn-danger" onclick="logout()">Logout</button>
             </div>
@@ -153,17 +194,79 @@
             <div style="margin-bottom: 20px; display: flex; gap: 10px; flex-wrap: wrap;">
                 <input type="text" id="searchInput" placeholder="🔍 Search by address, parcel, zip, or owner..." 
                        style="flex: 1; min-width: 300px; padding: 8px 12px; border-radius: 6px; border: 1px solid #e2e8f0; font-size: 14px;"
-                       onkeyup="if(event.key === 'Enter') loadProperties()">
-                <select id="stageFilter" style="padding: 8px; border-radius: 6px; border: 1px solid #e2e8f0;">
+                       oninput="loadProperties()">
+                <select id="categoryFilter" style="padding: 8px; border-radius: 6px; border: 1px solid #e2e8f0;" onchange="loadProperties()">
+                    <option value="">All Categories</option>
+                    <option value="tax">💰 Tax Delinquent</option>
+                    <option value="pre_foreclosure">🏚️ Pre-Foreclosure</option>
+                    <option value="fire_damage">🔥 Fire Damages</option>
+                    <option value="probate">⚖️ Probate</option>
+                    <option value="code_violation">⚠️ Code Violations</option>
+                    <option value="surplus_funds">💵 Surplus Funds</option>
+                </select>
+                <select id="stageFilter" style="padding: 8px; border-radius: 6px; border: 1px solid #e2e8f0;" onchange="loadProperties()">
                     <option value="">All Stages</option>
                     <option value="sweet_spot">Sweet Spot</option>
                     <option value="danger_zone">Danger Zone</option>
                     <option value="pre_lien">Pre-Lien</option>
                 </select>
-                <button class="btn btn-primary" onclick="loadProperties()">🔍 Search</button>
             </div>
             <div id="propertiesTable"></div>
             <div id="pagination" style="margin-top: 20px; display: flex; gap: 10px; justify-content: center;"></div>
+        </div>
+    </div>
+
+    <!-- Upload Modal -->
+    <div id="uploadModal" class="modal">
+        <div class="modal-content">
+            <h2 style="margin-bottom: 20px;">📤 Upload Properties</h2>
+            
+            <!-- Step 1: Select Category -->
+            <div id="step1">
+                <h3 style="margin-bottom: 15px;">Step 1: Select Category</h3>
+                <select id="uploadCategory" style="width: 100%; padding: 12px; border-radius: 6px; border: 1px solid #e2e8f0; font-size: 14px; margin-bottom: 20px;">
+                    <option value="">-- Select Category --</option>
+                    <option value="tax">💰 Tax Delinquent</option>
+                    <option value="pre_foreclosure">🏚️ Pre-Foreclosure</option>
+                    <option value="fire_damage">🔥 Fire Damages</option>
+                    <option value="probate">⚖️ Probate</option>
+                    <option value="code_violation">⚠️ Code Violations</option>
+                    <option value="surplus_funds">💵 Surplus Funds</option>
+                </select>
+                
+                <h3 style="margin-bottom: 15px;">Step 2: Upload CSV File</h3>
+                <div class="upload-area" onclick="document.getElementById('csvFile').click()">
+                    <input type="file" id="csvFile" accept=".csv" style="display: none;" onchange="handleFileSelect(event)">
+                    <div style="font-size: 48px; margin-bottom: 10px;">📄</div>
+                    <div style="font-size: 18px; font-weight: 600; margin-bottom: 5px;">Click to upload CSV</div>
+                    <div style="color: #718096; font-size: 14px;">or drag and drop</div>
+                </div>
+                <div id="fileName" style="margin-top: 10px; color: #48bb78; font-weight: 600;"></div>
+            </div>
+
+            <!-- Step 2: Column Mapping -->
+            <div id="step2" style="display: none;">
+                <h3 style="margin-bottom: 15px;">Step 3: Map CSV Columns</h3>
+                <p style="color: #718096; margin-bottom: 15px; font-size: 14px;">Match your CSV columns to database fields:</p>
+                <div id="columnMapping"></div>
+                <button class="btn btn-primary" onclick="previewData()" style="margin-top: 20px; width: 100%;">Preview Data</button>
+            </div>
+
+            <!-- Step 3: Preview -->
+            <div id="step3" style="display: none;">
+                <h3 style="margin-bottom: 15px;">Step 4: Preview & Confirm</h3>
+                <div id="previewTable" style="max-height: 300px; overflow-y: auto; margin-bottom: 20px;"></div>
+                <div id="uploadProgress" style="display: none;">
+                    <div class="progress-bar">
+                        <div class="progress-fill" id="progressFill">0%</div>
+                    </div>
+                </div>
+                <button class="btn btn-success" onclick="startUpload()" id="uploadButton" style="width: 100%;">🚀 Upload Properties</button>
+            </div>
+
+            <div style="margin-top: 20px; display: flex; gap: 10px;">
+                <button class="btn btn-secondary" onclick="closeUploadModal()">Cancel</button>
+            </div>
         </div>
     </div>
 
@@ -202,12 +305,27 @@
         let currentPage = 1;
         let currentPropertyId = null;
         let allPendingJobs = [];
+        let csvData = [];
+        let csvHeaders = [];
+        let columnMap = {};
+
+        const dbFields = {
+            'parcel': 'Parcel Number (Required)',
+            'address': 'Address',
+            'owner': 'Owner Name',
+            'county': 'County',
+            'zip': 'ZIP Code',
+            'stage': 'Stage (sweet_spot, danger_zone, pre_lien)',
+            'current_total_due': 'Amount Due',
+            'city': 'City',
+            'state': 'State'
+        };
 
         window.addEventListener('DOMContentLoaded', () => {
             loadStats();
             loadProperties();
             loadPendingJobs();
-            setInterval(loadPendingJobs, 60000); // Refresh every minute
+            setInterval(loadPendingJobs, 60000);
         });
 
         async function loadStats() {
@@ -354,9 +472,11 @@
 
         async function loadProperties() {
             const stage = document.getElementById('stageFilter').value;
+            const category = document.getElementById('categoryFilter').value;
             const search = document.getElementById('searchInput').value.trim();
             const params = new URLSearchParams({ page: currentPage, page_size: 10 });
             if (stage) params.append('stage', stage);
+            if (category) params.append('category', category);
             if (search) params.append('search', search);
 
             try {
@@ -378,6 +498,7 @@
                 <table>
                     <thead>
                         <tr>
+                            <th>Category</th>
                             <th>Parcel</th>
                             <th>Stage</th>
                             <th>Address</th>
@@ -389,6 +510,7 @@
                     <tbody>
                         ${properties.map(prop => `
                             <tr>
+                                <td>${formatCategory(prop.category)}</td>
                                 <td><strong>${prop.parcel}</strong></td>
                                 <td><span style="padding: 4px 8px; border-radius: 4px; font-size: 12px; background: ${getStageColor(prop.stage)}; color: white;">${formatStage(prop.stage)}</span></td>
                                 <td>${prop.address || '-'}</td>
@@ -404,6 +526,18 @@
                     </tbody>
                 </table>
             `;
+        }
+
+        function formatCategory(cat) {
+            const cats = {
+                'tax': '💰 Tax',
+                'pre_foreclosure': '🏚️ Pre-FC',
+                'fire_damage': '🔥 Fire',
+                'probate': '⚖️ Probate',
+                'code_violation': '⚠️ Code',
+                'surplus_funds': '💵 Surplus'
+            };
+            return cats[cat] || cat;
         }
 
         function renderPagination(total) {
@@ -466,6 +600,176 @@
                 'test_service': '🧪 Test'
             };
             return types[type] || type;
+        }
+
+        // CSV Upload Functions
+        function openUploadModal() {
+            document.getElementById('uploadModal').style.display = 'flex';
+        }
+
+        function closeUploadModal() {
+            document.getElementById('uploadModal').style.display = 'none';
+            document.getElementById('step1').style.display = 'block';
+            document.getElementById('step2').style.display = 'none';
+            document.getElementById('step3').style.display = 'none';
+            document.getElementById('csvFile').value = '';
+            document.getElementById('fileName').textContent = '';
+            csvData = [];
+            csvHeaders = [];
+        }
+
+        function handleFileSelect(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            if (!document.getElementById('uploadCategory').value) {
+                alert('Please select a category first!');
+                event.target.value = '';
+                return;
+            }
+
+            document.getElementById('fileName').textContent = `📄 ${file.name}`;
+
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const text = e.target.result;
+                parseCSV(text);
+            };
+            reader.readAsText(file);
+        }
+
+        function parseCSV(text) {
+            const lines = text.split('\n').filter(line => line.trim());
+            if (lines.length < 2) {
+                alert('CSV must have headers and at least one row of data');
+                return;
+            }
+
+            csvHeaders = lines[0].split(',').map(h => h.trim().replace(/"/g, ''));
+            csvData = lines.slice(1).map(line => {
+                const values = line.split(',').map(v => v.trim().replace(/"/g, ''));
+                const row = {};
+                csvHeaders.forEach((header, index) => {
+                    row[header] = values[index] || '';
+                });
+                return row;
+            });
+
+            showColumnMapping();
+        }
+
+        function showColumnMapping() {
+            document.getElementById('step1').style.display = 'none';
+            document.getElementById('step2').style.display = 'block';
+
+            let html = '';
+            for (const [dbField, label] of Object.entries(dbFields)) {
+                html += `
+                    <div class="column-mapping">
+                        <div><strong>${label}</strong></div>
+                        <select id="map_${dbField}" style="padding: 8px; border-radius: 6px; border: 1px solid #e2e8f0;">
+                            <option value="">-- Skip --</option>
+                            ${csvHeaders.map(header => {
+                                const selected = header.toLowerCase().includes(dbField) || 
+                                               dbField.toLowerCase().includes(header.toLowerCase()) ? 'selected' : '';
+                                return `<option value="${header}" ${selected}>${header}</option>`;
+                            }).join('')}
+                        </select>
+                    </div>
+                `;
+            }
+
+            document.getElementById('columnMapping').innerHTML = html;
+        }
+
+        function previewData() {
+            // Build column map
+            columnMap = {};
+            for (const dbField in dbFields) {
+                const csvColumn = document.getElementById(`map_${dbField}`).value;
+                if (csvColumn) {
+                    columnMap[dbField] = csvColumn;
+                }
+            }
+
+            if (!columnMap.parcel) {
+                alert('Parcel field is required!');
+                return;
+            }
+
+            document.getElementById('step2').style.display = 'none';
+            document.getElementById('step3').style.display = 'block';
+
+            // Show preview of first 5 rows
+            const preview = csvData.slice(0, 5);
+            let html = `
+                <table>
+                    <thead>
+                        <tr>${Object.keys(dbFields).map(f => columnMap[f] ? `<th>${dbFields[f]}</th>` : '').join('')}</tr>
+                    </thead>
+                    <tbody>
+                        ${preview.map(row => `
+                            <tr>
+                                ${Object.keys(dbFields).map(dbField => 
+                                    columnMap[dbField] ? `<td>${row[columnMap[dbField]] || '-'}</td>` : ''
+                                ).join('')}
+                            </tr>
+                        `).join('')}
+                    </tbody>
+                </table>
+                <p style="margin-top: 10px; color: #718096;">Showing first 5 of ${csvData.length} rows</p>
+            `;
+
+            document.getElementById('previewTable').innerHTML = html;
+        }
+
+        async function startUpload() {
+            const category = document.getElementById('uploadCategory').value;
+            const button = document.getElementById('uploadButton');
+            const progress = document.getElementById('uploadProgress');
+            const progressFill = document.getElementById('progressFill');
+
+            button.disabled = true;
+            progress.style.display = 'block';
+
+            const batchSize = 100;
+            let uploaded = 0;
+
+            for (let i = 0; i < csvData.length; i += batchSize) {
+                const batch = csvData.slice(i, i + batchSize);
+                
+                const properties = batch.map(row => {
+                    const prop = { category };
+                    for (const [dbField, csvColumn] of Object.entries(columnMap)) {
+                        prop[dbField] = row[csvColumn] || null;
+                    }
+                    return prop;
+                });
+
+                try {
+                    const response = await fetch('/api/admin/properties/bulk-upload', {
+                        method: 'POST',
+                        headers: {'Content-Type': 'application/json'},
+                        body: JSON.stringify({ properties })
+                    });
+
+                    if (!response.ok) throw new Error('Upload failed');
+
+                    uploaded += batch.length;
+                    const percent = Math.round((uploaded / csvData.length) * 100);
+                    progressFill.style.width = percent + '%';
+                    progressFill.textContent = percent + '%';
+                } catch (error) {
+                    alert('Upload failed at row ' + (i + 1));
+                    button.disabled = false;
+                    return;
+                }
+            }
+
+            alert(`✅ Successfully uploaded ${csvData.length} properties!`);
+            closeUploadModal();
+            loadProperties();
+            loadStats();
         }
 
         // Notes Functions
@@ -555,12 +859,6 @@
             }
         }
 
-        function logout() {
-            if (confirm('Log out?')) {
-                window.location.href = '/logout';
-            }
-        }
-
         // File viewing functions
         async function viewJobFiles(jobId) {
             try {
@@ -603,6 +901,12 @@
             if (bytes < 1024) return bytes + ' B';
             if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
             return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+        }
+
+        function logout() {
+            if (confirm('Log out?')) {
+                window.location.href = '/logout';
+            }
         }
     </script>
 </body>

@@ -462,6 +462,7 @@ def api_properties(county=None):
     min_due = request.args.get("min_due")
     zip_code = request.args.get("zip")
     search = request.args.get("search", "").strip()
+    category = request.args.get("category", "tax")
     
     try:
         page = max(1, int(request.args.get("page", "1")))
@@ -477,6 +478,10 @@ def api_properties(county=None):
     if county:
         where_clauses.append("county = %s")
         params.append(county)
+    
+    if category:
+        where_clauses.append("category = %s")
+        params.append(category)
     
     if stage:
         where_clauses.append("stage = %s")
@@ -1625,6 +1630,73 @@ def api_admin_reject_request(request_id):
     except Exception as e:
         print(f"❌ Reject request error: {e}")
         return jsonify({"ok": False, "error": "Failed to reject request"}), 500
+
+
+@app.post("/api/admin/properties/bulk-upload")
+def bulk_upload_properties():
+    """Bulk upload properties from CSV"""
+    u = require_login(admin=True)
+    if not u:
+        return jsonify({"ok": False, "error": "Admin access required"}), 403
+    
+    data = request.get_json(silent=True) or {}
+    properties = data.get("properties", [])
+    
+    if not properties:
+        return jsonify({"ok": False, "error": "No properties provided"}), 400
+    
+    try:
+        with db_conn() as conn:
+            with conn.cursor() as cur:
+                inserted = 0
+                for prop in properties:
+                    # Required field
+                    parcel = prop.get("parcel")
+                    if not parcel:
+                        continue
+                    
+                    # Optional fields
+                    category = prop.get("category", "tax")
+                    address = prop.get("address")
+                    owner = prop.get("owner")
+                    county = prop.get("county", "Duval")
+                    zip_code = prop.get("zip")
+                    city = prop.get("city")
+                    state = prop.get("state", "FL")
+                    stage = prop.get("stage", "sweet_spot")
+                    current_total_due = prop.get("current_total_due", 0)
+                    
+                    try:
+                        current_total_due = float(current_total_due) if current_total_due else 0
+                    except:
+                        current_total_due = 0
+                    
+                    # Insert or update (upsert on parcel)
+                    cur.execute("""
+                        INSERT INTO properties 
+                            (category, parcel, address, owner, county, zip, city, state, stage, current_total_due)
+                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                        ON CONFLICT (parcel) DO UPDATE SET
+                            category = EXCLUDED.category,
+                            address = EXCLUDED.address,
+                            owner = EXCLUDED.owner,
+                            county = EXCLUDED.county,
+                            zip = EXCLUDED.zip,
+                            city = EXCLUDED.city,
+                            state = EXCLUDED.state,
+                            stage = EXCLUDED.stage,
+                            current_total_due = EXCLUDED.current_total_due
+                    """, (category, parcel, address, owner, county, zip_code, city, state, stage, current_total_due))
+                    
+                    inserted += 1
+                
+                conn.commit()
+                
+        return jsonify({"ok": True, "inserted": inserted})
+        
+    except Exception as e:
+        print(f"❌ Bulk upload error: {e}")
+        return jsonify({"ok": False, "error": str(e)}), 500
 
 
 # ========== VA PORTAL API ENDPOINTS ==========
