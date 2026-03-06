@@ -465,7 +465,7 @@ def api_properties(county=None):
     
     try:
         page = max(1, int(request.args.get("page", "1")))
-        page_size = max(1, min(500, int(request.args.get("page_size", "50"))))
+        page_size = max(1, min(100000, int(request.args.get("page_size", "50"))))
     except:
         page = 1
         page_size = 50
