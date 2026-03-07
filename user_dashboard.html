@@ -3,27 +3,17 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>My Properties - Duval Intelligence</title>
+    <title>Property Intelligence Dashboard</title>
     <script src="https://js.stripe.com/v3/"></script>
     <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-
+        * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             min-height: 100vh;
             padding: 20px;
         }
-
-        .container {
-            max-width: 1600px;
-            margin: 0 auto;
-        }
-
+        .container { max-width: 1600px; margin: 0 auto; }
         .header {
             background: white;
             padding: 20px 30px;
@@ -34,85 +24,21 @@
             align-items: center;
             margin-bottom: 30px;
         }
-
-        .header h1 {
-            color: #2d3748;
-            font-size: 28px;
-        }
-
-        .header-info {
-            color: #718096;
-            font-size: 14px;
-        }
-
-        .hero-stats {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-            gap: 20px;
-            margin-bottom: 30px;
-        }
-
-        .hero-card {
-            background: white;
-            padding: 25px;
-            border-radius: 10px;
-            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-            text-align: center;
-        }
-
-        .hero-card .icon {
-            font-size: 36px;
-            margin-bottom: 10px;
-        }
-
-        .hero-card .value {
-            font-size: 32px;
-            font-weight: 700;
-            color: #2d3748;
-            margin-bottom: 5px;
-        }
-
-        .hero-card .label {
-            font-size: 14px;
-            color: #718096;
-        }
-
-        .hero-card.highlight {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-        }
-
-        .hero-card.highlight .value {
-            color: white;
-        }
-
-        .hero-card.highlight .label {
-            color: rgba(255,255,255,0.9);
-        }
-
-        .tabs {
-            display: flex;
-            gap: 10px;
-            margin-bottom: 30px;
-        }
-
-        .tab {
-            padding: 12px 24px;
-            background: white;
+        .header h1 { color: #2d3748; font-size: 28px; }
+        .btn {
+            padding: 10px 20px;
             border: none;
-            border-radius: 8px;
+            border-radius: 6px;
             cursor: pointer;
             font-size: 14px;
             font-weight: 500;
-            color: #718096;
             transition: all 0.2s;
         }
-
-        .tab.active {
-            background: #667eea;
-            color: white;
-        }
-
+        .btn-primary { background: #667eea; color: white; }
+        .btn-success { background: #48bb78; color: white; }
+        .btn-danger { background: #f56565; color: white; }
+        .btn-secondary { background: #e2e8f0; color: #2d3748; }
+        .btn-sm { padding: 6px 12px; font-size: 12px; }
         .card {
             background: white;
             border-radius: 10px;
@@ -120,20 +46,23 @@
             box-shadow: 0 4px 6px rgba(0,0,0,0.1);
             margin-bottom: 20px;
         }
-
-        .card h2 {
-            color: #2d3748;
-            font-size: 20px;
-            margin-bottom: 20px;
-            padding-bottom: 15px;
-            border-bottom: 2px solid #e2e8f0;
+        .tabs {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 30px;
+            flex-wrap: wrap;
         }
-
-        table {
-            width: 100%;
-            border-collapse: collapse;
+        .tab {
+            padding: 12px 24px;
+            background: white;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 500;
+            transition: all 0.2s;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
         }
-
+        .tab.active { background: #667eea; color: white; }
+        table { width: 100%; border-collapse: collapse; }
         th {
             background: #f7fafc;
             padding: 12px;
@@ -143,79 +72,11 @@
             font-size: 13px;
             border-bottom: 2px solid #e2e8f0;
         }
-
         td {
             padding: 12px;
             border-bottom: 1px solid #e2e8f0;
             font-size: 14px;
         }
-
-        .btn {
-            padding: 8px 16px;
-            border: none;
-            border-radius: 6px;
-            cursor: pointer;
-            font-size: 13px;
-            font-weight: 500;
-            transition: all 0.2s;
-        }
-
-        .btn-primary {
-            background: #667eea;
-            color: white;
-        }
-
-        .btn-primary:hover {
-            background: #5568d3;
-        }
-
-        .btn-success {
-            background: #48bb78;
-            color: white;
-        }
-
-        .btn-danger {
-            background: #f56565;
-            color: white;
-        }
-
-        .btn-secondary {
-            background: #e2e8f0;
-            color: #2d3748;
-        }
-
-        .badge {
-            padding: 4px 8px;
-            border-radius: 4px;
-            font-size: 12px;
-            font-weight: 600;
-        }
-
-        .badge-sweet-spot {
-            background: #48bb78;
-            color: white;
-        }
-
-        .badge-danger-zone {
-            background: #f56565;
-            color: white;
-        }
-
-        .badge-tax-deed-filed {
-            background: #ed8936;
-            color: white;
-        }
-
-        .badge-pre-lien {
-            background: #ecc94b;
-            color: #744210;
-        }
-
-        .badge-unpaid-new {
-            background: #9f7aea;
-            color: white;
-        }
-
         .modal {
             display: none;
             position: fixed;
@@ -228,7 +89,6 @@
             align-items: center;
             justify-content: center;
         }
-
         .modal-content {
             background: white;
             padding: 30px;
@@ -238,141 +98,33 @@
             max-height: 80vh;
             overflow-y: auto;
         }
-
-        .service-option {
-            border: 2px solid #e2e8f0;
-            border-radius: 8px;
-            padding: 20px;
-            margin-bottom: 15px;
-            cursor: pointer;
-            transition: all 0.2s;
-        }
-
-        .service-option:hover {
-            border-color: #667eea;
-            background: #f7fafc;
-        }
-
-        .service-option.selected {
-            border-color: #667eea;
-            background: #edf2f7;
-        }
-
-        .service-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 10px;
-        }
-
-        .service-name {
-            font-weight: 600;
-            font-size: 16px;
-            color: #2d3748;
-        }
-
-        .service-price {
-            font-weight: 700;
-            font-size: 18px;
-            color: #48bb78;
-        }
-
-        .service-description {
-            color: #718096;
-            font-size: 14px;
-        }
-
-        .status-badge {
-            padding: 6px 12px;
-            border-radius: 6px;
-            font-size: 12px;
-            font-weight: 600;
-        }
-
-        .status-pending {
-            background: #fef3c7;
-            color: #92400e;
-        }
-
-        .status-in-progress {
-            background: #dbeafe;
-            color: #1e40af;
-        }
-
-        .status-completed {
-            background: #d1fae5;
-            color: #065f46;
-        }
-
-        .empty-state {
-            text-align: center;
-            padding: 60px 20px;
-            color: #718096;
-        }
-
-        .loading {
-            text-align: center;
-            padding: 40px;
-            color: #718096;
-        }
-
-        #card-element {
-            border: 1px solid #e2e8f0;
-            border-radius: 6px;
-            padding: 12px;
-            margin: 20px 0;
-        }
-
-        #card-errors {
-            color: #f56565;
-            margin-top: 10px;
-            font-size: 14px;
-        }
     </style>
 </head>
 <body>
     <div class="container">
         <div class="header">
             <div>
-                <h1>🏘️ My Properties</h1>
-                <div class="header-info">Duval Intelligence - Premium Access</div>
+                <h1>🏘️ Property Intelligence</h1>
+                <div style="color: #718096; font-size: 14px;">Find distressed properties</div>
             </div>
             <button class="btn btn-danger" onclick="logout()">Logout</button>
         </div>
 
-        <!-- Hero Stats -->
-        <div class="hero-stats">
-            <div class="hero-card highlight">
-                <div class="icon">🎯</div>
-                <div class="value" id="heroTotalProperties">-</div>
-                <div class="label">Tax Lien Properties Available</div>
-            </div>
-            <div class="hero-card">
-                <div class="icon">💰</div>
-                <div class="value" id="heroTotalAmount">-</div>
-                <div class="label">Total Outstanding Tax Debt</div>
-            </div>
-            <div class="hero-card">
-                <div class="icon">🔥</div>
-                <div class="value" id="heroSweetSpot">-</div>
-                <div class="label">Sweet Spot (2-5 Years Unpaid)</div>
-            </div>
-        </div>
-
-        <!-- Tabs -->
+        <!-- Category Tabs -->
         <div class="tabs">
-            <button class="tab active" onclick="switchTab('properties')">
-                📊 Browse Properties
-            </button>
-            <button class="tab" onclick="switchTab('requests')">
-                🔔 My Service Requests
-            </button>
+            <div class="tab active" onclick="switchCategory('tax')">💰 Tax Delinquent</div>
+            <div class="tab" onclick="switchCategory('pre_foreclosure')">🏚️ Pre-Foreclosure</div>
+            <div class="tab" onclick="switchCategory('fire_damage')">🔥 Fire Damages</div>
+            <div class="tab" onclick="switchCategory('probate')">⚖️ Probate</div>
+            <div class="tab" onclick="switchCategory('code_violation')">⚠️ Code Violations</div>
+            <div class="tab" onclick="switchCategory('surplus_funds')">💵 Surplus Funds</div>
+            <div class="tab" onclick="switchCategory('my_requests')">📋 My Requests</div>
         </div>
 
-        <!-- Properties Tab -->
-        <div id="propertiesTab">
+        <!-- Tax Delinquent Tab -->
+        <div id="taxTab">
             <div class="card">
-                <h2>Available Properties</h2>
+                <h2 style="margin-bottom: 20px;">Available Properties</h2>
                 
                 <div style="margin-bottom: 15px;">
                     <input type="text" id="propertySearchInput" placeholder="🔍 Search by address, parcel, zip, or owner..." 
@@ -381,34 +133,17 @@
                 </div>
                 
                 <div style="margin-bottom: 20px; display: flex; gap: 10px;">
-                    <select id="stageFilter" style="padding: 8px; border-radius: 6px; border: 1px solid #e2e8f0;">
+                    <select id="stageFilter" style="padding: 8px; border-radius: 6px; border: 1px solid #e2e8f0;" onchange="loadProperties()">
                         <option value="">All Stages</option>
                         <option value="sweet_spot">🎯 Sweet Spot</option>
                         <option value="danger_zone">🚨 Danger Zone</option>
                         <option value="pre_lien">⚠️ Pre-Lien</option>
                         <option value="unpaid_new">🆕 Unpaid New</option>
                     </select>
-                    <button class="btn btn-primary" onclick="loadProperties()">Apply Filter</button>
                 </div>
 
-                <div id="propertiesLoading" class="loading">
-                    Loading properties...
-                </div>
-
-                <div id="propertiesTable" style="display: none;">
-                    <table>
-                        <thead>
-                            <tr>
-                                <th>Parcel</th>
-                                <th>Stage</th>
-                                <th>Address</th>
-                                <th>Owner</th>
-                                <th>Actions</th>
-                            </tr>
-                        </thead>
-                        <tbody id="propertiesBody"></tbody>
-                    </table>
-                </div>
+                <div id="propertiesTable"></div>
+                <div id="pagination" style="margin-top: 20px; display: flex; gap: 10px; justify-content: center; align-items: center;"></div>
             </div>
         </div>
 
@@ -416,32 +151,22 @@
         <div id="requestsTab" style="display: none;">
             <div class="card">
                 <h2>My Service Requests</h2>
-                <div id="requestsLoading" class="loading">
-                    Loading requests...
-                </div>
                 <div id="requestsList"></div>
             </div>
         </div>
     </div>
 
-    <!-- Request Service Modal -->
+    <!-- Service Modal -->
     <div id="serviceModal" class="modal">
         <div class="modal-content">
             <h2 style="margin-bottom: 20px;">Request Service</h2>
-            <p style="color: #718096; margin-bottom: 20px;">
-                <strong>Property:</strong> <span id="modalParcel"></span><br>
-                <strong>Address:</strong> <span id="modalAddress"></span>
-            </p>
-
+            <p style="margin-bottom: 20px;"><strong>Property:</strong> <span id="modalParcel"></span></p>
+            
             <div id="serviceOptions"></div>
-
-            <div style="display: flex; gap: 10px; margin-top: 20px;">
-                <button class="btn btn-primary" onclick="proceedToPayment()">
-                    Continue to Payment
-                </button>
-                <button class="btn btn-secondary" onclick="closeServiceModal()">
-                    Cancel
-                </button>
+            
+            <div style="margin-top: 20px; display: flex; gap: 10px;">
+                <button class="btn btn-primary" onclick="openPaymentModal()">Continue to Payment</button>
+                <button class="btn btn-secondary" onclick="closeServiceModal()">Cancel</button>
             </div>
         </div>
     </div>
@@ -456,7 +181,6 @@
             </p>
 
             <form id="payment-form">
-                <!-- Tip Section -->
                 <div style="background: #f7fafc; padding: 15px; border-radius: 6px; margin-bottom: 20px;">
                     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
                         <strong>💝 Tip Your VA (Optional)</strong>
@@ -474,7 +198,6 @@
                            oninput="updateTotal()">
                 </div>
 
-                <!-- Total -->
                 <div style="background: #e6f7ff; padding: 15px; border-radius: 6px; margin-bottom: 20px;">
                     <div style="display: flex; justify-content: space-between; align-items: center;">
                         <strong style="font-size: 18px;">Total:</strong>
@@ -485,7 +208,6 @@
                 <div id="card-element"></div>
                 <div id="card-errors"></div>
 
-                <!-- No Refunds Disclaimer -->
                 <div style="background: #fff3cd; border: 1px solid #ffc107; padding: 12px; border-radius: 6px; margin: 15px 0;">
                     <div style="display: flex; align-items: center; gap: 8px;">
                         <span style="font-size: 18px;">⚠️</span>
@@ -496,27 +218,24 @@
                 </div>
 
                 <div style="display: flex; gap: 10px; margin-top: 20px;">
-                    <button type="submit" class="btn btn-success" id="submitPayment">
-                        Pay Now
-                    </button>
-                    <button type="button" class="btn btn-secondary" onclick="closePaymentModal()">
-                        Back
-                    </button>
+                    <button type="submit" class="btn btn-success" id="submitPayment">Pay Now</button>
+                    <button type="button" class="btn btn-secondary" onclick="closePaymentModal()">Back</button>
                 </div>
             </form>
         </div>
     </div>
 
     <script>
-        let currentTab = 'properties';
+        let currentCategory = 'tax';
+        let currentPage = 1;
         let selectedService = null;
         let selectedProperty = null;
         let servicePricing = [];
         let stripe, elements, cardElement;
         let allProperties = [];
+        let totalProperties = 0;
 
         window.addEventListener('DOMContentLoaded', async () => {
-            await loadHeroStats();
             loadProperties();
             loadServiceRequests();
             await loadServicePricing();
@@ -525,72 +244,56 @@
 
         async function initStripe() {
             const response = await fetch('/api/stripe/config');
-            const { publishableKey } = await response.json();
+            const {publishableKey} = await response.json();
             stripe = Stripe(publishableKey);
             elements = stripe.elements();
             cardElement = elements.create('card');
+            cardElement.mount('#card-element');
+            cardElement.on('change', (e) => {
+                document.getElementById('card-errors').textContent = e.error ? e.error.message : '';
+            });
         }
 
-        async function loadHeroStats() {
-            try {
-                const response = await fetch('/api/stats');
-                const data = await response.json();
-
-                if (data.ok) {
-                    document.getElementById('heroTotalProperties').textContent = 
-                        (data.overall.total_properties || 0).toLocaleString();
-                    
-                    const totalAmount = parseFloat(data.overall.total_amount_due) || 0;
-                    document.getElementById('heroTotalAmount').textContent = 
-                        '$' + (totalAmount / 1000000).toFixed(1) + 'M+';
-                    
-                    document.getElementById('heroSweetSpot').textContent = 
-                        (data.overall.sweet_spot_count || 0).toLocaleString();
-                }
-            } catch (error) {
-                console.error('Error loading stats:', error);
-            }
-        }
-
-        function switchTab(tab) {
-            currentTab = tab;
-            
+        function switchCategory(category) {
+            currentCategory = category;
+            currentPage = 1; // Reset to page 1 when switching categories
             document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
             event.target.classList.add('active');
             
-            document.getElementById('propertiesTab').style.display = tab === 'properties' ? 'block' : 'none';
-            document.getElementById('requestsTab').style.display = tab === 'requests' ? 'block' : 'none';
+            // Show/hide appropriate content
+            const isPropertyCategory = ['tax', 'pre_foreclosure', 'fire_damage', 'probate', 'code_violation', 'surplus_funds'].includes(category);
+            
+            document.getElementById('taxTab').style.display = isPropertyCategory ? 'block' : 'none';
+            document.getElementById('requestsTab').style.display = category === 'my_requests' ? 'block' : 'none';
+            
+            // Load data for the selected category
+            if (isPropertyCategory) {
+                loadProperties(category);
+            } else if (category === 'my_requests') {
+                loadServiceRequests();
+            }
         }
 
-        async function loadProperties() {
-            const loading = document.getElementById('propertiesLoading');
-            const table = document.getElementById('propertiesTable');
+        async function loadProperties(category = 'tax') {
             const stage = document.getElementById('stageFilter').value;
-
-            loading.style.display = 'block';
-            table.style.display = 'none';
+            const params = new URLSearchParams({ page: currentPage, page_size: 50, category: category });
+            if (stage) params.append('stage', stage);
 
             try {
-                const params = new URLSearchParams({ page: 1, page_size: 100000 });
-                if (stage) params.append('stage', stage);
-
                 const response = await fetch(`/api/properties?${params}`);
                 const data = await response.json();
 
                 if (data.ok && data.rows.length > 0) {
+                    totalProperties = data.total;
                     allProperties = data.rows;
                     searchProperties();
-                    table.style.display = 'block';
+                    renderPagination(data.total);
                 } else {
-                    document.getElementById('propertiesBody').innerHTML = `
-                        <tr><td colspan="5" class="empty-state">No properties available</td></tr>
-                    `;
-                    table.style.display = 'block';
+                    document.getElementById('propertiesTable').innerHTML = '<p style="color: #718096; padding: 20px;">No properties in this category yet.</p>';
+                    document.getElementById('pagination').innerHTML = '';
                 }
             } catch (error) {
                 console.error('Error loading properties:', error);
-            } finally {
-                loading.style.display = 'none';
             }
         }
 
@@ -612,101 +315,141 @@
         }
 
         function renderProperties(properties) {
-            const tbody = document.getElementById('propertiesBody');
+            const container = document.getElementById('propertiesTable');
+            container.innerHTML = `
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Parcel</th>
+                            <th>Stage</th>
+                            <th>Address</th>
+                            <th>Owner</th>
+                            <th>Amount Due</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${properties.map(prop => `
+                            <tr>
+                                <td><strong>${prop.parcel}</strong></td>
+                                <td><span style="padding: 4px 8px; border-radius: 4px; font-size: 12px; background: ${getStageColor(prop.stage)}; color: white;">${formatStage(prop.stage)}</span></td>
+                                <td>${prop.address || '-'}</td>
+                                <td>${prop.owner || '-'}</td>
+                                <td><strong>$${parseFloat(prop.current_total_due || 0).toLocaleString()}</strong></td>
+                                <td>
+                                    <button class="btn btn-primary btn-sm" onclick="openServiceModal(${prop.id}, '${prop.parcel}', '${prop.address || ''}')">
+                                        Request Service
+                                    </button>
+                                </td>
+                            </tr>
+                        `).join('')}
+                    </tbody>
+                </table>
+            `;
+        }
+
+        function getStageColor(stage) {
+            const colors = {
+                'sweet_spot': '#48bb78',
+                'danger_zone': '#f56565',
+                'pre_lien': '#ecc94b',
+                'unpaid_new': '#9f7aea'
+            };
+            return colors[stage] || '#718096';
+        }
+
+        function renderPagination(total) {
+            const totalPages = Math.ceil(total / 50);
+            const container = document.getElementById('pagination');
             
-            tbody.innerHTML = properties.map(prop => `
-                <tr>
-                    <td><strong>${prop.parcel}</strong></td>
-                    <td><span class="badge badge-${prop.stage.replace('_', '-')}">${formatStage(prop.stage)}</span></td>
-                    <td>${prop.address || '-'}</td>
-                    <td>${prop.owner || '-'}</td>
-                    <td>
-                        <button class="btn btn-success" onclick='openServiceModal(${JSON.stringify(prop).replace(/'/g, "&apos;")})'>
-                            🎯 Request Service
-                        </button>
-                    </td>
-                </tr>
-            `).join('');
+            if (totalPages <= 1) {
+                container.innerHTML = '';
+                return;
+            }
+            
+            let html = '';
+            
+            if (currentPage > 1) {
+                html += `<button class="btn btn-secondary" onclick="changePage(${currentPage - 1})">← Previous</button>`;
+            }
+            
+            html += `<span style="padding: 10px; font-weight: 600;">Page ${currentPage} of ${totalPages} (${total.toLocaleString()} total properties)</span>`;
+            
+            if (currentPage < totalPages) {
+                html += `<button class="btn btn-secondary" onclick="changePage(${currentPage + 1})">Next →</button>`;
+            }
+            
+            container.innerHTML = html;
+        }
+
+        function changePage(page) {
+            currentPage = page;
+            loadProperties(currentCategory);
+            window.scrollTo({ top: 0, behavior: 'smooth' });
         }
 
         function formatStage(stage) {
             const stages = {
-                'sweet_spot': '🎯 Sweet Spot',
-                'danger_zone': '🚨 Danger Zone',
-                'pre_lien': '⚠️ Pre-Lien',
-                'unpaid_new': '🆕 Unpaid New',
-                'tax_deed_filed': '📋 Tax Deed Filed',
-                'auction_failed': '🔥 Auction Failed',
-                'current': '✅ Current'
+                'sweet_spot': 'Sweet Spot',
+                'danger_zone': 'Danger Zone',
+                'pre_lien': 'Pre-Lien',
+                'unpaid_new': 'Unpaid New'
             };
             return stages[stage] || stage;
         }
 
         async function loadServicePricing() {
-            try {
-                const response = await fetch('/api/pricing/active');
-                const data = await response.json();
-                if (data.ok) {
-                    servicePricing = data.pricing;
-                }
-            } catch (error) {
-                console.error('Error loading pricing:', error);
-            }
+            const response = await fetch('/api/pricing/active');
+            const data = await response.json();
+            servicePricing = data.services || [];
         }
 
-        function openServiceModal(property) {
-            selectedProperty = property;
-            selectedService = null;
+        function openServiceModal(propertyId, parcel, address) {
+            selectedProperty = {id: propertyId, parcel, address};
+            document.getElementById('modalParcel').textContent = parcel;
             
-            document.getElementById('modalParcel').textContent = property.parcel;
-            document.getElementById('modalAddress').textContent = property.address || 'N/A';
-            
-            const options = document.getElementById('serviceOptions');
-            options.innerHTML = servicePricing.map(service => `
-                <div class="service-option" onclick="selectService('${service.service_type}')">
-                    <div class="service-header">
-                        <div class="service-name">${service.service_name}</div>
-                        <div class="service-price">$${parseFloat(service.price_charged).toFixed(2)}</div>
-                    </div>
-                    <div class="service-description">${service.service_description || ''}</div>
+            const html = servicePricing.map(svc => `
+                <div style="border: 1px solid #e2e8f0; padding: 15px; margin: 10px 0; border-radius: 6px; cursor: pointer;"
+                     onclick="selectService(${svc.id}, '${svc.service_name}', ${svc.price_charged})">
+                    <strong>${svc.service_name}</strong><br>
+                    <span style="color: #718096; font-size: 13px;">${svc.service_description}</span><br>
+                    <strong style="color: #667eea; font-size: 18px;">$${parseFloat(svc.price_charged).toFixed(2)}</strong>
                 </div>
             `).join('');
             
+            document.getElementById('serviceOptions').innerHTML = html;
             document.getElementById('serviceModal').style.display = 'flex';
         }
 
-        function selectService(serviceType) {
-            selectedService = serviceType;
-            
-            document.querySelectorAll('.service-option').forEach(opt => {
-                opt.classList.remove('selected');
+        function selectService(id, name, price) {
+            selectedService = {id, name, price};
+            document.querySelectorAll('#serviceOptions > div').forEach(el => {
+                el.style.border = '1px solid #e2e8f0';
             });
-            event.currentTarget.classList.add('selected');
+            event.currentTarget.style.border = '2px solid #667eea';
         }
 
         function closeServiceModal() {
             document.getElementById('serviceModal').style.display = 'none';
-            selectedService = null;
-            selectedProperty = null;
         }
 
-        function proceedToPayment() {
+        function openPaymentModal() {
             if (!selectedService) {
                 alert('Please select a service');
                 return;
             }
-
-            const pricing = servicePricing.find(s => s.service_type === selectedService);
             
-            document.getElementById('paymentService').textContent = pricing.service_name;
-            document.getElementById('paymentAmount').textContent = parseFloat(pricing.price_charged).toFixed(2);
-            document.getElementById('tipAmount').value = '';
-            document.getElementById('totalAmount').textContent = parseFloat(pricing.price_charged).toFixed(2);
+            document.getElementById('paymentService').textContent = selectedService.name;
+            document.getElementById('paymentAmount').textContent = selectedService.price.toFixed(2);
+            document.getElementById('totalAmount').textContent = selectedService.price.toFixed(2);
             
-            document.getElementById('serviceModal').style.display = 'none';
+            closeServiceModal();
             document.getElementById('paymentModal').style.display = 'flex';
-            
-            cardElement.mount('#card-element');
+        }
+
+        function closePaymentModal() {
+            document.getElementById('paymentModal').style.display = 'none';
+            document.getElementById('tipAmount').value = '';
         }
 
         function setTip(amount) {
@@ -715,142 +458,92 @@
         }
 
         function updateTotal() {
-            const pricing = servicePricing.find(s => s.service_type === selectedService);
-            const serviceAmount = parseFloat(pricing.price_charged);
             const tip = parseFloat(document.getElementById('tipAmount').value) || 0;
-            const total = serviceAmount + tip;
+            const total = selectedService.price + tip;
             document.getElementById('totalAmount').textContent = total.toFixed(2);
-        }
-
-        function closePaymentModal() {
-            document.getElementById('paymentModal').style.display = 'none';
-            cardElement.unmount();
-            document.getElementById('serviceModal').style.display = 'flex';
         }
 
         document.getElementById('payment-form').addEventListener('submit', async (e) => {
             e.preventDefault();
-
-            const submitBtn = document.getElementById('submitPayment');
-            submitBtn.disabled = true;
-            submitBtn.textContent = 'Processing...';
-
-            const tipAmount = parseFloat(document.getElementById('tipAmount').value) || 0;
-
+            const tip = parseFloat(document.getElementById('tipAmount').value) || 0;
+            
             try {
                 const response = await fetch('/api/stripe/create-payment-intent', {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: {'Content-Type': 'application/json'},
                     body: JSON.stringify({
-                        service_type: selectedService,
                         parcel: selectedProperty.parcel,
                         property_id: selectedProperty.id,
-                        tip_amount: tipAmount
+                        property_address: selectedProperty.address,
+                        service_id: selectedService.id,
+                        service_type: selectedService.name,
+                        amount: selectedService.price,
+                        tip_amount: tip
                     })
                 });
-
-                const { clientSecret } = await response.json();
-
-                const { error } = await stripe.confirmCardPayment(clientSecret, {
-                    payment_method: {
-                        card: cardElement
-                    }
+                
+                const {clientSecret} = await response.json();
+                const result = await stripe.confirmCardPayment(clientSecret, {
+                    payment_method: {card: cardElement}
                 });
-
-                if (error) {
-                    document.getElementById('card-errors').textContent = error.message;
-                    submitBtn.disabled = false;
-                    submitBtn.textContent = 'Pay Now';
+                
+                if (result.error) {
+                    alert('Payment failed: ' + result.error.message);
                 } else {
                     alert('✅ Payment successful! Your service request has been submitted.');
                     closePaymentModal();
-                    closeServiceModal();
-                    switchTab('requests');
                     loadServiceRequests();
                 }
             } catch (error) {
-                alert('❌ Payment failed');
-                submitBtn.disabled = false;
-                submitBtn.textContent = 'Pay Now';
+                alert('Payment error');
             }
         });
 
         async function loadServiceRequests() {
-            try {
-                const response = await fetch('/api/user/service-requests');
-                const data = await response.json();
-
-                document.getElementById('requestsLoading').style.display = 'none';
-
-                if (data.ok && data.requests && data.requests.length > 0) {
-                    renderServiceRequests(data.requests);
-                } else {
-                    document.getElementById('requestsList').innerHTML = `
-                        <div class="empty-state">
-                            <p>No service requests yet</p>
-                            <p style="margin-top: 10px;">
-                                <button class="btn btn-primary" onclick="switchTab('properties')">
-                                    Browse Properties
-                                </button>
-                            </p>
-                        </div>
-                    `;
-                }
-            } catch (error) {
-                console.error('Error loading requests:', error);
-                document.getElementById('requestsLoading').style.display = 'none';
-            }
-        }
-
-        function renderServiceRequests(requests) {
-            const container = document.getElementById('requestsList');
+            const response = await fetch('/api/user/service-requests');
+            const data = await response.json();
             
-            container.innerHTML = requests.map(req => `
-                <div style="border: 1px solid #e2e8f0; border-radius: 8px; padding: 20px; margin-bottom: 15px;">
-                    <div style="display: flex; justify-content: space-between; margin-bottom: 15px;">
-                        <div>
-                            <strong>${formatServiceType(req.service_type)}</strong><br>
-                            <span style="color: #718096; font-size: 14px;">Parcel: ${req.parcel}</span>
-                        </div>
-                        <span class="status-badge status-${req.status}">${formatStatus(req.status)}</span>
-                    </div>
-                    
-                    ${req.status === 'completed' && (req.phone || req.email) ? `
-                    <div style="background: #d1fae5; padding: 15px; border-radius: 6px; margin-top: 15px;">
-                        <strong>Results:</strong><br>
-                        ${req.phone ? `📞 Phone: ${req.phone}<br>` : ''}
-                        ${req.email ? `📧 Email: ${req.email}<br>` : ''}
-                        ${req.notes ? `Notes: ${req.notes}` : ''}
-                    </div>
-                    ` : ''}
-                    
-                    <div style="margin-top: 10px; font-size: 13px; color: #718096;">
-                        Requested: ${new Date(req.created_at).toLocaleDateString()}<br>
-                        Paid: $${parseFloat(req.amount_charged).toFixed(2)}
-                    </div>
-                </div>
-            `).join('');
+            const container = document.getElementById('requestsList');
+            if (!data.requests || data.requests.length === 0) {
+                container.innerHTML = '<p style="color: #718096; padding: 20px;">No service requests yet</p>';
+                return;
+            }
+            
+            container.innerHTML = `
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Parcel</th>
+                            <th>Service</th>
+                            <th>Status</th>
+                            <th>Amount</th>
+                            <th>Created</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${data.requests.map(req => `
+                            <tr>
+                                <td><strong>${req.parcel}</strong></td>
+                                <td>${req.service_type}</td>
+                                <td><span style="padding: 4px 8px; border-radius: 4px; font-size: 12px; background: ${getStatusColor(req.status)}; color: white;">${req.status}</span></td>
+                                <td>$${parseFloat(req.amount_charged || 0).toFixed(2)}</td>
+                                <td>${new Date(req.created_at).toLocaleDateString()}</td>
+                            </tr>
+                        `).join('')}
+                    </tbody>
+                </table>
+            `;
         }
 
-        function formatServiceType(type) {
-            const types = {
-                'skiptrace': '🔍 Contact Research',
-                'cold_call_block': '📞 Cold Calling',
-                'postcard': '📮 Direct Mail',
-                'door_knock': '🚪 Door Knock'
+        function getStatusColor(status) {
+            const colors = {
+                'pending': '#718096',
+                'claimed': '#667eea',
+                'submitted': '#f59e0b',
+                'approved': '#48bb78',
+                'rejected': '#f56565'
             };
-            return types[type] || type;
-        }
-
-        function formatStatus(status) {
-            const statuses = {
-                'pending': '⏳ Pending',
-                'claimed': '🎯 Assigned to VA',
-                'in_progress': '⚡ In Progress',
-                'submitted': '⏳ Under Review',
-                'completed': '✅ Completed'
-            };
-            return statuses[status] || status;
+            return colors[status] || '#718096';
         }
 
         function logout() {
