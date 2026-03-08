@@ -129,11 +129,11 @@
                 <div style="margin-bottom: 15px;">
                     <input type="text" id="propertySearchInput" placeholder="🔍 Search by address, parcel, zip, or owner..." 
                            style="width: 100%; padding: 12px; border-radius: 6px; border: 1px solid #e2e8f0; font-size: 14px;"
-                           oninput="searchProperties()">
+                           onkeyup="handleSearch()">
                 </div>
                 
                 <div style="margin-bottom: 20px; display: flex; gap: 10px;">
-                    <select id="stageFilter" style="padding: 8px; border-radius: 6px; border: 1px solid #e2e8f0;" onchange="loadProperties()">
+                    <select id="stageFilter" style="padding: 8px; border-radius: 6px; border: 1px solid #e2e8f0;" onchange="handleFilterChange()">
                         <option value="">All Stages</option>
                         <option value="sweet_spot">🎯 Sweet Spot</option>
                         <option value="danger_zone">🚨 Danger Zone</option>
@@ -228,12 +228,13 @@
     <script>
         let currentCategory = 'tax';
         let currentPage = 1;
+        let currentSearch = '';
+        let currentStage = '';
         let selectedService = null;
         let selectedProperty = null;
         let servicePricing = [];
         let stripe, elements, cardElement;
-        let allProperties = [];
-        let totalProperties = 0;
+        let searchTimeout = null;
 
         window.addEventListener('DOMContentLoaded', async () => {
             loadProperties();
@@ -256,62 +257,67 @@
 
         function switchCategory(category) {
             currentCategory = category;
-            currentPage = 1; // Reset to page 1 when switching categories
+            currentPage = 1;
+            currentSearch = '';
+            currentStage = '';
+            document.getElementById('propertySearchInput').value = '';
+            document.getElementById('stageFilter').value = '';
+            
             document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
             event.target.classList.add('active');
             
-            // Show/hide appropriate content
             const isPropertyCategory = ['tax', 'pre_foreclosure', 'fire_damage', 'probate', 'code_violation', 'surplus_funds'].includes(category);
             
             document.getElementById('taxTab').style.display = isPropertyCategory ? 'block' : 'none';
             document.getElementById('requestsTab').style.display = category === 'my_requests' ? 'block' : 'none';
             
-            // Load data for the selected category
             if (isPropertyCategory) {
-                loadProperties(category);
+                loadProperties();
             } else if (category === 'my_requests') {
                 loadServiceRequests();
             }
         }
 
-        async function loadProperties(category = 'tax') {
-            const stage = document.getElementById('stageFilter').value;
-            const params = new URLSearchParams({ page: currentPage, page_size: 50, category: category });
-            if (stage) params.append('stage', stage);
+        function handleSearch() {
+            clearTimeout(searchTimeout);
+            searchTimeout = setTimeout(() => {
+                currentPage = 1;
+                currentSearch = document.getElementById('propertySearchInput').value.trim();
+                loadProperties();
+            }, 500);
+        }
+
+        function handleFilterChange() {
+            currentPage = 1;
+            currentStage = document.getElementById('stageFilter').value;
+            loadProperties();
+        }
+
+        async function loadProperties() {
+            const params = new URLSearchParams({ 
+                page: currentPage, 
+                page_size: 50, 
+                category: currentCategory 
+            });
+            
+            if (currentStage) params.append('stage', currentStage);
+            if (currentSearch) params.append('search', currentSearch);
 
             try {
                 const response = await fetch(`/api/properties?${params}`);
                 const data = await response.json();
 
                 if (data.ok && data.rows.length > 0) {
-                    totalProperties = data.total;
-                    allProperties = data.rows;
-                    searchProperties();
+                    renderProperties(data.rows);
                     renderPagination(data.total);
                 } else {
-                    document.getElementById('propertiesTable').innerHTML = '<p style="color: #718096; padding: 20px;">No properties in this category yet.</p>';
+                    document.getElementById('propertiesTable').innerHTML = '<p style="color: #718096; padding: 20px;">No properties found.</p>';
                     document.getElementById('pagination').innerHTML = '';
                 }
             } catch (error) {
                 console.error('Error loading properties:', error);
+                document.getElementById('propertiesTable').innerHTML = '<p style="color: #f56565; padding: 20px;">Error loading properties. Please refresh.</p>';
             }
-        }
-
-        function searchProperties() {
-            const searchTerm = document.getElementById('propertySearchInput').value.toLowerCase().trim();
-            
-            const filtered = allProperties.filter(prop => {
-                if (!searchTerm) return true;
-                
-                const addressMatch = prop.address && prop.address.toLowerCase().includes(searchTerm);
-                const parcelMatch = prop.parcel && prop.parcel.toLowerCase().includes(searchTerm);
-                const zipMatch = prop.zip && prop.zip.includes(searchTerm);
-                const ownerMatch = prop.owner && prop.owner.toLowerCase().includes(searchTerm);
-                
-                return addressMatch || parcelMatch || zipMatch || ownerMatch;
-            });
-            
-            renderProperties(filtered);
         }
 
         function renderProperties(properties) {
@@ -337,7 +343,7 @@
                                 <td>${prop.owner || '-'}</td>
                                 <td><strong>$${parseFloat(prop.current_total_due || 0).toLocaleString()}</strong></td>
                                 <td>
-                                    <button class="btn btn-primary btn-sm" onclick="openServiceModal(${prop.id}, '${prop.parcel}', '${prop.address || ''}')">
+                                    <button class="btn btn-primary btn-sm" onclick="openServiceModal(${prop.id}, '${prop.parcel}', '${(prop.address || '').replace(/'/g, "\\'")}')">
                                         Request Service
                                     </button>
                                 </td>
@@ -348,6 +354,38 @@
             `;
         }
 
+        function renderPagination(total) {
+            const totalPages = Math.ceil(total / 50);
+            const container = document.getElementById('pagination');
+            
+            if (totalPages <= 1) {
+                container.innerHTML = total > 0 ? `<span style="padding: 10px; color: #718096;">${total} properties</span>` : '';
+                return;
+            }
+            
+            let html = '';
+            
+            if (currentPage > 1) {
+                html += `<button class="btn btn-secondary" onclick="changePage(1)">« First</button>`;
+                html += `<button class="btn btn-secondary" onclick="changePage(${currentPage - 1})">‹ Previous</button>`;
+            }
+            
+            html += `<span style="padding: 10px; font-weight: 600;">Page ${currentPage} of ${totalPages} (${total.toLocaleString()} properties)</span>`;
+            
+            if (currentPage < totalPages) {
+                html += `<button class="btn btn-secondary" onclick="changePage(${currentPage + 1})">Next ›</button>`;
+                html += `<button class="btn btn-secondary" onclick="changePage(${totalPages})">Last »</button>`;
+            }
+            
+            container.innerHTML = html;
+        }
+
+        function changePage(page) {
+            currentPage = page;
+            loadProperties();
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+
         function getStageColor(stage) {
             const colors = {
                 'sweet_spot': '#48bb78',
@@ -356,36 +394,6 @@
                 'unpaid_new': '#9f7aea'
             };
             return colors[stage] || '#718096';
-        }
-
-        function renderPagination(total) {
-            const totalPages = Math.ceil(total / 50);
-            const container = document.getElementById('pagination');
-            
-            if (totalPages <= 1) {
-                container.innerHTML = '';
-                return;
-            }
-            
-            let html = '';
-            
-            if (currentPage > 1) {
-                html += `<button class="btn btn-secondary" onclick="changePage(${currentPage - 1})">← Previous</button>`;
-            }
-            
-            html += `<span style="padding: 10px; font-weight: 600;">Page ${currentPage} of ${totalPages} (${total.toLocaleString()} total properties)</span>`;
-            
-            if (currentPage < totalPages) {
-                html += `<button class="btn btn-secondary" onclick="changePage(${currentPage + 1})">Next →</button>`;
-            }
-            
-            container.innerHTML = html;
-        }
-
-        function changePage(page) {
-            currentPage = page;
-            loadProperties(currentCategory);
-            window.scrollTo({ top: 0, behavior: 'smooth' });
         }
 
         function formatStage(stage) {

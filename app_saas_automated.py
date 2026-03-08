@@ -1268,6 +1268,11 @@ def stripe_webhook():
                     ))
                     
                     conn.commit()
+                    
+                    # Track spending for rewards system
+                    total_amount = float(pricing['price_charged']) + tip_amount
+                    update_user_rewards_tracking(user_email, amount_spent=total_amount, time_seconds=0)
+                    
                     print(f"✅ Service request created from payment: {payment_intent['id']}")
         
         except Exception as e:
@@ -1995,6 +2000,208 @@ def api_va_cancel_job(job_id):
 
 # ========== END VA PORTAL API ==========
 
+
+
+# ========== HYBRID REWARDS SYSTEM API ==========
+
+def update_user_rewards_tracking(user_email, amount_spent=0, time_seconds=0):
+    """Update user's spending and time tracking, check for tier upgrades"""
+    try:
+        with db_conn() as conn:
+            with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+                cur.execute("SELECT * FROM user_spending_tracker WHERE user_email = %s", (user_email,))
+                user_data = cur.fetchone()
+                
+                if not user_data:
+                    cur.execute("""
+                        INSERT INTO user_spending_tracker 
+                            (user_email, total_spent, current_tier_spent, total_time_seconds, tier_level, time_bonus_tier)
+                        VALUES (%s, %s, %s, %s, 0, 0)
+                        RETURNING *
+                    """, (user_email, amount_spent, amount_spent, time_seconds))
+                    user_data = cur.fetchone()
+                else:
+                    new_total_spent = float(user_data['total_spent']) + amount_spent
+                    new_current_tier_spent = float(user_data['current_tier_spent']) + amount_spent
+                    new_total_time = int(user_data['total_time_seconds']) + time_seconds
+                    
+                    cur.execute("""
+                        UPDATE user_spending_tracker
+                        SET total_spent = %s,
+                            current_tier_spent = %s,
+                            total_time_seconds = %s,
+                            last_purchase_at = CASE WHEN %s > 0 THEN NOW() ELSE last_purchase_at END,
+                            updated_at = NOW()
+                        WHERE user_email = %s
+                        RETURNING *
+                    """, (new_total_spent, new_current_tier_spent, new_total_time, amount_spent, user_email))
+                    user_data = cur.fetchone()
+                
+                total_minutes = int(user_data['total_time_seconds']) / 60
+                cur.execute("""
+                    SELECT MAX(tier_level) as max_tier
+                    FROM time_bonus_tiers
+                    WHERE minutes_required <= %s AND is_active = TRUE
+                """, (total_minutes,))
+                
+                result = cur.fetchone()
+                new_time_tier = result['max_tier'] if result and result['max_tier'] is not None else 0
+                
+                if new_time_tier > user_data['time_bonus_tier']:
+                    cur.execute("""
+                        UPDATE user_spending_tracker
+                        SET time_bonus_tier = %s
+                        WHERE user_email = %s
+                    """, (new_time_tier, user_email))
+                
+                conn.commit()
+                return True
+    except Exception as e:
+        print(f"❌ Update rewards tracking error: {e}")
+        return False
+
+
+@app.post("/api/user/update-time")
+def update_user_time():
+    """Update user's active time"""
+    u = require_login()
+    if not u:
+        return jsonify({"ok": False, "error": "Not authorized"}), 401
+    
+    data = request.get_json(silent=True) or {}
+    time_seconds = int(data.get('time_seconds', 0))
+    
+    if time_seconds <= 0:
+        return jsonify({"ok": False, "error": "Invalid time"}), 400
+    
+    success = update_user_rewards_tracking(u['email'], amount_spent=0, time_seconds=time_seconds)
+    
+    if success:
+        return jsonify({"ok": True})
+    else:
+        return jsonify({"ok": False, "error": "Failed to update time"}), 500
+
+
+@app.get("/api/user/rewards-status")
+def get_user_rewards_status():
+    """Get complete user reward status"""
+    u = require_login()
+    if not u:
+        return jsonify({"ok": False, "error": "Not authorized"}), 401
+    
+    try:
+        with db_conn() as conn:
+            with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+                cur.execute("SELECT * FROM user_complete_reward_status WHERE user_email = %s", (u['email'],))
+                status = cur.fetchone()
+                
+                if not status:
+                    return jsonify({
+                        "ok": True, "total_spent": 0, "current_tier_spent": 0,
+                        "spending_tier": 0, "spending_tier_name": "Bronze",
+                        "base_reward_amount": 5.00, "total_minutes": 0,
+                        "time_bonus_tier": 0, "time_bonus_name": "Explorer",
+                        "time_multiplier": 1.0, "time_badge": "🔍",
+                        "boosted_reward_amount": 5.00, "can_claim_reward": False,
+                        "next_spending_tier": 100.00, "next_time_minutes": 180,
+                        "lifetime_points": 0
+                    })
+                
+                cur.execute("SELECT spending_required FROM reward_tiers WHERE tier_level = %s AND is_active = TRUE", (status['spending_tier'],))
+                current_tier = cur.fetchone()
+                spending_required = float(current_tier['spending_required']) if current_tier else 100
+                can_claim = float(status['current_tier_spent']) >= spending_required
+                
+                return jsonify({
+                    "ok": True,
+                    "total_spent": float(status['total_spent']),
+                    "current_tier_spent": float(status['current_tier_spent']),
+                    "spending_tier": int(status['spending_tier']),
+                    "spending_tier_name": status['spending_tier_name'],
+                    "base_reward_amount": float(status['base_reward_amount']) if status['base_reward_amount'] else 5.00,
+                    "total_minutes": int(status['total_minutes']),
+                    "time_bonus_tier": int(status['time_bonus_tier']),
+                    "time_bonus_name": status['time_bonus_name'],
+                    "time_multiplier": float(status['time_multiplier']),
+                    "time_badge": status['time_badge'],
+                    "boosted_reward_amount": float(status['boosted_reward_amount']) if status['boosted_reward_amount'] else 5.00,
+                    "can_claim_reward": can_claim,
+                    "spending_required": spending_required,
+                    "amount_until_reward": max(0, spending_required - float(status['current_tier_spent'])),
+                    "next_time_minutes": int(status['next_time_minutes']) if status['next_time_minutes'] else 180,
+                    "next_time_multiplier": float(status['next_time_multiplier']) if status['next_time_multiplier'] else 1.1,
+                    "lifetime_points": int(status['lifetime_points'])
+                })
+    except Exception as e:
+        print(f"❌ Get rewards status error: {e}")
+        return jsonify({"ok": False, "error": "Failed to load rewards status"}), 500
+
+
+@app.post("/api/user/claim-reward")
+def claim_spending_reward():
+    """User claims their spending tier reward"""
+    u = require_login()
+    if not u:
+        return jsonify({"ok": False, "error": "Not authorized"}), 401
+    
+    try:
+        with db_conn() as conn:
+            with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+                cur.execute("SELECT * FROM user_complete_reward_status WHERE user_email = %s", (u['email'],))
+                status = cur.fetchone()
+                
+                if not status:
+                    return jsonify({"ok": False, "error": "No reward data found"}), 404
+                
+                cur.execute("SELECT * FROM reward_tiers WHERE tier_level = %s AND is_active = TRUE", (status['spending_tier'],))
+                tier = cur.fetchone()
+                
+                if not tier:
+                    return jsonify({"ok": False, "error": "Tier not found"}), 404
+                
+                if float(status['current_tier_spent']) < float(tier['spending_required']):
+                    return jsonify({
+                        "ok": False,
+                        "error": f"Need ${tier['spending_required'] - float(status['current_tier_spent']):.2f} more to claim"
+                    }), 400
+                
+                base_reward = float(tier['reward_amount'])
+                time_multiplier = float(status['time_multiplier'])
+                final_reward = round(base_reward * time_multiplier, 2)
+                
+                cur.execute("""
+                    INSERT INTO reward_claims
+                        (user_email, claim_type, tier_level, total_spent_at_claim,
+                         points_at_claim, reward_amount, status)
+                    VALUES (%s, 'tier_reward', %s, %s, %s, %s, 'approved')
+                    RETURNING id
+                """, (u['email'], status['spending_tier'], status['total_spent'],
+                      status['lifetime_points'], final_reward))
+                
+                claim_id = cur.fetchone()['id']
+                
+                cur.execute("""
+                    UPDATE user_spending_tracker
+                    SET tier_level = tier_level + 1,
+                        current_tier_spent = 0,
+                        rewards_claimed_count = rewards_claimed_count + 1,
+                        updated_at = NOW()
+                    WHERE user_email = %s
+                """, (u['email'],))
+                
+                conn.commit()
+                
+                return jsonify({
+                    "ok": True, "claim_id": claim_id, "reward_amount": final_reward,
+                    "base_reward": base_reward, "time_multiplier": time_multiplier,
+                    "tier_name": tier['tier_name'],
+                    "message": f"Claimed ${final_reward} {tier['tier_name']}!"
+                })
+    except Exception as e:
+        print(f"❌ Claim reward error: {e}")
+        return jsonify({"ok": False, "error": "Failed to claim reward"}), 500
+
+# ========== END REWARDS SYSTEM API ==========
 
 if __name__ == "__main__":
     port = int(os.getenv("PORT", "10000"))
