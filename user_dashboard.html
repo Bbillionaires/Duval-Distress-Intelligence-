@@ -98,6 +98,13 @@
             max-height: 80vh;
             overflow-y: auto;
         }
+        .pagination-container {
+            margin: 20px 0;
+            display: flex;
+            gap: 10px;
+            justify-content: center;
+            align-items: center;
+        }
     </style>
 </head>
 <body>
@@ -121,7 +128,45 @@
             <div class="tab" onclick="switchCategory('my_requests')">📋 My Requests</div>
         </div>
 
-        <!-- Tax Delinquent Tab -->
+        <!-- Rewards Widget -->
+        <div class="card" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white;">
+            <h3 style="margin-bottom: 15px;">🎁 Your Rewards Status</h3>
+            
+            <div style="background: rgba(255,255,255,0.15); padding: 15px; border-radius: 8px; margin-bottom: 10px;">
+                <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
+                    <strong id="spendingTierName">🥉 Bronze Tier</strong>
+                    <span id="spendingProgress">$0 / $100</span>
+                </div>
+                <div style="background: rgba(255,255,255,0.3); height: 10px; border-radius: 5px; overflow: hidden;">
+                    <div id="spendingBar" style="background: white; height: 100%; width: 0%; transition: width 0.3s;"></div>
+                </div>
+                <div style="margin-top: 12px; display: flex; justify-content: space-between; align-items: center;">
+                    <div>
+                        Base: <strong id="baseReward">$5</strong> → 
+                        Boosted: <strong id="boostedReward" style="font-size: 20px; color: #48bb78;">$5.00</strong>
+                    </div>
+                    <span id="timeBadge" style="font-size: 18px;">🔍 1.0x</span>
+                </div>
+                <button id="claimRewardBtn" class="btn btn-success" style="display: none; width: 100%; margin-top: 10px;" onclick="claimReward()">
+                    💰 Claim Reward
+                </button>
+            </div>
+            
+            <div style="background: rgba(255,255,255,0.15); padding: 15px; border-radius: 8px;">
+                <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
+                    <strong id="timeBonusName">🔍 Explorer</strong>
+                    <span id="timeProgress">0 / 180 min</span>
+                </div>
+                <div style="background: rgba(255,255,255,0.3); height: 10px; border-radius: 5px; overflow: hidden;">
+                    <div id="timeBar" style="background: #48bb78; height: 100%; width: 0%; transition: width 0.3s;"></div>
+                </div>
+                <div style="margin-top: 8px; font-size: 14px; opacity: 0.9;">
+                    All rewards boosted by <strong id="timeMultiplier">1.0x</strong>
+                </div>
+            </div>
+        </div>
+
+        <!-- Properties Tab -->
         <div id="taxTab">
             <div class="card">
                 <h2 style="margin-bottom: 20px;">Available Properties</h2>
@@ -142,8 +187,9 @@
                     </select>
                 </div>
 
+                <div id="paginationTop" class="pagination-container"></div>
                 <div id="propertiesTable"></div>
-                <div id="pagination" style="margin-top: 20px; display: flex; gap: 10px; justify-content: center; align-items: center;"></div>
+                <div id="paginationBottom" class="pagination-container"></div>
             </div>
         </div>
 
@@ -161,9 +207,7 @@
         <div class="modal-content">
             <h2 style="margin-bottom: 20px;">Request Service</h2>
             <p style="margin-bottom: 20px;"><strong>Property:</strong> <span id="modalParcel"></span></p>
-            
             <div id="serviceOptions"></div>
-            
             <div style="margin-top: 20px; display: flex; gap: 10px;">
                 <button class="btn btn-primary" onclick="openPaymentModal()">Continue to Payment</button>
                 <button class="btn btn-secondary" onclick="closeServiceModal()">Cancel</button>
@@ -212,7 +256,7 @@
                     <div style="display: flex; align-items: center; gap: 8px;">
                         <span style="font-size: 18px;">⚠️</span>
                         <div style="font-size: 13px; color: #856404;">
-                            <strong>No Refunds Policy:</strong> All payments are final and non-refundable. Services will be completed within 48 hours of payment.
+                            <strong>No Refunds Policy:</strong> All payments are final and non-refundable.
                         </div>
                     </div>
                 </div>
@@ -235,12 +279,16 @@
         let servicePricing = [];
         let stripe, elements, cardElement;
         let searchTimeout = null;
+        let rewardsStatus = null;
+        let lastTimeSave = Date.now();
 
         window.addEventListener('DOMContentLoaded', async () => {
             loadProperties();
             loadServiceRequests();
             await loadServicePricing();
             await initStripe();
+            loadRewardsStatus();
+            setInterval(saveTimeToServer, 60000);
         });
 
         async function initStripe() {
@@ -312,11 +360,11 @@
                     renderPagination(data.total);
                 } else {
                     document.getElementById('propertiesTable').innerHTML = '<p style="color: #718096; padding: 20px;">No properties found.</p>';
-                    document.getElementById('pagination').innerHTML = '';
+                    document.getElementById('paginationTop').innerHTML = '';
+                    document.getElementById('paginationBottom').innerHTML = '';
                 }
             } catch (error) {
                 console.error('Error loading properties:', error);
-                document.getElementById('propertiesTable').innerHTML = '<p style="color: #f56565; padding: 20px;">Error loading properties. Please refresh.</p>';
             }
         }
 
@@ -356,10 +404,11 @@
 
         function renderPagination(total) {
             const totalPages = Math.ceil(total / 50);
-            const container = document.getElementById('pagination');
             
             if (totalPages <= 1) {
-                container.innerHTML = total > 0 ? `<span style="padding: 10px; color: #718096;">${total} properties</span>` : '';
+                const html = total > 0 ? `<span style="padding: 10px; color: #718096;">${total} properties</span>` : '';
+                document.getElementById('paginationTop').innerHTML = html;
+                document.getElementById('paginationBottom').innerHTML = html;
                 return;
             }
             
@@ -377,7 +426,8 @@
                 html += `<button class="btn btn-secondary" onclick="changePage(${totalPages})">Last »</button>`;
             }
             
-            container.innerHTML = html;
+            document.getElementById('paginationTop').innerHTML = html;
+            document.getElementById('paginationBottom').innerHTML = html;
         }
 
         function changePage(page) {
@@ -418,7 +468,7 @@
             
             const html = servicePricing.map(svc => `
                 <div style="border: 1px solid #e2e8f0; padding: 15px; margin: 10px 0; border-radius: 6px; cursor: pointer;"
-                     onclick="selectService(${svc.id}, '${svc.service_name}', ${svc.price_charged})">
+                     onclick="selectService('${svc.service_type}', '${svc.service_name}', ${svc.price_charged})">
                     <strong>${svc.service_name}</strong><br>
                     <span style="color: #718096; font-size: 13px;">${svc.service_description}</span><br>
                     <strong style="color: #667eea; font-size: 18px;">$${parseFloat(svc.price_charged).toFixed(2)}</strong>
@@ -429,8 +479,8 @@
             document.getElementById('serviceModal').style.display = 'flex';
         }
 
-        function selectService(id, name, price) {
-            selectedService = {id, name, price};
+        function selectService(type, name, price) {
+            selectedService = {type, name, price};
             document.querySelectorAll('#serviceOptions > div').forEach(el => {
                 el.style.border = '1px solid #e2e8f0';
             });
@@ -480,12 +530,9 @@
                     method: 'POST',
                     headers: {'Content-Type': 'application/json'},
                     body: JSON.stringify({
+                        service_type: selectedService.type,
                         parcel: selectedProperty.parcel,
                         property_id: selectedProperty.id,
-                        property_address: selectedProperty.address,
-                        service_id: selectedService.id,
-                        service_type: selectedService.name,
-                        amount: selectedService.price,
                         tip_amount: tip
                     })
                 });
@@ -501,6 +548,7 @@
                     alert('✅ Payment successful! Your service request has been submitted.');
                     closePaymentModal();
                     loadServiceRequests();
+                    loadRewardsStatus();
                 }
             } catch (error) {
                 alert('Payment error');
@@ -552,6 +600,89 @@
                 'rejected': '#f56565'
             };
             return colors[status] || '#718096';
+        }
+
+        async function loadRewardsStatus() {
+            try {
+                const response = await fetch('/api/user/rewards-status');
+                const data = await response.json();
+                if (data.ok) {
+                    rewardsStatus = data;
+                    updateRewardsUI();
+                }
+            } catch (error) {
+                console.error('Error loading rewards:', error);
+            }
+        }
+
+        function updateRewardsUI() {
+            if (!rewardsStatus) return;
+            
+            const tierIcons = ['🥉', '🥈', '🥇', '💎'];
+            const tierIcon = tierIcons[rewardsStatus.spending_tier] || '🥉';
+            document.getElementById('spendingTierName').textContent = tierIcon + ' ' + rewardsStatus.spending_tier_name;
+            document.getElementById('spendingProgress').textContent = `$${rewardsStatus.current_tier_spent.toFixed(0)} / $${rewardsStatus.spending_required.toFixed(0)}`;
+            
+            const spendingPercent = Math.min((rewardsStatus.current_tier_spent / rewardsStatus.spending_required) * 100, 100);
+            document.getElementById('spendingBar').style.width = spendingPercent + '%';
+            
+            document.getElementById('baseReward').textContent = '$' + rewardsStatus.base_reward_amount.toFixed(0);
+            document.getElementById('boostedReward').textContent = '$' + rewardsStatus.boosted_reward_amount.toFixed(2);
+            document.getElementById('timeBadge').textContent = rewardsStatus.time_badge + ' ' + rewardsStatus.time_multiplier.toFixed(1) + 'x';
+            
+            if (rewardsStatus.can_claim_reward) {
+                document.getElementById('claimRewardBtn').style.display = 'block';
+            } else {
+                document.getElementById('claimRewardBtn').style.display = 'none';
+            }
+            
+            document.getElementById('timeBonusName').textContent = rewardsStatus.time_badge + ' ' + rewardsStatus.time_bonus_name;
+            document.getElementById('timeProgress').textContent = `${rewardsStatus.total_minutes} / ${rewardsStatus.next_time_minutes} min`;
+            
+            const timePercent = Math.min((rewardsStatus.total_minutes / rewardsStatus.next_time_minutes) * 100, 100);
+            document.getElementById('timeBar').style.width = timePercent + '%';
+            
+            document.getElementById('timeMultiplier').textContent = rewardsStatus.time_multiplier.toFixed(1) + 'x';
+        }
+
+        async function saveTimeToServer() {
+            const now = Date.now();
+            const secondsElapsed = Math.floor((now - lastTimeSave) / 1000);
+            if (secondsElapsed < 30) return;
+            
+            try {
+                await fetch('/api/user/update-time', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ time_seconds: secondsElapsed })
+                });
+                lastTimeSave = now;
+                loadRewardsStatus();
+            } catch (error) {
+                console.error('Error saving time:', error);
+            }
+        }
+
+        async function claimReward() {
+            if (!rewardsStatus) return;
+            if (!confirm(`Claim your ${rewardsStatus.spending_tier_name} reward of $${rewardsStatus.boosted_reward_amount.toFixed(2)}?`)) return;
+            
+            try {
+                const response = await fetch('/api/user/claim-reward', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'}
+                });
+                const data = await response.json();
+                
+                if (data.ok) {
+                    alert(`🎉 Congratulations!\n\nClaimed: $${data.reward_amount}\n\nBase ${data.tier_name}: $${data.base_reward}\nTime Bonus: ${data.time_multiplier}x\n\nYou've been upgraded to the next tier!`);
+                    loadRewardsStatus();
+                } else {
+                    alert('Error: ' + data.error);
+                }
+            } catch (error) {
+                alert('Failed to claim reward. Please try again.');
+            }
         }
 
         function logout() {
