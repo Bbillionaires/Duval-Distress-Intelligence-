@@ -1,0 +1,937 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Listing Manager - Admin</title>
+    <link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;600;700;900&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        :root {
+            --primary: #FF6B35;
+            --primary-dark: #E85A28;
+            --secondary: #004E89;
+            --bg: #0A0E27;
+            --surface: #151B3D;
+            --surface-light: #1F2749;
+            --text: #FFFFFF;
+            --text-dim: #8892B0;
+            --success: #00D9A5;
+            --warning: #FFB800;
+            --danger: #FF4757;
+            --border: #2A3359;
+        }
+
+        body {
+            font-family: 'Archivo', sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            line-height: 1.6;
+            min-height: 100vh;
+        }
+
+        /* Header */
+        header {
+            background: var(--surface);
+            border-bottom: 2px solid var(--primary);
+            padding: 1.5rem 2rem;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            backdrop-filter: blur(10px);
+        }
+
+        .header-content {
+            max-width: 1400px;
+            margin: 0 auto;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        h1 {
+            font-size: 1.8rem;
+            font-weight: 900;
+            letter-spacing: -0.02em;
+            background: linear-gradient(135deg, var(--primary), var(--warning));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .nav-links {
+            display: flex;
+            gap: 1.5rem;
+        }
+
+        .nav-links a {
+            color: var(--text-dim);
+            text-decoration: none;
+            font-weight: 600;
+            font-size: 0.9rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            transition: all 0.2s;
+            position: relative;
+        }
+
+        .nav-links a:hover {
+            color: var(--primary);
+        }
+
+        .nav-links a.active::after {
+            content: '';
+            position: absolute;
+            bottom: -1.75rem;
+            left: 0;
+            right: 0;
+            height: 2px;
+            background: var(--primary);
+        }
+
+        /* Main Container */
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 3rem 2rem;
+        }
+
+        /* Tab System */
+        .tabs {
+            display: flex;
+            gap: 1rem;
+            margin-bottom: 2rem;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .tab {
+            background: none;
+            border: none;
+            color: var(--text-dim);
+            padding: 1rem 2rem;
+            font-size: 1rem;
+            font-weight: 700;
+            cursor: pointer;
+            position: relative;
+            transition: all 0.3s;
+            font-family: 'Archivo', sans-serif;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        .tab:hover {
+            color: var(--text);
+        }
+
+        .tab.active {
+            color: var(--primary);
+        }
+
+        .tab.active::after {
+            content: '';
+            position: absolute;
+            bottom: -1px;
+            left: 0;
+            right: 0;
+            height: 3px;
+            background: var(--primary);
+        }
+
+        .tab-content {
+            display: none;
+            animation: fadeIn 0.3s;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        /* Forms */
+        .form-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 1.5rem;
+            margin-bottom: 2rem;
+        }
+
+        .form-group {
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+        }
+
+        .form-group.full-width {
+            grid-column: 1 / -1;
+        }
+
+        label {
+            font-size: 0.85rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            color: var(--text-dim);
+            font-family: 'JetBrains Mono', monospace;
+        }
+
+        input[type="text"],
+        input[type="number"],
+        textarea,
+        select {
+            background: var(--surface-light);
+            border: 2px solid var(--border);
+            color: var(--text);
+            padding: 0.875rem 1rem;
+            font-size: 1rem;
+            border-radius: 8px;
+            font-family: 'Archivo', sans-serif;
+            transition: all 0.2s;
+        }
+
+        input:focus,
+        textarea:focus,
+        select:focus {
+            outline: none;
+            border-color: var(--primary);
+            box-shadow: 0 0 0 3px rgba(255, 107, 53, 0.1);
+        }
+
+        textarea {
+            min-height: 120px;
+            resize: vertical;
+        }
+
+        /* Checkboxes & Toggles */
+        .checkbox-group {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            padding: 1rem;
+            background: var(--surface-light);
+            border-radius: 8px;
+            border: 2px solid var(--border);
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .checkbox-group:hover {
+            border-color: var(--primary);
+        }
+
+        .checkbox-group input[type="checkbox"] {
+            width: 20px;
+            height: 20px;
+            cursor: pointer;
+        }
+
+        .checkbox-group label {
+            cursor: pointer;
+            margin: 0;
+            color: var(--text);
+            text-transform: none;
+            letter-spacing: normal;
+            font-family: 'Archivo', sans-serif;
+        }
+
+        /* Buttons */
+        .btn {
+            padding: 1rem 2rem;
+            font-size: 1rem;
+            font-weight: 700;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.2s;
+            font-family: 'Archivo', sans-serif;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .btn::before {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 0;
+            height: 0;
+            background: rgba(255, 255, 255, 0.2);
+            border-radius: 50%;
+            transform: translate(-50%, -50%);
+            transition: width 0.5s, height 0.5s;
+        }
+
+        .btn:active::before {
+            width: 300px;
+            height: 300px;
+        }
+
+        .btn-primary {
+            background: var(--primary);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: var(--primary-dark);
+            transform: translateY(-2px);
+            box-shadow: 0 8px 16px rgba(255, 107, 53, 0.3);
+        }
+
+        .btn-secondary {
+            background: var(--surface-light);
+            color: var(--text);
+            border: 2px solid var(--border);
+        }
+
+        .btn-secondary:hover {
+            border-color: var(--primary);
+            color: var(--primary);
+        }
+
+        /* Listings Table */
+        .listings-grid {
+            display: grid;
+            gap: 1.5rem;
+        }
+
+        .listing-card {
+            background: var(--surface);
+            border: 2px solid var(--border);
+            border-radius: 12px;
+            padding: 1.5rem;
+            transition: all 0.3s;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .listing-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 4px;
+            height: 100%;
+            background: var(--primary);
+            transform: scaleY(0);
+            transition: transform 0.3s;
+        }
+
+        .listing-card:hover {
+            border-color: var(--primary);
+            transform: translateX(4px);
+        }
+
+        .listing-card:hover::before {
+            transform: scaleY(1);
+        }
+
+        .listing-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: start;
+            margin-bottom: 1rem;
+        }
+
+        .listing-title {
+            font-size: 1.3rem;
+            font-weight: 900;
+            color: var(--text);
+            margin-bottom: 0.25rem;
+        }
+
+        .listing-type {
+            display: inline-block;
+            padding: 0.25rem 0.75rem;
+            border-radius: 4px;
+            font-size: 0.75rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            font-family: 'JetBrains Mono', monospace;
+        }
+
+        .listing-type.jv_only {
+            background: rgba(0, 217, 165, 0.2);
+            color: var(--success);
+        }
+
+        .listing-type.direct_sale {
+            background: rgba(255, 184, 0, 0.2);
+            color: var(--warning);
+        }
+
+        .listing-type.both {
+            background: rgba(255, 107, 53, 0.2);
+            color: var(--primary);
+        }
+
+        .listing-details {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 1rem;
+            margin-top: 1rem;
+            padding-top: 1rem;
+            border-top: 1px solid var(--border);
+        }
+
+        .detail-item {
+            display: flex;
+            flex-direction: column;
+            gap: 0.25rem;
+        }
+
+        .detail-label {
+            font-size: 0.75rem;
+            color: var(--text-dim);
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            font-family: 'JetBrains Mono', monospace;
+        }
+
+        .detail-value {
+            font-size: 1.1rem;
+            font-weight: 700;
+            color: var(--text);
+        }
+
+        .listing-actions {
+            display: flex;
+            gap: 0.75rem;
+            margin-top: 1rem;
+        }
+
+        .btn-small {
+            padding: 0.5rem 1rem;
+            font-size: 0.85rem;
+        }
+
+        /* Stats Cards */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 1.5rem;
+            margin-bottom: 3rem;
+        }
+
+        .stat-card {
+            background: var(--surface);
+            border: 2px solid var(--border);
+            border-radius: 12px;
+            padding: 1.5rem;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .stat-card::after {
+            content: '';
+            position: absolute;
+            top: 0;
+            right: 0;
+            width: 100px;
+            height: 100px;
+            background: var(--primary);
+            opacity: 0.05;
+            border-radius: 50%;
+            transform: translate(30%, -30%);
+        }
+
+        .stat-label {
+            font-size: 0.75rem;
+            color: var(--text-dim);
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            margin-bottom: 0.5rem;
+            font-family: 'JetBrains Mono', monospace;
+        }
+
+        .stat-value {
+            font-size: 2.5rem;
+            font-weight: 900;
+            color: var(--text);
+            line-height: 1;
+        }
+
+        /* Loading State */
+        .loading {
+            text-align: center;
+            padding: 3rem;
+            color: var(--text-dim);
+        }
+
+        .spinner {
+            border: 3px solid var(--border);
+            border-top: 3px solid var(--primary);
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 1rem;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        /* Success Message */
+        .alert {
+            padding: 1rem 1.5rem;
+            border-radius: 8px;
+            margin-bottom: 1.5rem;
+            font-weight: 600;
+            display: none;
+        }
+
+        .alert.success {
+            background: rgba(0, 217, 165, 0.2);
+            border: 2px solid var(--success);
+            color: var(--success);
+        }
+
+        .alert.error {
+            background: rgba(255, 71, 87, 0.2);
+            border: 2px solid var(--danger);
+            color: var(--danger);
+        }
+
+        .alert.show {
+            display: block;
+            animation: slideDown 0.3s;
+        }
+
+        @keyframes slideDown {
+            from { transform: translateY(-20px); opacity: 0; }
+            to { transform: translateY(0); opacity: 1; }
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <div class="header-content">
+            <h1>⚡ LISTING MANAGER</h1>
+            <nav class="nav-links">
+                <a href="admin.html">Dashboard</a>
+                <a href="admin_listing_manager.html" class="active">Listings</a>
+                <a href="#" onclick="logout()">Logout</a>
+            </nav>
+        </div>
+    </header>
+
+    <div class="container">
+        <!-- Stats Overview -->
+        <div class="stats-grid">
+            <div class="stat-card">
+                <div class="stat-label">Total Listings</div>
+                <div class="stat-value" id="statTotal">0</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">JV Only</div>
+                <div class="stat-value" id="statJV">0</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Direct Sale</div>
+                <div class="stat-value" id="statDirect">0</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Both</div>
+                <div class="stat-value" id="statBoth">0</div>
+            </div>
+        </div>
+
+        <!-- Tabs -->
+        <div class="tabs">
+            <button class="tab active" onclick="switchTab('create')">Create Listing</button>
+            <button class="tab" onclick="switchTab('manage')">Manage Listings</button>
+        </div>
+
+        <!-- Create Listing Tab -->
+        <div id="create-tab" class="tab-content active">
+            <div class="alert success" id="successAlert"></div>
+            <div class="alert error" id="errorAlert"></div>
+
+            <form id="createListingForm">
+                <div class="form-grid">
+                    <!-- Property Selection -->
+                    <div class="form-group full-width">
+                        <label>Property</label>
+                        <select id="propertyId" required>
+                            <option value="">Select a property...</option>
+                        </select>
+                    </div>
+
+                    <!-- Listing Configuration -->
+                    <div class="form-group">
+                        <label>Listing Type</label>
+                        <select id="listType" required onchange="toggleListingOptions()">
+                            <option value="jv_only">JV Partners Only</option>
+                            <option value="direct_sale">Direct Sale Only</option>
+                            <option value="both">Both (JV + Direct)</option>
+                        </select>
+                    </div>
+
+                    <div class="form-group">
+                        <label>Visibility</label>
+                        <select id="visibility" required>
+                            <option value="jv_only">JV Partners Only</option>
+                            <option value="public">Public (End Buyers)</option>
+                            <option value="both">Both</option>
+                        </select>
+                    </div>
+
+                    <!-- Basic Info -->
+                    <div class="form-group full-width">
+                        <label>Listing Title</label>
+                        <input type="text" id="title" placeholder="e.g., 3BR/2BA Distressed Property - Great Opportunity" required>
+                    </div>
+
+                    <div class="form-group full-width">
+                        <label>Description</label>
+                        <textarea id="description" placeholder="Detailed property description..."></textarea>
+                    </div>
+
+                    <!-- Pricing -->
+                    <div class="form-group">
+                        <label>Purchase Price ($)</label>
+                        <input type="number" id="purchasePrice" step="0.01" placeholder="50000" required>
+                    </div>
+
+                    <div class="form-group">
+                        <label>Repair Estimate ($)</label>
+                        <input type="number" id="repairEstimate" step="0.01" placeholder="15000" value="0">
+                    </div>
+
+                    <div class="form-group">
+                        <label>ARV - After Repair Value ($)</label>
+                        <input type="number" id="arv" step="0.01" placeholder="95000">
+                    </div>
+
+                    <div class="form-group">
+                        <label>Holding Costs ($)</label>
+                        <input type="number" id="holdingCosts" step="0.01" placeholder="5000" value="0">
+                    </div>
+
+                    <!-- JV Terms -->
+                    <div id="jvFields">
+                        <div class="form-group full-width">
+                            <div class="checkbox-group">
+                                <input type="checkbox" id="jvEnabled" checked>
+                                <label for="jvEnabled">Enable JV Partnerships</label>
+                            </div>
+                        </div>
+
+                        <div class="form-group">
+                            <label>JV Partner Split (%)</label>
+                            <input type="number" id="jvSplitPercentage" step="0.01" placeholder="40" value="40">
+                        </div>
+
+                        <div class="form-group full-width">
+                            <label>JV Terms (Optional)</label>
+                            <textarea id="jvTerms" placeholder="Special terms or requirements for JV partners..."></textarea>
+                        </div>
+                    </div>
+
+                    <!-- Direct Sale Terms -->
+                    <div id="directSaleFields" style="display: none;">
+                        <div class="form-group full-width">
+                            <div class="checkbox-group">
+                                <input type="checkbox" id="directSaleEnabled">
+                                <label for="directSaleEnabled">Enable Direct Sale</label>
+                            </div>
+                        </div>
+
+                        <div class="form-group">
+                            <label>Direct Sale Price ($)</label>
+                            <input type="number" id="directSalePrice" step="0.01" placeholder="85000">
+                        </div>
+
+                        <div class="form-group">
+                            <label>Platform Profit (%)</label>
+                            <input type="number" id="platformProfitPercentage" step="0.01" placeholder="80" value="80">
+                        </div>
+
+                        <div class="form-group">
+                            <label>Earnest Deposit Required ($)</label>
+                            <input type="number" id="earnestDepositRequired" step="0.01" placeholder="1000" value="1000">
+                        </div>
+                    </div>
+                </div>
+
+                <div style="display: flex; gap: 1rem; margin-top: 2rem;">
+                    <button type="submit" class="btn btn-primary">Create Listing</button>
+                    <button type="button" class="btn btn-secondary" onclick="resetForm()">Reset</button>
+                </div>
+            </form>
+        </div>
+
+        <!-- Manage Listings Tab -->
+        <div id="manage-tab" class="tab-content">
+            <div class="loading" id="loadingListings">
+                <div class="spinner"></div>
+                Loading listings...
+            </div>
+
+            <div id="listingsContainer" class="listings-grid" style="display: none;">
+                <!-- Listings will be loaded here -->
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE = 'https://real-estate-intel.onrender.com';
+
+        // Check auth
+        const token = localStorage.getItem('token');
+        if (!token) {
+            window.location.href = 'login.html';
+        }
+
+        // Toggle listing options based on type
+        function toggleListingOptions() {
+            const listType = document.getElementById('listType').value;
+            const jvFields = document.getElementById('jvFields');
+            const directFields = document.getElementById('directSaleFields');
+            const jvEnabled = document.getElementById('jvEnabled');
+            const directEnabled = document.getElementById('directSaleEnabled');
+
+            if (listType === 'jv_only') {
+                jvFields.style.display = 'contents';
+                directFields.style.display = 'none';
+                jvEnabled.checked = true;
+                directEnabled.checked = false;
+            } else if (listType === 'direct_sale') {
+                jvFields.style.display = 'none';
+                directFields.style.display = 'contents';
+                jvEnabled.checked = false;
+                directEnabled.checked = true;
+            } else {
+                jvFields.style.display = 'contents';
+                directFields.style.display = 'contents';
+                jvEnabled.checked = true;
+                directEnabled.checked = true;
+            }
+        }
+
+        // Load properties for dropdown
+        async function loadProperties() {
+            try {
+                const res = await fetch(`${API_BASE}/api/admin/properties`, {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                const data = await res.json();
+                
+                const select = document.getElementById('propertyId');
+                data.properties.slice(0, 100).forEach(prop => {
+                    const option = document.createElement('option');
+                    option.value = prop.id;
+                    option.textContent = `${prop.address} - ${prop.parcel}`;
+                    select.appendChild(option);
+                });
+            } catch (err) {
+                console.error('Error loading properties:', err);
+            }
+        }
+
+        // Create listing
+        document.getElementById('createListingForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+
+            const formData = {
+                property_id: parseInt(document.getElementById('propertyId').value),
+                list_type: document.getElementById('listType').value,
+                visibility: document.getElementById('visibility').value,
+                title: document.getElementById('title').value,
+                description: document.getElementById('description').value,
+                purchase_price: parseFloat(document.getElementById('purchasePrice').value),
+                repair_estimate: parseFloat(document.getElementById('repairEstimate').value) || 0,
+                arv: parseFloat(document.getElementById('arv').value) || null,
+                holding_costs: parseFloat(document.getElementById('holdingCosts').value) || 0,
+                jv_enabled: document.getElementById('jvEnabled').checked,
+                jv_split_percentage: parseFloat(document.getElementById('jvSplitPercentage').value) || 40,
+                jv_terms: document.getElementById('jvTerms').value,
+                direct_sale_enabled: document.getElementById('directSaleEnabled').checked,
+                direct_sale_price: parseFloat(document.getElementById('directSalePrice').value) || null,
+                platform_profit_percentage: parseFloat(document.getElementById('platformProfitPercentage').value) || 80,
+                earnest_deposit_required: parseFloat(document.getElementById('earnestDepositRequired').value) || 1000
+            };
+
+            try {
+                const res = await fetch(`${API_BASE}/api/admin/listings/create`, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(formData)
+                });
+
+                const data = await res.json();
+
+                if (data.ok) {
+                    showAlert('success', '✅ Listing created successfully!');
+                    resetForm();
+                    loadStats();
+                } else {
+                    showAlert('error', `❌ Error: ${data.error}`);
+                }
+            } catch (err) {
+                showAlert('error', `❌ Network error: ${err.message}`);
+            }
+        });
+
+        // Load stats
+        async function loadStats() {
+            try {
+                const res = await fetch(`${API_BASE}/api/admin/listings?status=active`, {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                const data = await res.json();
+
+                if (data.ok) {
+                    const total = data.listings.length;
+                    const jvOnly = data.listings.filter(l => l.list_type === 'jv_only').length;
+                    const directOnly = data.listings.filter(l => l.list_type === 'direct_sale').length;
+                    const both = data.listings.filter(l => l.list_type === 'both').length;
+
+                    document.getElementById('statTotal').textContent = total;
+                    document.getElementById('statJV').textContent = jvOnly;
+                    document.getElementById('statDirect').textContent = directOnly;
+                    document.getElementById('statBoth').textContent = both;
+                }
+            } catch (err) {
+                console.error('Error loading stats:', err);
+            }
+        }
+
+        // Load listings
+        async function loadListings() {
+            document.getElementById('loadingListings').style.display = 'block';
+            document.getElementById('listingsContainer').style.display = 'none';
+
+            try {
+                const res = await fetch(`${API_BASE}/api/admin/listings?status=active`, {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                const data = await res.json();
+
+                if (data.ok) {
+                    const container = document.getElementById('listingsContainer');
+                    container.innerHTML = '';
+
+                    if (data.listings.length === 0) {
+                        container.innerHTML = '<p style="text-align: center; color: var(--text-dim); padding: 3rem;">No listings found. Create your first listing!</p>';
+                    } else {
+                        data.listings.forEach(listing => {
+                            container.innerHTML += createListingCard(listing);
+                        });
+                    }
+
+                    document.getElementById('loadingListings').style.display = 'none';
+                    document.getElementById('listingsContainer').style.display = 'grid';
+                }
+            } catch (err) {
+                console.error('Error loading listings:', err);
+            }
+        }
+
+        // Create listing card HTML
+        function createListingCard(listing) {
+            return `
+                <div class="listing-card">
+                    <div class="listing-header">
+                        <div>
+                            <div class="listing-title">${listing.title}</div>
+                            <span class="listing-type ${listing.list_type}">${listing.list_type.replace('_', ' ')}</span>
+                        </div>
+                    </div>
+                    <p style="color: var(--text-dim); margin: 1rem 0;">${listing.description || 'No description'}</p>
+                    <div class="listing-details">
+                        <div class="detail-item">
+                            <span class="detail-label">Purchase Price</span>
+                            <span class="detail-value">$${listing.purchase_price?.toLocaleString() || '0'}</span>
+                        </div>
+                        <div class="detail-item">
+                            <span class="detail-label">ARV</span>
+                            <span class="detail-value">$${listing.arv?.toLocaleString() || 'N/A'}</span>
+                        </div>
+                        ${listing.jv_enabled ? `
+                        <div class="detail-item">
+                            <span class="detail-label">JV Split</span>
+                            <span class="detail-value">${listing.jv_split_percentage}%</span>
+                        </div>
+                        <div class="detail-item">
+                            <span class="detail-label">JV Claims</span>
+                            <span class="detail-value">${listing.active_jv_claims || 0}</span>
+                        </div>
+                        ` : ''}
+                        ${listing.direct_sale_enabled ? `
+                        <div class="detail-item">
+                            <span class="detail-label">Direct Sale Price</span>
+                            <span class="detail-value">$${listing.direct_sale_price?.toLocaleString() || 'N/A'}</span>
+                        </div>
+                        ` : ''}
+                    </div>
+                    <div class="listing-actions">
+                        <button class="btn btn-secondary btn-small" onclick="viewListingDetails(${listing.id})">View Details</button>
+                        <button class="btn btn-secondary btn-small" onclick="editListing(${listing.id})">Edit</button>
+                    </div>
+                </div>
+            `;
+        }
+
+        // Tab switching
+        function switchTab(tab) {
+            document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+            document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+
+            event.target.classList.add('active');
+            document.getElementById(`${tab}-tab`).classList.add('active');
+
+            if (tab === 'manage') {
+                loadListings();
+            }
+        }
+
+        // Utility functions
+        function showAlert(type, message) {
+            const alert = type === 'success' ? document.getElementById('successAlert') : document.getElementById('errorAlert');
+            alert.textContent = message;
+            alert.classList.add('show');
+            setTimeout(() => alert.classList.remove('show'), 5000);
+        }
+
+        function resetForm() {
+            document.getElementById('createListingForm').reset();
+            toggleListingOptions();
+        }
+
+        function viewListingDetails(id) {
+            alert(`View details for listing ${id} - Coming soon!`);
+        }
+
+        function editListing(id) {
+            alert(`Edit listing ${id} - Coming soon!`);
+        }
+
+        function logout() {
+            localStorage.removeItem('token');
+            window.location.href = 'login.html';
+        }
+
+        // Initialize
+        loadProperties();
+        loadStats();
+    </script>
+</body>
+</html>
