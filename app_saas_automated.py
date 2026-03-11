@@ -1996,6 +1996,637 @@ def api_va_cancel_job(job_id):
     except Exception as e:
         print(f"❌ Cancel job error: {e}")
         return jsonify({"ok": False, "error": "Failed to cancel job"}), 500
+# DUAL MODEL API - ADD TO app_saas_automated.py
+# JV Partners + End Buyers System
+
+from datetime import datetime, date
+
+# ADMIN ENDPOINTS - Listing Management
+
+@app.post("/api/admin/listings/create")
+def admin_create_listing():
+    """Admin creates new property listing"""
+    u = require_login(admin=True)
+    if not u:
+        return jsonify({"ok": False, "error": "Not authorized"}), 401
+    
+    data = request.get_json(silent=True) or {}
+    
+    try:
+        with db_conn() as conn:
+            with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+                cur.execute("""
+                    INSERT INTO property_listings (
+                        property_id, list_type, visibility, title, description,
+                        purchase_price, repair_estimate, arv,
+                        jv_enabled, jv_split_percentage, jv_terms,
+                        direct_sale_enabled, direct_sale_price, platform_profit_percentage,
+                        earnest_deposit_required, status, created_by
+                    ) VALUES (
+                        %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s
+                    ) RETURNING id
+                """, (
+                    data.get('property_id'),
+                    data.get('list_type', 'jv_only'),
+                    data.get('visibility', 'jv_only'),
+                    data.get('title'),
+                    data.get('description'),
+                    data.get('purchase_price'),
+                    data.get('repair_estimate', 0),
+                    data.get('arv'),
+                    data.get('jv_enabled', True),
+                    data.get('jv_split_percentage', 40.00),
+                    data.get('jv_terms'),
+                    data.get('direct_sale_enabled', False),
+                    data.get('direct_sale_price'),
+                    data.get('platform_profit_percentage', 80.00),
+                    data.get('earnest_deposit_required', 1000.00),
+                    'active',
+                    u['email']
+                ))
+                
+                listing_id = cur.fetchone()['id']
+                conn.commit()
+                
+                return jsonify({"ok": True, "listing_id": listing_id})
+                
+    except Exception as e:
+        print(f"❌ Create listing error: {e}")
+        return jsonify({"ok": False, "error": str(e)}), 500
+
+
+@app.get("/api/admin/listings")
+def admin_get_listings():
+    """Admin views all listings"""
+    u = require_login(admin=True)
+    if not u:
+        return jsonify({"ok": False, "error": "Not authorized"}), 401
+    
+    status_filter = request.args.get('status', 'active')
+    list_type = request.args.get('list_type')
+    
+    try:
+        with db_conn() as conn:
+            with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+                query = """
+                    SELECT 
+                        pl.*,
+                        p.address, p.parcel, p.owner,
+                        COUNT(DISTINCT jc.id) FILTER (WHERE jc.status = 'active') as active_jv_claims,
+                        COUNT(DISTINCT dp.id) FILTER (WHERE dp.contract_status NOT IN ('cancelled', 'closed')) as active_purchases
+                    FROM property_listings pl
+                    LEFT JOIN properties p ON pl.property_id = p.id
+                    LEFT JOIN jv_claims jc ON pl.id = jc.listing_id
+                    LEFT JOIN direct_purchases dp ON pl.id = dp.listing_id
+                    WHERE pl.status = %s
+                """
+                params = [status_filter]
+                
+                if list_type:
+                    query += " AND pl.list_type = %s"
+                    params.append(list_type)
+                
+                query += " GROUP BY pl.id, p.address, p.parcel, p.owner ORDER BY pl.created_at DESC"
+                
+                cur.execute(query, params)
+                listings = cur.fetchall()
+                
+        return jsonify({"ok": True, "listings": listings})
+        
+    except Exception as e:
+        print(f"❌ Get listings error: {e}")
+        return jsonify({"ok": False, "error": str(e)}), 500
+
+
+@app.put("/api/admin/listings/<int:listing_id>")
+def admin_update_listing(listing_id):
+    """Admin updates listing"""
+    u = require_login(admin=True)
+    if not u:
+        return jsonify({"ok": False, "error": "Not authorized"}), 401
+    
+    data = request.get_json(silent=True) or {}
+    
+    try:
+        with db_conn() as conn:
+            with conn.cursor() as cur:
+                # Build dynamic update query
+                fields = []
+                values = []
+                
+                updatable_fields = [
+                    'title', 'description', 'list_type', 'visibility',
+                    'purchase_price', 'repair_estimate', 'arv',
+                    'jv_enabled', 'jv_split_percentage', 'jv_terms',
+                    'direct_sale_enabled', 'direct_sale_price', 
+                    'platform_profit_percentage', 'status'
+                ]
+                
+                for field in updatable_fields:
+                    if field in data:
+                        fields.append(f"{field} = %s")
+                        values.append(data[field])
+                
+                if not fields:
+                    return jsonify({"ok": False, "error": "No fields to update"}), 400
+                
+                values.append(listing_id)
+                query = f"UPDATE property_listings SET {', '.join(fields)} WHERE id = %s"
+                
+                cur.execute(query, values)
+                conn.commit()
+                
+                return jsonify({"ok": True})
+                
+    except Exception as e:
+        print(f"❌ Update listing error: {e}")
+        return jsonify({"ok": False, "error": str(e)}), 500
+
+
+@app.get("/api/admin/listings/<int:listing_id>/claims")
+def admin_get_listing_claims(listing_id):
+    """Admin views JV claims for a listing"""
+    u = require_login(admin=True)
+    if not u:
+        return jsonify({"ok": False, "error": "Not authorized"}), 401
+    
+    try:
+        with db_conn() as conn:
+            with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+                cur.execute("""
+                    SELECT * FROM jv_claims
+                    WHERE listing_id = %s
+                    ORDER BY claimed_at DESC
+                """, (listing_id,))
+                
+                claims = cur.fetchall()
+                
+        return jsonify({"ok": True, "claims": claims})
+        
+    except Exception as e:
+        print(f"❌ Get claims error: {e}")
+        return jsonify({"ok": False, "error": str(e)}), 500
+
+
+@app.post("/api/admin/jv-claims/<int:claim_id>/approve-buyer")
+def admin_approve_buyer(claim_id):
+    """Admin approves JV partner's buyer"""
+    u = require_login(admin=True)
+    if not u:
+        return jsonify({"ok": False, "error": "Not authorized"}), 401
+    
+    data = request.get_json(silent=True) or {}
+    
+    try:
+        with db_conn() as conn:
+            with conn.cursor() as cur:
+                cur.execute("""
+                    UPDATE jv_claims
+                    SET status = 'buyer_approved',
+                        buyer_approved_at = NOW(),
+                        buyer_approved_by = %s,
+                        admin_notes = %s
+                    WHERE id = %s
+                """, (u['email'], data.get('admin_notes'), claim_id))
+                
+                conn.commit()
+                
+        return jsonify({"ok": True})
+        
+    except Exception as e:
+        print(f"❌ Approve buyer error: {e}")
+        return jsonify({"ok": False, "error": str(e)}), 500
+
+
+@app.post("/api/admin/jv-claims/<int:claim_id>/close-deal")
+def admin_close_jv_deal(claim_id):
+    """Admin marks JV deal as closed and calculates earnings"""
+    u = require_login(admin=True)
+    if not u:
+        return jsonify({"ok": False, "error": "Not authorized"}), 401
+    
+    data = request.get_json(silent=True) or {}
+    final_sale_price = float(data.get('final_sale_price'))
+    
+    try:
+        with db_conn() as conn:
+            with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+                # Get claim and listing details
+                cur.execute("""
+                    SELECT jc.*, pl.total_investment, pl.jv_split_percentage
+                    FROM jv_claims jc
+                    JOIN property_listings pl ON jc.listing_id = pl.id
+                    WHERE jc.id = %s
+                """, (claim_id,))
+                
+                claim = cur.fetchone()
+                
+                # Calculate earnings
+                gross_profit = final_sale_price - float(claim['total_investment'])
+                partner_percentage = float(claim['jv_split_percentage'])
+                partner_earned = gross_profit * (partner_percentage / 100)
+                platform_earned = gross_profit - partner_earned
+                
+                # Update claim
+                cur.execute("""
+                    UPDATE jv_claims
+                    SET status = 'closed',
+                        final_sale_price = %s,
+                        gross_profit = %s,
+                        partner_earned = %s,
+                        platform_earned = %s,
+                        actual_close_date = %s,
+                        payment_status = 'approved'
+                    WHERE id = %s
+                """, (final_sale_price, gross_profit, partner_earned, platform_earned, 
+                      date.today(), claim_id))
+                
+                # Update listing status
+                cur.execute("""
+                    UPDATE property_listings
+                    SET status = 'closed', closed_at = NOW()
+                    WHERE id = %s
+                """, (claim['listing_id'],))
+                
+                conn.commit()
+                
+                return jsonify({
+                    "ok": True,
+                    "gross_profit": float(gross_profit),
+                    "partner_earned": float(partner_earned),
+                    "platform_earned": float(platform_earned)
+                })
+                
+    except Exception as e:
+        print(f"❌ Close deal error: {e}")
+        return jsonify({"ok": False, "error": str(e)}), 500
+
+
+# JV PARTNER ENDPOINTS
+
+@app.get("/api/jv/listings")
+def jv_get_available_listings():
+    """JV partners browse available opportunities"""
+    u = require_login()
+    if not u:
+        return jsonify({"ok": False, "error": "Not authorized"}), 401
+    
+    try:
+        with db_conn() as conn:
+            with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+                cur.execute("""
+                    SELECT * FROM active_jv_listings
+                    ORDER BY created_at DESC
+                    LIMIT 50
+                """)
+                
+                listings = cur.fetchall()
+                
+        return jsonify({"ok": True, "listings": listings})
+        
+    except Exception as e:
+        print(f"❌ Get JV listings error: {e}")
+        return jsonify({"ok": False, "error": str(e)}), 500
+
+
+@app.post("/api/jv/claims/create")
+def jv_claim_deal():
+    """JV partner claims a deal"""
+    u = require_login()
+    if not u:
+        return jsonify({"ok": False, "error": "Not authorized"}), 401
+    
+    data = request.get_json(silent=True) or {}
+    listing_id = data.get('listing_id')
+    
+    try:
+        with db_conn() as conn:
+            with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+                # Check if already claimed by this user
+                cur.execute("""
+                    SELECT id FROM jv_claims
+                    WHERE listing_id = %s AND user_email = %s AND status = 'active'
+                """, (listing_id, u['email']))
+                
+                existing = cur.fetchone()
+                if existing:
+                    return jsonify({"ok": False, "error": "You already claimed this deal"}), 400
+                
+                # Get JV percentage from listing
+                cur.execute("""
+                    SELECT jv_split_percentage FROM property_listings WHERE id = %s
+                """, (listing_id,))
+                
+                listing = cur.fetchone()
+                
+                # Create claim
+                cur.execute("""
+                    INSERT INTO jv_claims (listing_id, user_email, jv_percentage, status)
+                    VALUES (%s, %s, %s, 'active')
+                    RETURNING id
+                """, (listing_id, u['email'], listing['jv_split_percentage']))
+                
+                claim_id = cur.fetchone()['id']
+                conn.commit()
+                
+                return jsonify({"ok": True, "claim_id": claim_id})
+                
+    except Exception as e:
+        print(f"❌ Claim deal error: {e}")
+        return jsonify({"ok": False, "error": str(e)}), 500
+
+
+@app.get("/api/jv/my-claims")
+def jv_get_my_claims():
+    """JV partner views their active deals"""
+    u = require_login()
+    if not u:
+        return jsonify({"ok": False, "error": "Not authorized"}), 401
+    
+    try:
+        with db_conn() as conn:
+            with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+                cur.execute("""
+                    SELECT 
+                        jc.*,
+                        pl.title, pl.purchase_price, pl.arv,
+                        p.address, p.parcel
+                    FROM jv_claims jc
+                    JOIN property_listings pl ON jc.listing_id = pl.id
+                    JOIN properties p ON pl.property_id = p.id
+                    WHERE jc.user_email = %s
+                    ORDER BY jc.claimed_at DESC
+                """, (u['email'],))
+                
+                claims = cur.fetchall()
+                
+        return jsonify({"ok": True, "claims": claims})
+        
+    except Exception as e:
+        print(f"❌ Get my claims error: {e}")
+        return jsonify({"ok": False, "error": str(e)}), 500
+
+
+@app.put("/api/jv/claims/<int:claim_id>/submit-buyer")
+def jv_submit_buyer(claim_id):
+    """JV partner submits buyer information"""
+    u = require_login()
+    if not u:
+        return jsonify({"ok": False, "error": "Not authorized"}), 401
+    
+    data = request.get_json(silent=True) or {}
+    
+    try:
+        with db_conn() as conn:
+            with conn.cursor() as cur:
+                cur.execute("""
+                    UPDATE jv_claims
+                    SET buyer_name = %s,
+                        buyer_email = %s,
+                        buyer_phone = %s,
+                        buyer_notes = %s,
+                        buyer_submitted_at = NOW(),
+                        status = 'buyer_submitted'
+                    WHERE id = %s AND user_email = %s
+                """, (
+                    data.get('buyer_name'),
+                    data.get('buyer_email'),
+                    data.get('buyer_phone'),
+                    data.get('buyer_notes'),
+                    claim_id,
+                    u['email']
+                ))
+                
+                conn.commit()
+                
+        return jsonify({"ok": True})
+        
+    except Exception as e:
+        print(f"❌ Submit buyer error: {e}")
+        return jsonify({"ok": False, "error": str(e)}), 500
+
+
+@app.get("/api/jv/earnings")
+def jv_get_earnings():
+    """JV partner views earnings dashboard"""
+    u = require_login()
+    if not u:
+        return jsonify({"ok": False, "error": "Not authorized"}), 401
+    
+    try:
+        with db_conn() as conn:
+            with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+                cur.execute("""
+                    SELECT * FROM jv_partner_earnings
+                    WHERE user_email = %s
+                """, (u['email'],))
+                
+                earnings = cur.fetchone()
+                
+                if not earnings:
+                    earnings = {
+                        "total_claims": 0,
+                        "active_claims": 0,
+                        "closed_deals": 0,
+                        "total_paid": 0,
+                        "pending_payment": 0,
+                        "avg_deal_earnings": 0
+                    }
+                
+        return jsonify({"ok": True, "earnings": earnings})
+        
+    except Exception as e:
+        print(f"❌ Get earnings error: {e}")
+        return jsonify({"ok": False, "error": str(e)}), 500
+
+
+# END BUYER ENDPOINTS
+
+@app.get("/api/marketplace/listings")
+def marketplace_get_listings():
+    """End buyers browse properties for sale"""
+    
+    try:
+        with db_conn() as conn:
+            with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+                cur.execute("""
+                    SELECT 
+                        pl.*,
+                        p.address, p.parcel, p.zip_code, p.owner
+                    FROM active_direct_listings pl
+                    JOIN properties p ON pl.property_id = p.id
+                    ORDER BY pl.created_at DESC
+                    LIMIT 50
+                """)
+                
+                listings = cur.fetchall()
+                
+        return jsonify({"ok": True, "listings": listings})
+        
+    except Exception as e:
+        print(f"❌ Get marketplace listings error: {e}")
+        return jsonify({"ok": False, "error": str(e)}), 500
+
+
+@app.get("/api/marketplace/listings/<int:listing_id>")
+def marketplace_get_listing_details(listing_id):
+    """Get detailed property information"""
+    
+    try:
+        with db_conn() as conn:
+            with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+                cur.execute("""
+                    SELECT 
+                        pl.*,
+                        p.address, p.parcel, p.zip_code, p.owner, p.current_total_due
+                    FROM property_listings pl
+                    JOIN properties p ON pl.property_id = p.id
+                    WHERE pl.id = %s
+                """, (listing_id,))
+                
+                listing = cur.fetchone()
+                
+                if not listing:
+                    return jsonify({"ok": False, "error": "Listing not found"}), 404
+                
+                # Track view
+                user_email = None
+                user = require_login(admin=False)
+                if user:
+                    user_email = user['email']
+                
+                cur.execute("""
+                    INSERT INTO listing_views (listing_id, user_email, user_type)
+                    VALUES (%s, %s, 'end_buyer')
+                """, (listing_id, user_email))
+                
+                conn.commit()
+                
+        return jsonify({"ok": True, "listing": listing})
+        
+    except Exception as e:
+        print(f"❌ Get listing details error: {e}")
+        return jsonify({"ok": False, "error": str(e)}), 500
+
+
+@app.post("/api/marketplace/purchase")
+def marketplace_purchase_property():
+    """End buyer initiates purchase"""
+    u = require_login()
+    if not u:
+        return jsonify({"ok": False, "error": "Not authorized"}), 401
+    
+    data = request.get_json(silent=True) or {}
+    
+    try:
+        with db_conn() as conn:
+            with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+                # Get listing details
+                cur.execute("""
+                    SELECT * FROM property_listings WHERE id = %s
+                """, (data.get('listing_id'),))
+                
+                listing = cur.fetchone()
+                
+                if not listing or not listing['direct_sale_enabled']:
+                    return jsonify({"ok": False, "error": "Property not available for purchase"}), 400
+                
+                # Calculate platform fee
+                offer_price = float(data.get('offer_price', listing['direct_sale_price']))
+                gross_profit = offer_price - float(listing['total_investment'])
+                platform_percentage = float(listing['platform_profit_percentage'])
+                platform_fee = gross_profit * (platform_percentage / 100)
+                
+                # Create purchase record
+                cur.execute("""
+                    INSERT INTO direct_purchases (
+                        listing_id, buyer_email, buyer_name, buyer_phone,
+                        offer_price, earnest_deposit, financing_type,
+                        gross_profit, platform_fee, platform_percentage,
+                        contract_status
+                    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, 'offer_submitted')
+                    RETURNING id
+                """, (
+                    data.get('listing_id'),
+                    u['email'],
+                    data.get('buyer_name'),
+                    data.get('buyer_phone'),
+                    offer_price,
+                    data.get('earnest_deposit'),
+                    data.get('financing_type'),
+                    gross_profit,
+                    platform_fee,
+                    platform_percentage
+                ))
+                
+                purchase_id = cur.fetchone()['id']
+                conn.commit()
+                
+                return jsonify({
+                    "ok": True,
+                    "purchase_id": purchase_id,
+                    "earnest_deposit": float(data.get('earnest_deposit')),
+                    "platform_fee": float(platform_fee)
+                })
+                
+    except Exception as e:
+        print(f"❌ Purchase error: {e}")
+        return jsonify({"ok": False, "error": str(e)}), 500
+
+
+@app.get("/api/buyer/my-purchases")
+def buyer_get_my_purchases():
+    """End buyer views their purchases"""
+    u = require_login()
+    if not u:
+        return jsonify({"ok": False, "error": "Not authorized"}), 401
+    
+    try:
+        with db_conn() as conn:
+            with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+                cur.execute("""
+                    SELECT 
+                        dp.*,
+                        pl.title, pl.purchase_price,
+                        p.address, p.parcel
+                    FROM direct_purchases dp
+                    JOIN property_listings pl ON dp.listing_id = pl.id
+                    JOIN properties p ON pl.property_id = p.id
+                    WHERE dp.buyer_email = %s
+                    ORDER BY dp.offer_submitted_at DESC
+                """, (u['email'],))
+                
+                purchases = cur.fetchall()
+                
+        return jsonify({"ok": True, "purchases": purchases})
+        
+    except Exception as e:
+        print(f"❌ Get purchases error: {e}")
+        return jsonify({"ok": False, "error": str(e)}), 500
+
+
+# ANALYTICS & STATS
+
+@app.get("/api/admin/revenue-summary")
+def admin_revenue_summary():
+    """Admin views revenue summary"""
+    u = require_login(admin=True)
+    if not u:
+        return jsonify({"ok": False, "error": "Not authorized"}), 401
+    
+    try:
+        with db_conn() as conn:
+            with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+                cur.execute("SELECT * FROM platform_revenue_summary")
+                revenue = cur.fetchall()
+                
+        return jsonify({"ok": True, "revenue": revenue})
+        
+    except Exception as e:
+        print(f"❌ Revenue summary error: {e}")
+        return jsonify({"ok": False, "error": str(e)}), 500
+
+# END OF DUAL MODEL API
 
 
 # ========== END VA PORTAL API ==========
