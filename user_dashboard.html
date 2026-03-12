@@ -3,692 +3,837 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Property Intelligence Dashboard</title>
+    <title>User Dashboard - Property Intel</title>
     <script src="https://js.stripe.com/v3/"></script>
     <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; }
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
         body {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            min-height: 100vh;
-            padding: 20px;
+            background: #f7fafc;
+            color: #2d3748;
+            line-height: 1.6;
         }
-        .container { max-width: 1600px; margin: 0 auto; }
+
         .header {
-            background: white;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
             padding: 20px 30px;
-            border-radius: 10px;
-            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+
+        .header-content {
+            max-width: 1400px;
+            margin: 0 auto;
             display: flex;
             justify-content: space-between;
             align-items: center;
-            margin-bottom: 30px;
         }
-        .header h1 { color: #2d3748; font-size: 28px; }
+
+        .header h1 {
+            font-size: 24px;
+            font-weight: 700;
+        }
+
+        .header-actions {
+            display: flex;
+            gap: 15px;
+            align-items: center;
+        }
+
+        .user-email {
+            font-size: 14px;
+            opacity: 0.9;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 30px 20px;
+        }
+
+        .rewards-widget {
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            color: white;
+            padding: 25px;
+            border-radius: 12px;
+            margin-bottom: 30px;
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
+        }
+
+        .rewards-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+
+        .rewards-title {
+            font-size: 20px;
+            font-weight: 700;
+        }
+
+        .rewards-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 20px;
+        }
+
+        .reward-card {
+            background: rgba(255,255,255,0.1);
+            padding: 20px;
+            border-radius: 8px;
+            backdrop-filter: blur(10px);
+        }
+
+        .reward-label {
+            font-size: 12px;
+            opacity: 0.8;
+            text-transform: uppercase;
+            margin-bottom: 8px;
+        }
+
+        .reward-value {
+            font-size: 24px;
+            font-weight: 700;
+        }
+
+        .progress-bar {
+            background: rgba(255,255,255,0.2);
+            height: 8px;
+            border-radius: 4px;
+            margin-top: 10px;
+            overflow: hidden;
+        }
+
+        .progress-fill {
+            background: white;
+            height: 100%;
+            border-radius: 4px;
+            transition: width 0.3s;
+        }
+
+        .card {
+            background: white;
+            border-radius: 12px;
+            padding: 25px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+            margin-bottom: 25px;
+        }
+
+        .card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            padding-bottom: 15px;
+            border-bottom: 2px solid #e2e8f0;
+        }
+
+        .card-title {
+            font-size: 20px;
+            font-weight: 700;
+            color: #2d3748;
+        }
+
+        .filters {
+            display: flex;
+            gap: 15px;
+            flex-wrap: wrap;
+            margin-bottom: 20px;
+        }
+
+        .filter-group {
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+        }
+
+        .filter-label {
+            font-size: 12px;
+            font-weight: 600;
+            text-transform: uppercase;
+            color: #718096;
+        }
+
+        select, input {
+            padding: 10px 15px;
+            border: 2px solid #e2e8f0;
+            border-radius: 6px;
+            font-size: 14px;
+            background: white;
+            transition: all 0.2s;
+        }
+
+        select:focus, input:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
         .btn {
             padding: 10px 20px;
             border: none;
             border-radius: 6px;
             cursor: pointer;
             font-size: 14px;
-            font-weight: 500;
+            font-weight: 600;
             transition: all 0.2s;
         }
-        .btn-primary { background: #667eea; color: white; }
-        .btn-success { background: #48bb78; color: white; }
-        .btn-danger { background: #f56565; color: white; }
-        .btn-secondary { background: #e2e8f0; color: #2d3748; }
-        .btn-sm { padding: 6px 12px; font-size: 12px; }
-        .card {
-            background: white;
-            border-radius: 10px;
-            padding: 25px;
-            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-            margin-bottom: 20px;
+
+        .btn-primary {
+            background: #667eea;
+            color: white;
         }
-        .tabs {
-            display: flex;
-            gap: 10px;
-            margin-bottom: 30px;
-            flex-wrap: wrap;
+
+        .btn-primary:hover {
+            background: #5568d3;
+            transform: translateY(-1px);
+            box-shadow: 0 4px 8px rgba(102, 126, 234, 0.3);
         }
-        .tab {
-            padding: 12px 24px;
-            background: white;
-            border-radius: 8px;
-            cursor: pointer;
-            font-weight: 500;
-            transition: all 0.2s;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+
+        .btn-secondary {
+            background: #e2e8f0;
+            color: #2d3748;
         }
-        .tab.active { background: #667eea; color: white; }
-        table { width: 100%; border-collapse: collapse; }
-        th {
+
+        .btn-success {
+            background: #48bb78;
+            color: white;
+        }
+
+        .btn-small {
+            padding: 6px 12px;
+            font-size: 12px;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        thead {
             background: #f7fafc;
+        }
+
+        th {
             padding: 12px;
             text-align: left;
-            font-weight: 600;
-            color: #2d3748;
-            font-size: 13px;
+            font-size: 12px;
+            font-weight: 700;
+            text-transform: uppercase;
+            color: #718096;
             border-bottom: 2px solid #e2e8f0;
         }
+
         td {
-            padding: 12px;
+            padding: 15px 12px;
             border-bottom: 1px solid #e2e8f0;
             font-size: 14px;
         }
+
+        tr:hover {
+            background: #f7fafc;
+        }
+
+        .pagination {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+            justify-content: center;
+            margin: 20px 0;
+        }
+
+        .pagination button {
+            padding: 8px 16px;
+            border: 2px solid #e2e8f0;
+            background: white;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: all 0.2s;
+        }
+
+        .pagination button:hover:not(:disabled) {
+            border-color: #667eea;
+            color: #667eea;
+        }
+
+        .pagination button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .pagination .page-info {
+            font-size: 14px;
+            color: #718096;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 60px;
+            color: #718096;
+        }
+
+        .spinner {
+            border: 3px solid #e2e8f0;
+            border-top: 3px solid #667eea;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 15px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
         .modal {
             display: none;
             position: fixed;
             top: 0;
             left: 0;
-            width: 100%;
-            height: 100%;
+            right: 0;
+            bottom: 0;
             background: rgba(0,0,0,0.5);
             z-index: 1000;
-            align-items: center;
-            justify-content: center;
-        }
-        .modal-content {
-            background: white;
-            padding: 30px;
-            border-radius: 10px;
-            max-width: 600px;
-            width: 90%;
-            max-height: 80vh;
+            padding: 20px;
             overflow-y: auto;
         }
-        .pagination-container {
-            margin: 20px 0;
+
+        .modal-content {
+            max-width: 600px;
+            margin: 40px auto;
+            background: white;
+            border-radius: 12px;
+            padding: 30px;
+        }
+
+        .modal-header {
             display: flex;
-            gap: 10px;
-            justify-content: center;
+            justify-content: space-between;
             align-items: center;
+            margin-bottom: 25px;
+            padding-bottom: 15px;
+            border-bottom: 2px solid #e2e8f0;
+        }
+
+        .modal-title {
+            font-size: 22px;
+            font-weight: 700;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 600;
+            font-size: 14px;
+        }
+
+        .form-group input,
+        .form-group select,
+        .form-group textarea {
+            width: 100%;
+        }
+
+        .form-group textarea {
+            min-height: 100px;
+            resize: vertical;
+        }
+
+        .alert {
+            padding: 15px 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            font-weight: 500;
+        }
+
+        .alert-success {
+            background: #c6f6d5;
+            color: #22543d;
+            border: 2px solid #48bb78;
+        }
+
+        .alert-error {
+            background: #fed7d7;
+            color: #742a2a;
+            border: 2px solid #f56565;
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 60px 20px;
+            color: #718096;
+        }
+
+        .empty-icon {
+            font-size: 48px;
+            margin-bottom: 15px;
+            opacity: 0.5;
         }
     </style>
 </head>
 <body>
+    <div class="header">
+        <div class="header-content">
+            <h1>🏠 Property Intelligence Dashboard</h1>
+            <div class="header-actions">
+                <span class="user-email" id="userEmail">Loading...</span>
+                <button class="btn btn-secondary" onclick="logout()">Logout</button>
+            </div>
+        </div>
+    </div>
+
     <div class="container">
-        <div class="header">
-            <div>
-                <h1>🏘️ Property Intelligence</h1>
-                <div style="color: #718096; font-size: 14px;">Find distressed properties</div>
-            </div>
-            <button class="btn btn-danger" onclick="logout()">Logout</button>
-        </div>
-
-        <!-- Category Tabs -->
-        <div class="tabs">
-            <div class="tab active" onclick="switchCategory('tax')">💰 Tax Delinquent</div>
-            <div class="tab" onclick="switchCategory('pre_foreclosure')">🏚️ Pre-Foreclosure</div>
-            <div class="tab" onclick="switchCategory('fire_damage')">🔥 Fire Damages</div>
-            <div class="tab" onclick="switchCategory('probate')">⚖️ Probate</div>
-            <div class="tab" onclick="switchCategory('code_violation')">⚠️ Code Violations</div>
-            <div class="tab" onclick="switchCategory('surplus_funds')">💵 Surplus Funds</div>
-            <div class="tab" onclick="switchCategory('my_requests')">📋 My Requests</div>
-        </div>
-
         <!-- Rewards Widget -->
-        <div class="card" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white;">
-            <h3 style="margin-bottom: 15px;">🎁 Your Rewards Status</h3>
-            
-            <div style="background: rgba(255,255,255,0.15); padding: 15px; border-radius: 8px; margin-bottom: 10px;">
-                <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
-                    <strong id="spendingTierName">🥉 Bronze Tier</strong>
-                    <span id="spendingProgress">$0 / $100</span>
-                </div>
-                <div style="background: rgba(255,255,255,0.3); height: 10px; border-radius: 5px; overflow: hidden;">
-                    <div id="spendingBar" style="background: white; height: 100%; width: 0%; transition: width 0.3s;"></div>
-                </div>
-                <div style="margin-top: 12px; display: flex; justify-content: space-between; align-items: center;">
-                    <div>
-                        Base: <strong id="baseReward">$5</strong> → 
-                        Boosted: <strong id="boostedReward" style="font-size: 20px; color: #48bb78;">$5.00</strong>
-                    </div>
-                    <span id="timeBadge" style="font-size: 18px;">🔍 1.0x</span>
-                </div>
-                <button id="claimRewardBtn" class="btn btn-success" style="display: none; width: 100%; margin-top: 10px;" onclick="claimReward()">
-                    💰 Claim Reward
-                </button>
+        <div class="rewards-widget" id="rewardsWidget" style="display: none;">
+            <div class="rewards-header">
+                <div class="rewards-title">🎁 Your Rewards Status</div>
+                <button class="btn btn-success" id="claimRewardBtn" style="display: none;" onclick="claimReward()">💰 Claim Reward</button>
             </div>
-            
-            <div style="background: rgba(255,255,255,0.15); padding: 15px; border-radius: 8px;">
-                <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
-                    <strong id="timeBonusName">🔍 Explorer</strong>
-                    <span id="timeProgress">0 / 180 min</span>
+            <div class="rewards-grid">
+                <div class="reward-card">
+                    <div class="reward-label">Current Tier</div>
+                    <div class="reward-value" id="currentTier">Loading...</div>
+                    <div class="reward-label" style="margin-top: 10px;">Spending Progress</div>
+                    <div class="reward-value" id="spendingProgress">$0 / $0</div>
+                    <div class="progress-bar">
+                        <div class="progress-fill" id="spendingBar" style="width: 0%"></div>
+                    </div>
                 </div>
-                <div style="background: rgba(255,255,255,0.3); height: 10px; border-radius: 5px; overflow: hidden;">
-                    <div id="timeBar" style="background: #48bb78; height: 100%; width: 0%; transition: width 0.3s;"></div>
+                <div class="reward-card">
+                    <div class="reward-label">Time Bonus</div>
+                    <div class="reward-value" id="timeBonus">1.0x</div>
+                    <div class="reward-label" style="margin-top: 10px;">Time Progress</div>
+                    <div class="reward-value" id="timeProgress">0 / 0 min</div>
+                    <div class="progress-bar">
+                        <div class="progress-fill" id="timeBar" style="width: 0%"></div>
+                    </div>
                 </div>
-                <div style="margin-top: 8px; font-size: 14px; opacity: 0.9;">
-                    All rewards boosted by <strong id="timeMultiplier">1.0x</strong>
+                <div class="reward-card">
+                    <div class="reward-label">Next Reward</div>
+                    <div class="reward-value" id="nextReward">$0</div>
+                    <div class="reward-label" style="margin-top: 10px;">Boosted Amount</div>
+                    <div class="reward-value" id="boostedReward">$0</div>
                 </div>
             </div>
         </div>
 
-        <!-- Properties Tab -->
-        <div id="taxTab">
-            <div class="card">
-                <h2 style="margin-bottom: 20px;">Available Properties</h2>
-                
-                <div style="margin-bottom: 15px;">
-                    <input type="text" id="propertySearchInput" placeholder="🔍 Search by address, parcel, zip, or owner..." 
-                           style="width: 100%; padding: 12px; border-radius: 6px; border: 1px solid #e2e8f0; font-size: 14px;"
-                           onkeyup="handleSearch()">
-                </div>
-                
-                <div style="margin-bottom: 20px; display: flex; gap: 10px;">
-                    <select id="stageFilter" style="padding: 8px; border-radius: 6px; border: 1px solid #e2e8f0;" onchange="handleFilterChange()">
-                        <option value="">All Stages</option>
-                        <option value="sweet_spot">🎯 Sweet Spot</option>
-                        <option value="danger_zone">🚨 Danger Zone</option>
-                        <option value="pre_lien">⚠️ Pre-Lien</option>
-                        <option value="unpaid_new">🆕 Unpaid New</option>
-                    </select>
-                </div>
-
-                <div id="paginationTop" class="pagination-container"></div>
-                <div id="propertiesTable"></div>
-                <div id="paginationBottom" class="pagination-container"></div>
+        <!-- Service Request Card -->
+        <div class="card">
+            <div class="card-header">
+                <h2 class="card-title">📋 Request Service</h2>
             </div>
-        </div>
-
-        <!-- Service Requests Tab -->
-        <div id="requestsTab" style="display: none;">
-            <div class="card">
-                <h2>My Service Requests</h2>
-                <div id="requestsList"></div>
-            </div>
-        </div>
-    </div>
-
-    <!-- Service Modal -->
-    <div id="serviceModal" class="modal">
-        <div class="modal-content">
-            <h2 style="margin-bottom: 20px;">Request Service</h2>
-            <p style="margin-bottom: 20px;"><strong>Property:</strong> <span id="modalParcel"></span></p>
-            <div id="serviceOptions"></div>
-            <div style="margin-top: 20px; display: flex; gap: 10px;">
-                <button class="btn btn-primary" onclick="openPaymentModal()">Continue to Payment</button>
-                <button class="btn btn-secondary" onclick="closeServiceModal()">Cancel</button>
-            </div>
-        </div>
-    </div>
-
-    <!-- Payment Modal -->
-    <div id="paymentModal" class="modal">
-        <div class="modal-content">
-            <h2 style="margin-bottom: 20px;">💳 Payment</h2>
-            <p style="color: #718096; margin-bottom: 20px;">
-                <strong>Service:</strong> <span id="paymentService"></span><br>
-                <strong>Service Amount:</strong> $<span id="paymentAmount"></span>
-            </p>
-
-            <form id="payment-form">
-                <div style="background: #f7fafc; padding: 15px; border-radius: 6px; margin-bottom: 20px;">
-                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
-                        <strong>💝 Tip Your VA (Optional)</strong>
-                        <div style="font-size: 12px; color: #718096;">100% goes to the VA</div>
+            <div id="alertContainer"></div>
+            <form id="serviceRequestForm" onsubmit="requestService(event)">
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 20px;">
+                    <div class="form-group">
+                        <label>Service Type *</label>
+                        <select id="serviceSelect" required>
+                            <option value="">Select a service...</option>
+                        </select>
                     </div>
-                    <div style="display: flex; gap: 10px; margin-bottom: 10px;">
-                        <button type="button" class="btn btn-secondary" style="flex: 1;" onclick="setTip(1)">$1</button>
-                        <button type="button" class="btn btn-secondary" style="flex: 1;" onclick="setTip(3)">$3</button>
-                        <button type="button" class="btn btn-secondary" style="flex: 1;" onclick="setTip(5)">$5</button>
-                        <button type="button" class="btn btn-secondary" style="flex: 1;" onclick="setTip(10)">$10</button>
+                    <div class="form-group">
+                        <label>Property *</label>
+                        <select id="propertySelect" required>
+                            <option value="">Select a property...</option>
+                        </select>
                     </div>
-                    <input type="number" id="tipAmount" placeholder="Or enter custom amount" 
-                           step="0.50" min="0" max="1000" 
-                           style="width: 100%; padding: 8px; border: 1px solid #e2e8f0; border-radius: 6px;"
-                           oninput="updateTotal()">
-                </div>
-
-                <div style="background: #e6f7ff; padding: 15px; border-radius: 6px; margin-bottom: 20px;">
-                    <div style="display: flex; justify-content: space-between; align-items: center;">
-                        <strong style="font-size: 18px;">Total:</strong>
-                        <strong style="font-size: 24px; color: #2d3748;">$<span id="totalAmount">0.00</span></strong>
+                    <div class="form-group" style="display: flex; align-items: flex-end;">
+                        <button type="submit" class="btn btn-primary" style="width: 100%;">Request Service</button>
                     </div>
-                </div>
-
-                <div id="card-element"></div>
-                <div id="card-errors"></div>
-
-                <div style="background: #fff3cd; border: 1px solid #ffc107; padding: 12px; border-radius: 6px; margin: 15px 0;">
-                    <div style="display: flex; align-items: center; gap: 8px;">
-                        <span style="font-size: 18px;">⚠️</span>
-                        <div style="font-size: 13px; color: #856404;">
-                            <strong>No Refunds Policy:</strong> All payments are final and non-refundable.
-                        </div>
-                    </div>
-                </div>
-
-                <div style="display: flex; gap: 10px; margin-top: 20px;">
-                    <button type="submit" class="btn btn-success" id="submitPayment">Pay Now</button>
-                    <button type="button" class="btn btn-secondary" onclick="closePaymentModal()">Back</button>
                 </div>
             </form>
+        </div>
+
+        <!-- Properties Card -->
+        <div class="card">
+            <div class="card-header">
+                <h2 class="card-title">🏘️ Available Properties</h2>
+            </div>
+
+            <!-- Filters -->
+            <div class="filters">
+                <div class="filter-group">
+                    <label class="filter-label">Category</label>
+                    <select id="categoryFilter" onchange="loadProperties(1)">
+                        <option value="">All Categories</option>
+                        <option value="Tax Lien Delinquent">Tax Lien Delinquent</option>
+                        <option value="Tax Deed">Tax Deed</option>
+                        <option value="Code Violations">Code Violations</option>
+                        <option value="Foreclosure">Foreclosure</option>
+                        <option value="Pre-Foreclosure">Pre-Foreclosure</option>
+                        <option value="Vacant">Vacant</option>
+                    </select>
+                </div>
+                <div class="filter-group">
+                    <label class="filter-label">Search</label>
+                    <input type="text" id="searchInput" placeholder="Search by address, parcel..." onkeyup="handleSearch()">
+                </div>
+            </div>
+
+            <!-- Top Pagination -->
+            <div class="pagination" id="paginationTop"></div>
+
+            <!-- Properties Table -->
+            <div id="propertiesLoading" class="loading">
+                <div class="spinner"></div>
+                <div>Click a category above to browse properties...</div>
+            </div>
+            <div id="propertiesContainer" style="display: none;">
+                <table id="propertiesTable">
+                    <thead>
+                        <tr>
+                            <th>Address</th>
+                            <th>Parcel</th>
+                            <th>Owner</th>
+                            <th>Category</th>
+                            <th>Due</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="propertiesBody"></tbody>
+                </table>
+            </div>
+
+            <!-- Bottom Pagination -->
+            <div class="pagination" id="paginationBottom"></div>
         </div>
     </div>
 
     <script>
-        let currentCategory = 'tax';
-        let currentPage = 1;
-        let currentSearch = '';
-        let currentStage = '';
-        let selectedService = null;
-        let selectedProperty = null;
-        let servicePricing = [];
-        let stripe, elements, cardElement;
-        let searchTimeout = null;
-        let rewardsStatus = null;
-        let lastTimeSave = Date.now();
+        const API_BASE = 'https://real-estate-intel.onrender.com';
+        const stripe = Stripe('pk_live_51QgqnoP7y0PrPUl8A9lV8c2vF35IbK1VJLFUAzhT8nIHPqnC4MjYkZRXZVPSuIZzGNhFBgM8pnYCQ2yRPHx5eAOj00EZ8JbHlH');
+        const token = localStorage.getItem('token');
 
-        window.addEventListener('DOMContentLoaded', async () => {
-            loadProperties();
-            loadServiceRequests();
-            await loadServicePricing();
-            await initStripe();
-            loadRewardsStatus();
-            setInterval(saveTimeToServer, 60000);
-        });
-
-        async function initStripe() {
-            const response = await fetch('/api/stripe/config');
-            const {publishableKey} = await response.json();
-            stripe = Stripe(publishableKey);
-            elements = stripe.elements();
-            cardElement = elements.create('card');
-            cardElement.mount('#card-element');
-            cardElement.on('change', (e) => {
-                document.getElementById('card-errors').textContent = e.error ? e.error.message : '';
-            });
+        if (!token) {
+            window.location.href = 'login.html';
         }
 
-        function switchCategory(category) {
-            currentCategory = category;
-            currentPage = 1;
-            currentSearch = '';
-            currentStage = '';
-            document.getElementById('propertySearchInput').value = '';
-            document.getElementById('stageFilter').value = '';
-            
-            document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
-            event.target.classList.add('active');
-            
-            const isPropertyCategory = ['tax', 'pre_foreclosure', 'fire_damage', 'probate', 'code_violation', 'surplus_funds'].includes(category);
-            
-            document.getElementById('taxTab').style.display = isPropertyCategory ? 'block' : 'none';
-            document.getElementById('requestsTab').style.display = category === 'my_requests' ? 'block' : 'none';
-            
-            if (isPropertyCategory) {
-                loadProperties();
-            } else if (category === 'my_requests') {
-                loadServiceRequests();
+        let currentPage = 1;
+        let totalPages = 1;
+        let searchTimeout = null;
+        let currentUser = null;
+        const pageSize = 15;
+
+        // Initialize
+        document.addEventListener('DOMContentLoaded', () => {
+            loadUserInfo();
+            loadServicePricing();
+            loadRewardsStatus();
+            startTimeTracking();
+        });
+
+        // Load user info
+        async function loadUserInfo() {
+            try {
+                const res = await fetch(`${API_BASE}/api/user/info`, {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                const data = await res.json();
+                
+                if (data.ok) {
+                    currentUser = data;
+                    document.getElementById('userEmail').textContent = data.email;
+                }
+            } catch (err) {
+                console.error('Error loading user info:', err);
             }
         }
 
+        // Load service pricing
+        async function loadServicePricing() {
+            try {
+                const res = await fetch(`${API_BASE}/api/pricing/active`, {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                const data = await res.json();
+                
+                const select = document.getElementById('serviceSelect');
+                select.innerHTML = '<option value="">Select a service...</option>';
+                
+                if (data.ok && data.services) {
+                    data.services.forEach(service => {
+                        const option = document.createElement('option');
+                        option.value = service.service_type;
+                        option.textContent = `${service.service_name} - $${parseFloat(service.price_charged).toFixed(2)}`;
+                        option.dataset.price = service.price_charged;
+                        select.appendChild(option);
+                    });
+                }
+            } catch (err) {
+                console.error('Error loading services:', err);
+            }
+        }
+
+        // Load properties with pagination
+        async function loadProperties(page = 1) {
+            currentPage = page;
+            const category = document.getElementById('categoryFilter').value;
+            const search = document.getElementById('searchInput').value;
+
+            document.getElementById('propertiesLoading').style.display = 'block';
+            document.getElementById('propertiesContainer').style.display = 'none';
+
+            const offset = (page - 1) * pageSize;
+
+            try {
+                let url = `${API_BASE}/api/properties?limit=${pageSize}&offset=${offset}`;
+                if (category) url += `&category=${encodeURIComponent(category)}`;
+                if (search) url += `&search=${encodeURIComponent(search)}`;
+
+                const res = await fetch(url, {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                const data = await res.json();
+
+                document.getElementById('propertiesLoading').style.display = 'none';
+                document.getElementById('propertiesContainer').style.display = 'block';
+
+                if (data.ok && data.properties) {
+                    // Calculate total pages
+                    totalPages = Math.ceil(data.total / pageSize) || 1;
+
+                    // Render properties
+                    const tbody = document.getElementById('propertiesBody');
+                    tbody.innerHTML = '';
+
+                    if (data.properties.length === 0) {
+                        tbody.innerHTML = '<tr><td colspan="6" style="text-align: center; padding: 40px; color: #718096;">No properties found</td></tr>';
+                    } else {
+                        // Load first 50 properties in dropdown
+                        const propertySelect = document.getElementById('propertySelect');
+                        if (propertySelect.options.length === 1) {
+                            data.properties.slice(0, 50).forEach(prop => {
+                                const option = document.createElement('option');
+                                option.value = prop.id;
+                                option.textContent = `${prop.address} - ${prop.parcel}`;
+                                propertySelect.appendChild(option);
+                            });
+                        }
+
+                        data.properties.forEach(property => {
+                            tbody.innerHTML += `
+                                <tr>
+                                    <td>${property.address || 'N/A'}</td>
+                                    <td>${property.parcel || 'N/A'}</td>
+                                    <td>${property.owner || 'N/A'}</td>
+                                    <td><span style="background: #e2e8f0; padding: 4px 8px; border-radius: 4px; font-size: 12px;">${property.category || 'N/A'}</span></td>
+                                    <td>$${parseFloat(property.current_total_due || 0).toFixed(2)}</td>
+                                    <td>
+                                        <button class="btn btn-primary btn-small" onclick="viewProperty(${property.id})">View</button>
+                                    </td>
+                                </tr>
+                            `;
+                        });
+                    }
+
+                    // Update pagination
+                    updatePagination();
+                }
+            } catch (err) {
+                document.getElementById('propertiesLoading').style.display = 'none';
+                showAlert('error', 'Error loading properties: ' + err.message);
+            }
+        }
+
+        // Update pagination buttons
+        function updatePagination() {
+            const paginationHTML = `
+                <button onclick="loadProperties(1)" ${currentPage === 1 ? 'disabled' : ''}>First</button>
+                <button onclick="loadProperties(${currentPage - 1})" ${currentPage === 1 ? 'disabled' : ''}>Previous</button>
+                <span class="page-info">Page ${currentPage} of ${totalPages}</span>
+                <button onclick="loadProperties(${currentPage + 1})" ${currentPage === totalPages ? 'disabled' : ''}>Next</button>
+                <button onclick="loadProperties(${totalPages})" ${currentPage === totalPages ? 'disabled' : ''}>Last</button>
+            `;
+            
+            document.getElementById('paginationTop').innerHTML = paginationHTML;
+            document.getElementById('paginationBottom').innerHTML = paginationHTML;
+        }
+
+        // Search with debounce
         function handleSearch() {
             clearTimeout(searchTimeout);
             searchTimeout = setTimeout(() => {
-                currentPage = 1;
-                currentSearch = document.getElementById('propertySearchInput').value.trim();
-                loadProperties();
-            }, 500);
+                loadProperties(1);
+            }, 300);
         }
 
-        function handleFilterChange() {
-            currentPage = 1;
-            currentStage = document.getElementById('stageFilter').value;
-            loadProperties();
-        }
+        // Request service
+        async function requestService(event) {
+            event.preventDefault();
 
-        async function loadProperties() {
-            const params = new URLSearchParams({ 
-                page: currentPage, 
-                page_size: 50, 
-                category: currentCategory 
-            });
-            
-            if (currentStage) params.append('stage', currentStage);
-            if (currentSearch) params.append('search', currentSearch);
+            const serviceType = document.getElementById('serviceSelect').value;
+            const propertyId = document.getElementById('propertySelect').value;
+            const selectedOption = document.getElementById('serviceSelect').selectedOptions[0];
+            const price = parseFloat(selectedOption.dataset.price);
 
             try {
-                const response = await fetch(`/api/properties?${params}`);
-                const data = await response.json();
-
-                if (data.ok && data.rows.length > 0) {
-                    renderProperties(data.rows);
-                    renderPagination(data.total);
-                } else {
-                    document.getElementById('propertiesTable').innerHTML = '<p style="color: #718096; padding: 20px;">No properties found.</p>';
-                    document.getElementById('paginationTop').innerHTML = '';
-                    document.getElementById('paginationBottom').innerHTML = '';
-                }
-            } catch (error) {
-                console.error('Error loading properties:', error);
-            }
-        }
-
-        function renderProperties(properties) {
-            const container = document.getElementById('propertiesTable');
-            container.innerHTML = `
-                <table>
-                    <thead>
-                        <tr>
-                            <th>Parcel</th>
-                            <th>Stage</th>
-                            <th>Address</th>
-                            <th>Owner</th>
-                            <th>Amount Due</th>
-                            <th>Actions</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        ${properties.map(prop => `
-                            <tr>
-                                <td><strong>${prop.parcel}</strong></td>
-                                <td><span style="padding: 4px 8px; border-radius: 4px; font-size: 12px; background: ${getStageColor(prop.stage)}; color: white;">${formatStage(prop.stage)}</span></td>
-                                <td>${prop.address || '-'}</td>
-                                <td>${prop.owner || '-'}</td>
-                                <td><strong>$${parseFloat(prop.current_total_due || 0).toLocaleString()}</strong></td>
-                                <td>
-                                    <button class="btn btn-primary btn-sm" onclick="openServiceModal(${prop.id}, '${prop.parcel}', '${(prop.address || '').replace(/'/g, "\\'")}')">
-                                        Request Service
-                                    </button>
-                                </td>
-                            </tr>
-                        `).join('')}
-                    </tbody>
-                </table>
-            `;
-        }
-
-        function renderPagination(total) {
-            const totalPages = Math.ceil(total / 50);
-            
-            if (totalPages <= 1) {
-                const html = total > 0 ? `<span style="padding: 10px; color: #718096;">${total} properties</span>` : '';
-                document.getElementById('paginationTop').innerHTML = html;
-                document.getElementById('paginationBottom').innerHTML = html;
-                return;
-            }
-            
-            let html = '';
-            
-            if (currentPage > 1) {
-                html += `<button class="btn btn-secondary" onclick="changePage(1)">« First</button>`;
-                html += `<button class="btn btn-secondary" onclick="changePage(${currentPage - 1})">‹ Previous</button>`;
-            }
-            
-            html += `<span style="padding: 10px; font-weight: 600;">Page ${currentPage} of ${totalPages} (${total.toLocaleString()} properties)</span>`;
-            
-            if (currentPage < totalPages) {
-                html += `<button class="btn btn-secondary" onclick="changePage(${currentPage + 1})">Next ›</button>`;
-                html += `<button class="btn btn-secondary" onclick="changePage(${totalPages})">Last »</button>`;
-            }
-            
-            document.getElementById('paginationTop').innerHTML = html;
-            document.getElementById('paginationBottom').innerHTML = html;
-        }
-
-        function changePage(page) {
-            currentPage = page;
-            loadProperties();
-            window.scrollTo({ top: 0, behavior: 'smooth' });
-        }
-
-        function getStageColor(stage) {
-            const colors = {
-                'sweet_spot': '#48bb78',
-                'danger_zone': '#f56565',
-                'pre_lien': '#ecc94b',
-                'unpaid_new': '#9f7aea'
-            };
-            return colors[stage] || '#718096';
-        }
-
-        function formatStage(stage) {
-            const stages = {
-                'sweet_spot': 'Sweet Spot',
-                'danger_zone': 'Danger Zone',
-                'pre_lien': 'Pre-Lien',
-                'unpaid_new': 'Unpaid New'
-            };
-            return stages[stage] || stage;
-        }
-
-        async function loadServicePricing() {
-            const response = await fetch('/api/pricing/active');
-            const data = await response.json();
-            servicePricing = data.services || [];
-        }
-
-        function openServiceModal(propertyId, parcel, address) {
-            selectedProperty = {id: propertyId, parcel, address};
-            document.getElementById('modalParcel').textContent = parcel;
-            
-            const html = servicePricing.map(svc => `
-                <div style="border: 1px solid #e2e8f0; padding: 15px; margin: 10px 0; border-radius: 6px; cursor: pointer;"
-                     onclick="selectService('${svc.service_type}', '${svc.service_name}', ${svc.price_charged})">
-                    <strong>${svc.service_name}</strong><br>
-                    <span style="color: #718096; font-size: 13px;">${svc.service_description}</span><br>
-                    <strong style="color: #667eea; font-size: 18px;">$${parseFloat(svc.price_charged).toFixed(2)}</strong>
-                </div>
-            `).join('');
-            
-            document.getElementById('serviceOptions').innerHTML = html;
-            document.getElementById('serviceModal').style.display = 'flex';
-        }
-
-        function selectService(type, name, price) {
-            selectedService = {type, name, price};
-            document.querySelectorAll('#serviceOptions > div').forEach(el => {
-                el.style.border = '1px solid #e2e8f0';
-            });
-            event.currentTarget.style.border = '2px solid #667eea';
-        }
-
-        function closeServiceModal() {
-            document.getElementById('serviceModal').style.display = 'none';
-        }
-
-        function openPaymentModal() {
-            if (!selectedService) {
-                alert('Please select a service');
-                return;
-            }
-            
-            document.getElementById('paymentService').textContent = selectedService.name;
-            document.getElementById('paymentAmount').textContent = selectedService.price.toFixed(2);
-            document.getElementById('totalAmount').textContent = selectedService.price.toFixed(2);
-            
-            closeServiceModal();
-            document.getElementById('paymentModal').style.display = 'flex';
-        }
-
-        function closePaymentModal() {
-            document.getElementById('paymentModal').style.display = 'none';
-            document.getElementById('tipAmount').value = '';
-        }
-
-        function setTip(amount) {
-            document.getElementById('tipAmount').value = amount;
-            updateTotal();
-        }
-
-        function updateTotal() {
-            const tip = parseFloat(document.getElementById('tipAmount').value) || 0;
-            const total = selectedService.price + tip;
-            document.getElementById('totalAmount').textContent = total.toFixed(2);
-        }
-
-        document.getElementById('payment-form').addEventListener('submit', async (e) => {
-            e.preventDefault();
-            const tip = parseFloat(document.getElementById('tipAmount').value) || 0;
-            
-            try {
-                const response = await fetch('/api/stripe/create-payment-intent', {
+                // Create payment intent
+                const res = await fetch(`${API_BASE}/api/user/create-payment`, {
                     method: 'POST',
-                    headers: {'Content-Type': 'application/json'},
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    },
                     body: JSON.stringify({
-                        service_type: selectedService.type,
-                        parcel: selectedProperty.parcel,
-                        property_id: selectedProperty.id,
-                        tip_amount: tip
+                        service_type: serviceType,
+                        property_id: propertyId,
+                        amount: price
                     })
                 });
-                
-                const {clientSecret} = await response.json();
-                const result = await stripe.confirmCardPayment(clientSecret, {
-                    payment_method: {card: cardElement}
-                });
-                
-                if (result.error) {
-                    alert('Payment failed: ' + result.error.message);
+
+                const data = await res.json();
+
+                if (data.ok && data.client_secret) {
+                    // Redirect to Stripe Checkout
+                    const { error } = await stripe.confirmPayment({
+                        clientSecret: data.client_secret,
+                        confirmParams: {
+                            return_url: `${window.location.origin}/user_dashboard.html`
+                        }
+                    });
+
+                    if (error) {
+                        showAlert('error', error.message);
+                    }
                 } else {
-                    alert('✅ Payment successful! Your service request has been submitted.');
-                    closePaymentModal();
-                    loadServiceRequests();
-                    loadRewardsStatus();
+                    showAlert('error', data.error || 'Payment failed');
                 }
-            } catch (error) {
-                alert('Payment error');
+            } catch (err) {
+                showAlert('error', 'Error: ' + err.message);
             }
-        });
-
-        async function loadServiceRequests() {
-            const response = await fetch('/api/user/service-requests');
-            const data = await response.json();
-            
-            const container = document.getElementById('requestsList');
-            if (!data.requests || data.requests.length === 0) {
-                container.innerHTML = '<p style="color: #718096; padding: 20px;">No service requests yet</p>';
-                return;
-            }
-            
-            container.innerHTML = `
-                <table>
-                    <thead>
-                        <tr>
-                            <th>Parcel</th>
-                            <th>Service</th>
-                            <th>Status</th>
-                            <th>Amount</th>
-                            <th>Created</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        ${data.requests.map(req => `
-                            <tr>
-                                <td><strong>${req.parcel}</strong></td>
-                                <td>${req.service_type}</td>
-                                <td><span style="padding: 4px 8px; border-radius: 4px; font-size: 12px; background: ${getStatusColor(req.status)}; color: white;">${req.status}</span></td>
-                                <td>$${parseFloat(req.amount_charged || 0).toFixed(2)}</td>
-                                <td>${new Date(req.created_at).toLocaleDateString()}</td>
-                            </tr>
-                        `).join('')}
-                    </tbody>
-                </table>
-            `;
         }
 
-        function getStatusColor(status) {
-            const colors = {
-                'pending': '#718096',
-                'claimed': '#667eea',
-                'submitted': '#f59e0b',
-                'approved': '#48bb78',
-                'rejected': '#f56565'
-            };
-            return colors[status] || '#718096';
-        }
-
+        // Load rewards status
         async function loadRewardsStatus() {
             try {
-                const response = await fetch('/api/user/rewards-status');
-                const data = await response.json();
-                if (data.ok) {
-                    rewardsStatus = data;
-                    updateRewardsUI();
+                const res = await fetch(`${API_BASE}/api/user/rewards-status`, {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                const data = await res.json();
+
+                if (data.ok && data.status) {
+                    const widget = document.getElementById('rewardsWidget');
+                    widget.style.display = 'block';
+
+                    const status = data.status;
+                    
+                    // Update tier info
+                    const tierNames = ['🥉 Bronze', '🥈 Silver', '🥇 Gold', '💎 Platinum'];
+                    document.getElementById('currentTier').textContent = tierNames[status.tier_level] || '🆕 Starter';
+                    
+                    // Update spending progress
+                    const spentInTier = parseFloat(status.current_tier_spent || 0);
+                    const tierTarget = parseFloat(status.tier_spending_required || 100);
+                    const spendingPct = Math.min((spentInTier / tierTarget) * 100, 100);
+                    document.getElementById('spendingProgress').textContent = `$${spentInTier.toFixed(2)} / $${tierTarget.toFixed(2)}`;
+                    document.getElementById('spendingBar').style.width = spendingPct + '%';
+
+                    // Update time bonus
+                    const timeMinutes = Math.floor((status.total_time_seconds || 0) / 60);
+                    const timeTarget = parseInt(status.next_time_minutes || 180);
+                    const timePct = Math.min((timeMinutes / timeTarget) * 100, 100);
+                    document.getElementById('timeBonus').textContent = `${parseFloat(status.time_bonus_multiplier || 1).toFixed(2)}x`;
+                    document.getElementById('timeProgress').textContent = `${timeMinutes} / ${timeTarget} min`;
+                    document.getElementById('timeBar').style.width = timePct + '%';
+
+                    // Update rewards
+                    const baseReward = parseFloat(status.base_reward_amount || 0);
+                    const boostedReward = parseFloat(status.boosted_reward_amount || 0);
+                    document.getElementById('nextReward').textContent = `$${baseReward.toFixed(2)}`;
+                    document.getElementById('boostedReward').textContent = `$${boostedReward.toFixed(2)}`;
+
+                    // Show claim button if eligible
+                    if (status.can_claim_reward) {
+                        document.getElementById('claimRewardBtn').style.display = 'inline-block';
+                    }
                 }
-            } catch (error) {
-                console.error('Error loading rewards:', error);
+            } catch (err) {
+                console.error('Error loading rewards:', err);
             }
         }
 
-        function updateRewardsUI() {
-            if (!rewardsStatus) return;
-            
-            const tierIcons = ['🥉', '🥈', '🥇', '💎'];
-            const tierIcon = tierIcons[rewardsStatus.spending_tier] || '🥉';
-            document.getElementById('spendingTierName').textContent = tierIcon + ' ' + rewardsStatus.spending_tier_name;
-            document.getElementById('spendingProgress').textContent = `$${rewardsStatus.current_tier_spent.toFixed(0)} / $${rewardsStatus.spending_required.toFixed(0)}`;
-            
-            const spendingPercent = Math.min((rewardsStatus.current_tier_spent / rewardsStatus.spending_required) * 100, 100);
-            document.getElementById('spendingBar').style.width = spendingPercent + '%';
-            
-            document.getElementById('baseReward').textContent = '$' + rewardsStatus.base_reward_amount.toFixed(0);
-            document.getElementById('boostedReward').textContent = '$' + rewardsStatus.boosted_reward_amount.toFixed(2);
-            document.getElementById('timeBadge').textContent = rewardsStatus.time_badge + ' ' + rewardsStatus.time_multiplier.toFixed(1) + 'x';
-            
-            if (rewardsStatus.can_claim_reward) {
-                document.getElementById('claimRewardBtn').style.display = 'block';
-            } else {
-                document.getElementById('claimRewardBtn').style.display = 'none';
+        // Claim reward
+        async function claimReward() {
+            if (!confirm('Claim your reward now?')) return;
+
+            try {
+                const res = await fetch(`${API_BASE}/api/user/claim-reward`, {
+                    method: 'POST',
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                const data = await res.json();
+
+                if (data.ok) {
+                    showAlert('success', `🎉 Reward claimed! $${parseFloat(data.reward_amount).toFixed(2)} credited to your account!`);
+                    loadRewardsStatus();
+                } else {
+                    showAlert('error', data.error || 'Failed to claim reward');
+                }
+            } catch (err) {
+                showAlert('error', 'Error: ' + err.message);
             }
-            
-            document.getElementById('timeBonusName').textContent = rewardsStatus.time_badge + ' ' + rewardsStatus.time_bonus_name;
-            document.getElementById('timeProgress').textContent = `${rewardsStatus.total_minutes} / ${rewardsStatus.next_time_minutes} min`;
-            
-            const timePercent = Math.min((rewardsStatus.total_minutes / rewardsStatus.next_time_minutes) * 100, 100);
-            document.getElementById('timeBar').style.width = timePercent + '%';
-            
-            document.getElementById('timeMultiplier').textContent = rewardsStatus.time_multiplier.toFixed(1) + 'x';
+        }
+
+        // Time tracking
+        let activeTimeSeconds = 0;
+        function startTimeTracking() {
+            setInterval(() => {
+                activeTimeSeconds++;
+                
+                // Save to server every 60 seconds
+                if (activeTimeSeconds % 60 === 0) {
+                    saveTimeToServer();
+                }
+            }, 1000);
         }
 
         async function saveTimeToServer() {
-            const now = Date.now();
-            const secondsElapsed = Math.floor((now - lastTimeSave) / 1000);
-            if (secondsElapsed < 30) return;
-            
             try {
-                await fetch('/api/user/update-time', {
+                await fetch(`${API_BASE}/api/user/update-time`, {
                     method: 'POST',
-                    headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({ time_seconds: secondsElapsed })
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ seconds: activeTimeSeconds })
                 });
-                lastTimeSave = now;
-                loadRewardsStatus();
-            } catch (error) {
-                console.error('Error saving time:', error);
+            } catch (err) {
+                console.error('Error saving time:', err);
             }
         }
 
-        async function claimReward() {
-            if (!rewardsStatus) return;
-            if (!confirm(`Claim your ${rewardsStatus.spending_tier_name} reward of $${rewardsStatus.boosted_reward_amount.toFixed(2)}?`)) return;
-            
-            try {
-                const response = await fetch('/api/user/claim-reward', {
-                    method: 'POST',
-                    headers: {'Content-Type': 'application/json'}
-                });
-                const data = await response.json();
-                
-                if (data.ok) {
-                    alert(`🎉 Congratulations!\n\nClaimed: $${data.reward_amount}\n\nBase ${data.tier_name}: $${data.base_reward}\nTime Bonus: ${data.time_multiplier}x\n\nYou've been upgraded to the next tier!`);
-                    loadRewardsStatus();
-                } else {
-                    alert('Error: ' + data.error);
-                }
-            } catch (error) {
-                alert('Failed to claim reward. Please try again.');
-            }
+        // View property
+        function viewProperty(id) {
+            alert('Property details - Coming soon!');
         }
 
+        // Alert system
+        function showAlert(type, message) {
+            const alertDiv = document.createElement('div');
+            alertDiv.className = `alert alert-${type}`;
+            alertDiv.textContent = message;
+            
+            const container = document.getElementById('alertContainer');
+            container.appendChild(alertDiv);
+
+            setTimeout(() => alertDiv.remove(), 5000);
+        }
+
+        // Logout
         function logout() {
-            if (confirm('Log out?')) {
-                window.location.href = '/logout';
-            }
+            localStorage.removeItem('token');
+            window.location.href = 'login.html';
         }
     </script>
 </body>
