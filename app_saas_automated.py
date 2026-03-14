@@ -12,7 +12,7 @@ import os
 import subprocess
 import sys
 import time
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from pathlib import Path
 import csv
 import io
@@ -356,6 +356,171 @@ def api_logout():
     resp = make_response(jsonify({"ok": True}))
     resp.set_cookie(COOKIE_NAME, "", expires=0)
     return resp
+
+
+# ========== PASSWORD RESET API ==========
+
+@app.post("/api/forgot-password")
+def api_forgot_password():
+    """Request password reset - generates token"""
+    data = request.get_json(silent=True) or {}
+    email = (data.get("email") or "").strip().lower()
+    
+    if not email:
+        return jsonify({"ok": False, "error": "Email required"}), 400
+    
+    try:
+        with db_conn() as conn:
+            with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+                # Check if email exists in users table
+                cur.execute("SELECT email, is_admin FROM users WHERE email = %s", (email,))
+                user = cur.fetchone()
+                
+                # Check if email exists in va_users table
+                cur.execute("SELECT email FROM va_users WHERE email = %s", (email,))
+                va_user = cur.fetchone()
+                
+                if not user and not va_user:
+                    # Don't reveal if email exists or not (security best practice)
+                    return jsonify({
+                        "ok": True, 
+                        "message": "If that email exists, a reset link has been sent"
+                    })
+                
+                # Determine user type
+                if user:
+                    user_type = "admin" if user["is_admin"] else "user"
+                else:
+                    user_type = "va"
+                
+                # Generate reset token (valid for 1 hour)
+                token = secrets.token_urlsafe(32)
+                expires_at = datetime.now(timezone.utc) + timedelta(hours=1)
+                
+                # Store token
+                cur.execute("""
+                    INSERT INTO password_reset_tokens (email, token, user_type, expires_at)
+                    VALUES (%s, %s, %s, %s)
+                """, (email, token, user_type, expires_at))
+                
+                conn.commit()
+                
+                reset_url = f"https://real-estate-intel.onrender.com/reset-password?token={token}"
+                
+                print(f"🔐 Password reset requested for {email}")
+                print(f"📧 Reset URL: {reset_url}")
+                
+                # TODO: Send email with reset link in production
+                
+                return jsonify({
+                    "ok": True,
+                    "message": "If that email exists, a reset link has been sent",
+                    # DEBUG ONLY - Remove in production
+                    "debug_token": token,
+                    "debug_url": reset_url
+                })
+    
+    except Exception as e:
+        print(f"❌ Forgot password error: {e}")
+        return jsonify({"ok": False, "error": "Failed to process request"}), 500
+
+
+@app.post("/api/reset-password")
+def api_reset_password():
+    """Reset password using token"""
+    data = request.get_json(silent=True) or {}
+    token = (data.get("token") or "").strip()
+    new_password = (data.get("password") or "").strip()
+    
+    if not token or not new_password:
+        return jsonify({"ok": False, "error": "Token and password required"}), 400
+    
+    if len(new_password) < 8:
+        return jsonify({"ok": False, "error": "Password must be at least 8 characters"}), 400
+    
+    try:
+        with db_conn() as conn:
+            with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+                # Validate token
+                cur.execute("""
+                    SELECT email, user_type, expires_at, used
+                    FROM password_reset_tokens
+                    WHERE token = %s
+                """, (token,))
+                
+                reset_request = cur.fetchone()
+                
+                if not reset_request:
+                    return jsonify({"ok": False, "error": "Invalid reset token"}), 400
+                
+                if reset_request["used"]:
+                    return jsonify({"ok": False, "error": "This reset link has already been used"}), 400
+                
+                if reset_request["expires_at"] < datetime.now(timezone.utc):
+                    return jsonify({"ok": False, "error": "This reset link has expired"}), 400
+                
+                # Generate new password hash
+                new_hash = generate_password_hash(new_password)
+                
+                # Update password based on user type
+                email = reset_request["email"]
+                user_type = reset_request["user_type"]
+                
+                if user_type in ["admin", "user"]:
+                    cur.execute("UPDATE users SET pw_hash = %s WHERE email = %s", (new_hash, email))
+                else:  # va
+                    cur.execute("UPDATE va_users SET password_hash = %s WHERE email = %s", (new_hash, email))
+                
+                # Mark token as used
+                cur.execute("UPDATE password_reset_tokens SET used = TRUE WHERE token = %s", (token,))
+                
+                conn.commit()
+                
+                print(f"✅ Password reset successful for {email} ({user_type})")
+                
+                return jsonify({
+                    "ok": True,
+                    "message": "Password reset successful! You can now log in.",
+                    "redirect": "/login"
+                })
+    
+    except Exception as e:
+        print(f"❌ Reset password error: {e}")
+        return jsonify({"ok": False, "error": "Failed to reset password"}), 500
+
+
+@app.get("/api/verify-reset-token/<token>")
+def api_verify_reset_token(token):
+    """Verify if a reset token is valid"""
+    try:
+        with db_conn() as conn:
+            with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+                cur.execute("""
+                    SELECT email, user_type, expires_at, used
+                    FROM password_reset_tokens
+                    WHERE token = %s
+                """, (token,))
+                
+                reset_request = cur.fetchone()
+                
+                if not reset_request:
+                    return jsonify({"ok": False, "valid": False, "error": "Invalid token"})
+                
+                if reset_request["used"]:
+                    return jsonify({"ok": False, "valid": False, "error": "Token already used"})
+                
+                if reset_request["expires_at"] < datetime.now(timezone.utc):
+                    return jsonify({"ok": False, "valid": False, "error": "Token expired"})
+                
+                return jsonify({
+                    "ok": True,
+                    "valid": True,
+                    "email": reset_request["email"]
+                })
+    
+    except Exception as e:
+        print(f"❌ Verify token error: {e}")
+        return jsonify({"ok": False, "valid": False, "error": "Failed to verify"}), 500
 
 
 # ========== COUNTY API ==========
