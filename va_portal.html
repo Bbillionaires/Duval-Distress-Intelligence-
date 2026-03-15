@@ -349,7 +349,11 @@
 
     <script>
         const API_BASE = 'https://real-estate-intel.onrender.com';
+        const token = localStorage.getItem('token');
         
+        if (!token) {
+            window.location.href = 'login.html';
+        }
 
         let currentJobId = null;
         let timerInterval = null;
@@ -779,8 +783,8 @@
         }
 
         // Logout
-        async function logout() {
-            await fetch(`${API_BASE}/api/logout`, { method: 'POST', credentials: 'include' });
+        function logout() {
+            localStorage.removeItem('token');
             window.location.href = 'login.html';
         }
 
