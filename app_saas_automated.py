@@ -341,7 +341,7 @@ def api_login():
                        (token, u["id"], expires))
     
     resp = make_response(jsonify({"ok": True, "email": u["email"], "is_admin": u["is_admin"]}))
-    resp.set_cookie(COOKIE_NAME, token, httponly=True, samesite="Lax")
+    resp.set_cookie(COOKIE_NAME, token, httponly=True, secure=True, samesite="Lax")
     return resp
 
 
@@ -1904,6 +1904,15 @@ def api_va_login():
                 
                 # Update last login
                 cur.execute("UPDATE va_users SET last_login = NOW() WHERE id = %s", (va['id'],))
+                
+                # Create session token
+                token = secrets.token_urlsafe(32)
+                expires = datetime.now(timezone.utc) + timedelta(days=7)
+                cur.execute("""
+                    INSERT INTO va_sessions (token, va_user_id, expires_at)
+                    VALUES (%s, %s, %s)
+                """, (token, va['id'], expires))
+                
                 conn.commit()
                 
                 # Return VA data (without password hash)
@@ -1913,7 +1922,9 @@ def api_va_login():
                 # Convert Decimal/string to float for JSON
                 va_data['total_earned'] = float(va_data.get('total_earned') or 0)
                 
-                return jsonify({"ok": True, "va": va_data})
+                resp = make_response(jsonify({"ok": True, "va": va_data}))
+                resp.set_cookie("va_session", token, httponly=True, secure=True, samesite="Lax")
+                return resp
     
     except Exception as e:
         print(f"❌ VA login error: {e}")
