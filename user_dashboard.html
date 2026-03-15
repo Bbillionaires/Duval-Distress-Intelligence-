@@ -513,11 +513,7 @@
     <script>
         const API_BASE = 'https://real-estate-intel.onrender.com';
         const stripe = Stripe('pk_live_51QgqnoP7y0PrPUl8A9lV8c2vF35IbK1VJLFUAzhT8nIHPqnC4MjYkZRXZVPSuIZzGNhFBgM8pnYCQ2yRPHx5eAOj00EZ8JbHlH');
-        const token = localStorage.getItem('token');
-
-        if (!token) {
-            window.location.href = 'login.html';
-        }
+        
 
         let currentPage = 1;
         let totalPages = 1;
@@ -831,8 +827,8 @@
         }
 
         // Logout
-        function logout() {
-            localStorage.removeItem('token');
+        async function logout() {
+            await fetch(`${API_BASE}/api/logout`, { method: 'POST', credentials: 'include' });
             window.location.href = 'login.html';
         }
     </script>
