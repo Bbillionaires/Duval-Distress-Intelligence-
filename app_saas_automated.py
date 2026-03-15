@@ -341,7 +341,7 @@ def api_login():
                        (token, u["id"], expires))
     
     resp = make_response(jsonify({"ok": True, "email": u["email"], "is_admin": u["is_admin"]}))
-    resp.set_cookie(COOKIE_NAME, token, httponly=True, secure=True, samesite="Lax")
+    resp.set_cookie(COOKIE_NAME, token, max_age=604800, httponly=True, secure=True, samesite="Lax")
     return resp
 
 
@@ -1923,7 +1923,7 @@ def api_va_login():
                 va_data['total_earned'] = float(va_data.get('total_earned') or 0)
                 
                 resp = make_response(jsonify({"ok": True, "va": va_data}))
-                resp.set_cookie("va_session", token, httponly=True, secure=True, samesite="Lax")
+                resp.set_cookie("va_session", token, max_age=604800, httponly=True, secure=True, samesite="Lax")
                 return resp
     
     except Exception as e:
