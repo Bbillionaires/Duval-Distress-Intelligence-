@@ -210,16 +210,16 @@
 <body>
     <div class="login-container">
         <div class="logo">
-            <h1>🏠 Duval Tax Leads</h1>
-            <p class="subtitle">Sweet Spot Property Finder</p>
+            <h1 id="pageTitle">🏠 Duval Tax Leads</h1>
+            <p class="subtitle" id="pageSubtitle">Sweet Spot Property Finder</p>
         </div>
 
         <div id="alertBox" class="alert"></div>
 
-        <div class="demo-credentials">
+        <div class="demo-credentials" id="demoBox">
             <strong>Demo Credentials:</strong>
-            Email: <code>admin@local</code><br>
-            Password: <code>ChangeMe123!</code>
+            Email: <code id="demoEmail">admin@local</code><br>
+            Password: <code id="demoPassword">admin123</code>
         </div>
 
         <form id="loginForm">
@@ -230,7 +230,6 @@
                     id="email" 
                     name="email" 
                     placeholder="Enter your email"
-                    value="admin@local"
                     required
                     autocomplete="email"
                 >
@@ -243,7 +242,6 @@
                     id="password" 
                     name="password" 
                     placeholder="Enter your password"
-                    value="ChangeMe123!"
                     required
                     autocomplete="current-password"
                 >
@@ -263,6 +261,23 @@
         const form = document.getElementById('loginForm');
         const alertBox = document.getElementById('alertBox');
         const loginBtn = document.getElementById('loginBtn');
+        
+        // Check if coming from VA portal
+        const urlParams = new URLSearchParams(window.location.search);
+        const isVA = urlParams.get('type') === 'va' || document.referrer.includes('/va');
+        
+        // Update UI for VA login
+        if (isVA) {
+            document.getElementById('pageTitle').innerHTML = '🔧 VA Portal';
+            document.getElementById('pageSubtitle').textContent = 'Virtual Assistant Login';
+            document.getElementById('demoEmail').textContent = 'va@example.com';
+            document.getElementById('demoPassword').textContent = 'va123456';
+            document.getElementById('email').value = 'va@example.com';
+            document.getElementById('password').value = 'va123456';
+        } else {
+            document.getElementById('email').value = 'admin@local';
+            document.getElementById('password').value = 'admin123';
+        }
 
         form.addEventListener('submit', async (e) => {
             e.preventDefault();
@@ -275,11 +290,15 @@
             loginBtn.innerHTML = '<span class="spinner"></span>Signing in...';
 
             try {
-                const response = await fetch('/api/login', {
+                // Use correct endpoint based on type
+                const endpoint = isVA ? '/api/va/login' : '/api/login';
+                
+                const response = await fetch(endpoint, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
                     },
+                    credentials: 'include',
                     body: JSON.stringify({ email, password })
                 });
 
@@ -288,14 +307,16 @@
                 if (data.ok) {
                     showAlert('Login successful! Redirecting...', 'success');
                     
-                    // Redirect based on admin status
+                    // Redirect based on type
                     setTimeout(() => {
-                        if (data.is_admin) {
+                        if (isVA) {
+                            window.location.href = '/va';
+                        } else if (data.is_admin) {
                             window.location.href = '/admin';
                         } else {
-                            window.location.href = '/';
+                            window.location.href = '/dashboard';
                         }
-                    }, 1000);
+                    }, 500);
                 } else {
                     showAlert(data.error || 'Invalid credentials. Please try again.', 'error');
                     loginBtn.disabled = false;
