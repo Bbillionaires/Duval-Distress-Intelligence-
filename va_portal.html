@@ -351,7 +351,7 @@
         const API_BASE = 'https://real-estate-intel.onrender.com';
         
         // Check if VA is logged in
-        async function checkSession() {
+        async function checkVALogin() {
             try {
                 const res = await fetch(`${API_BASE}/api/va/profile`, { credentials: 'include' });
                 if (!res.ok) {
@@ -362,8 +362,8 @@
             }
         }
         
-        // Check session on load
-        checkSession();
+        // Check on page load
+        checkVALogin();
 
                 let currentJobId = null;
         let timerInterval = null;
@@ -641,10 +641,7 @@
             try {
                 const res = await fetch(`${API_BASE}/api/va/jobs/${currentJobId}/time`, {
                     method: 'POST',
-                    headers: {
-                        ,
-                        'Content-Type': 'application/json'
-                    },
+                    headers: { 'Content-Type': 'application/json' }, credentials: 'include',
                     body: JSON.stringify({ total_time_seconds: timerSeconds })
                 });
 
@@ -726,10 +723,7 @@
             try {
                 const res = await fetch(`${API_BASE}/api/va/jobs/${currentJobId}/notes`, {
                     method: 'POST',
-                    headers: {
-                        ,
-                        'Content-Type': 'application/json'
-                    },
+                    headers: { 'Content-Type': 'application/json' }, credentials: 'include',
                     body: JSON.stringify({ notes })
                 });
 
