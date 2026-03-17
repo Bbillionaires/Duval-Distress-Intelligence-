@@ -1931,6 +1931,104 @@ def api_va_login():
         return jsonify({"ok": False, "error": "Login failed"}), 500
 
 
+@app.get("/api/va/profile")
+def api_va_profile():
+    """Get VA profile using session cookie"""
+    va_session = request.cookies.get("va_session", "")
+    
+    if not va_session:
+        return jsonify({"ok": False, "error": "Not authenticated"}), 401
+    
+    try:
+        with db_conn() as conn:
+            with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+                # Get VA from session
+                cur.execute("""
+                    SELECT v.id, v.email, v.name, v.phone, v.active, v.total_completed, v.total_earned
+                    FROM va_sessions s
+                    JOIN va_users v ON v.id = s.va_user_id
+                    WHERE s.token = %s AND s.expires_at > NOW()
+                """, (va_session,))
+                
+                va = cur.fetchone()
+                
+                if not va:
+                    return jsonify({"ok": False, "error": "Invalid session"}), 401
+                
+                # Get job counts
+                cur.execute("""
+                    SELECT 
+                        COUNT(*) FILTER (WHERE status IN ('claimed', 'in_progress')) as active_jobs,
+                        COUNT(*) FILTER (WHERE status = 'completed') as completed_jobs
+                    FROM service_requests
+                    WHERE claimed_by_va_id = %s
+                """, (va['id'],))
+                
+                counts = cur.fetchone()
+                
+                va_data = dict(va)
+                va_data['total_earned'] = float(va_data.get('total_earned') or 0)
+                va_data['active_jobs'] = counts['active_jobs'] if counts else 0
+                va_data['completed_jobs'] = counts['completed_jobs'] if counts else 0
+                
+                return jsonify({"ok": True, **va_data})
+    
+    except Exception as e:
+        print(f"❌ VA profile error: {e}")
+        return jsonify({"ok": False, "error": "Failed to load profile"}), 500
+
+
+@app.get("/api/va/jobs/available")
+def api_va_jobs_available():
+    """Get available jobs for VA using session cookie"""
+    va_session = request.cookies.get("va_session", "")
+    
+    if not va_session:
+        return jsonify({"ok": False, "error": "Not authenticated"}), 401
+    
+    try:
+        with db_conn() as conn:
+            with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+                # Verify VA session
+                cur.execute("""
+                    SELECT va_user_id
+                    FROM va_sessions
+                    WHERE token = %s AND expires_at > NOW()
+                """, (va_session,))
+                
+                session = cur.fetchone()
+                
+                if not session:
+                    return jsonify({"ok": False, "error": "Invalid session"}), 401
+                
+                # Get available jobs
+                cur.execute("""
+                    SELECT sr.*, p.address, p.parcel, p.owner
+                    FROM service_requests sr
+                    LEFT JOIN property_listings p ON p.id = sr.property_id
+                    WHERE sr.status = 'pending'
+                    ORDER BY sr.created_at ASC
+                    LIMIT 50
+                """)
+                
+                jobs = cur.fetchall()
+                
+                # Convert to dict and format
+                jobs_list = []
+                for job in jobs:
+                    job_dict = dict(job)
+                    # Convert any Decimal to float
+                    if 'va_payout' in job_dict and job_dict['va_payout']:
+                        job_dict['va_payout'] = float(job_dict['va_payout'])
+                    jobs_list.append(job_dict)
+                
+                return jsonify({"ok": True, "jobs": jobs_list})
+    
+    except Exception as e:
+        print(f"❌ VA available jobs error: {e}")
+        return jsonify({"ok": False, "error": "Failed to load jobs"}), 500
+
+
 @app.get("/api/va/jobs")
 def api_va_jobs():
     """Get jobs for VA - available, active, and pending review"""
