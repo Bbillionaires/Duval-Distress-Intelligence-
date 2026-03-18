@@ -1,0 +1,798 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>VA Portal - Service Requests</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+
+        .header {
+            background: white;
+            padding: 20px 30px;
+            border-radius: 10px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 30px;
+        }
+
+        .header h1 {
+            color: #2d3748;
+            font-size: 24px;
+        }
+
+        .logout-btn {
+            padding: 10px 20px;
+            background: #f56565;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: 500;
+        }
+
+        .tabs {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+
+        .tab {
+            padding: 12px 24px;
+            background: white;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 600;
+            color: #718096;
+            transition: all 0.2s;
+        }
+
+        .tab.active {
+            background: #667eea;
+            color: white;
+        }
+
+        .tab-content {
+            display: none;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        .card {
+            background: white;
+            border-radius: 10px;
+            padding: 25px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+
+        .job-card {
+            border-left: 4px solid #667eea;
+            transition: transform 0.2s;
+        }
+
+        .job-card:hover {
+            transform: translateX(5px);
+        }
+
+        .job-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: start;
+            margin-bottom: 15px;
+        }
+
+        .job-title {
+            font-size: 18px;
+            font-weight: 600;
+            color: #2d3748;
+        }
+
+        .status-badge {
+            padding: 5px 12px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+
+        .status-available { background: #c6f6d5; color: #22543d; }
+        .status-in_progress { background: #fed7d7; color: #742a2a; }
+        .status-completed { background: #bee3f8; color: #2c5282; }
+
+        .job-details {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin: 15px 0;
+            padding: 15px;
+            background: #f7fafc;
+            border-radius: 8px;
+        }
+
+        .detail-item {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .detail-label {
+            font-size: 12px;
+            color: #718096;
+            margin-bottom: 4px;
+        }
+
+        .detail-value {
+            font-weight: 600;
+            color: #2d3748;
+        }
+
+        .timer-display {
+            font-size: 32px;
+            font-weight: 700;
+            color: #667eea;
+            text-align: center;
+            padding: 20px;
+            background: #f7fafc;
+            border-radius: 8px;
+            margin: 15px 0;
+            font-family: 'Courier New', monospace;
+        }
+
+        .timer-controls {
+            display: flex;
+            gap: 10px;
+            justify-content: center;
+            margin-top: 15px;
+        }
+
+        .btn {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: 500;
+            transition: all 0.2s;
+        }
+
+        .btn-primary { background: #667eea; color: white; }
+        .btn-success { background: #48bb78; color: white; }
+        .btn-danger { background: #f56565; color: white; }
+        .btn-secondary { background: #e2e8f0; color: #2d3748; }
+
+        .btn:hover {
+            opacity: 0.9;
+            transform: translateY(-2px);
+        }
+
+        .file-upload {
+            border: 2px dashed #cbd5e0;
+            border-radius: 8px;
+            padding: 30px;
+            text-align: center;
+            margin: 20px 0;
+            transition: all 0.2s;
+        }
+
+        .file-upload:hover {
+            border-color: #667eea;
+            background: #f7fafc;
+        }
+
+        .file-upload input[type="file"] {
+            display: none;
+        }
+
+        .file-list {
+            margin-top: 20px;
+        }
+
+        .file-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 12px;
+            background: #f7fafc;
+            border-radius: 6px;
+            margin-bottom: 10px;
+        }
+
+        .notes-section textarea {
+            width: 100%;
+            min-height: 120px;
+            padding: 12px;
+            border: 1px solid #cbd5e0;
+            border-radius: 6px;
+            font-family: inherit;
+            resize: vertical;
+        }
+
+        .alert {
+            padding: 12px 16px;
+            border-radius: 6px;
+            margin-bottom: 15px;
+            font-weight: 500;
+        }
+
+        .alert-success { background: #c6f6d5; color: #22543d; }
+        .alert-error { background: #fed7d7; color: #742a2a; }
+        .alert-info { background: #bee3f8; color: #2c5282; }
+
+        .loading {
+            text-align: center;
+            padding: 40px;
+        }
+
+        .spinner {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #667eea;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0,0,0,0.5);
+            z-index: 1000;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .modal.show {
+            display: flex;
+        }
+
+        .modal-content {
+            background: white;
+            border-radius: 10px;
+            padding: 30px;
+            max-width: 600px;
+            width: 90%;
+            max-height: 80vh;
+            overflow-y: auto;
+        }
+
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+
+        .close-modal {
+            background: none;
+            border: none;
+            font-size: 24px;
+            cursor: pointer;
+            color: #718096;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🎯 VA Portal</h1>
+            <div style="display: flex; gap: 15px; align-items: center;">
+                <div style="text-align: right;">
+                    <div id="vaName" style="font-weight: 600; color: #2d3748;"></div>
+                    <div id="vaStats" style="font-size: 14px; color: #718096;"></div>
+                </div>
+                <button onclick="logout()" class="logout-btn">Logout</button>
+            </div>
+        </div>
+
+        <div class="tabs">
+            <button class="tab active" onclick="switchTab('available')">Available Jobs</button>
+            <button class="tab" onclick="switchTab('my-jobs')">My Jobs</button>
+            <button class="tab" onclick="switchTab('completed')">Completed</button>
+        </div>
+
+        <!-- Available Jobs Tab -->
+        <div id="available-tab" class="tab-content active">
+            <div id="availableJobsContainer"></div>
+        </div>
+
+        <!-- My Jobs Tab -->
+        <div id="my-jobs-tab" class="tab-content">
+            <div id="myJobsContainer"></div>
+        </div>
+
+        <!-- Completed Jobs Tab -->
+        <div id="completed-tab" class="tab-content">
+            <div id="completedJobsContainer"></div>
+        </div>
+    </div>
+
+    <!-- Job Details Modal -->
+    <div id="jobModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 id="modalTitle">Job Details</h2>
+                <button class="close-modal" onclick="closeModal()">&times;</button>
+            </div>
+            <div id="modalBody"></div>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE = 'https://real-estate-intel.onrender.com';
+        
+        // Check if VA is logged in
+        async function checkVALogin() {
+            try {
+                const res = await fetch(`${API_BASE}/api/va/profile`, { credentials: 'include' });
+                if (!res.ok) {
+                    window.location.href = '/login?type=va';
+                }
+            } catch (err) {
+                window.location.href = '/login?type=va';
+            }
+        }
+        
+        // Check on page load
+        checkVALogin();
+
+                let currentJobId = null;
+        let timerInterval = null;
+        let timerSeconds = 0;
+        let timerRunning = false;
+
+        // Load VA info
+        async function loadVAInfo() {
+            try {
+                const res = await fetch(`${API_BASE}/api/va/profile`, {
+                    credentials: 'include'
+                });
+                const data = await res.json();
+                if (data.ok) {
+                    document.getElementById('vaName').textContent = data.email;
+                    document.getElementById('vaStats').textContent = `Active: ${data.active_jobs || 0} | Completed: ${data.completed_jobs || 0}`;
+                }
+            } catch (err) {
+                console.error('Error loading VA info:', err);
+            }
+        }
+
+        // Switch tabs
+        function switchTab(tab) {
+            document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+            document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+            
+            event.target.classList.add('active');
+            document.getElementById(`${tab}-tab`).classList.add('active');
+
+            if (tab === 'available') loadAvailableJobs();
+            if (tab === 'my-jobs') loadMyJobs();
+            if (tab === 'completed') loadCompletedJobs();
+        }
+
+        // Load available jobs
+        async function loadAvailableJobs() {
+            const container = document.getElementById('availableJobsContainer');
+            container.innerHTML = '<div class="loading"><div class="spinner"></div><p>Loading jobs...</p></div>';
+
+            try {
+                const res = await fetch(`${API_BASE}/api/va/jobs/available`, {
+                    credentials: 'include'
+                });
+                const data = await res.json();
+
+                if (data.ok && data.jobs.length > 0) {
+                    container.innerHTML = data.jobs.map(job => createJobCard(job, 'available')).join('');
+                } else {
+                    container.innerHTML = '<div class="card"><p style="text-align:center; color:#718096;">No available jobs at the moment.</p></div>';
+                }
+            } catch (err) {
+                container.innerHTML = '<div class="alert alert-error">Error loading jobs. Please refresh.</div>';
+            }
+        }
+
+        // Load my jobs
+        async function loadMyJobs() {
+            const container = document.getElementById('myJobsContainer');
+            container.innerHTML = '<div class="loading"><div class="spinner"></div><p>Loading your jobs...</p></div>';
+
+            try {
+                const res = await fetch(`${API_BASE}/api/va/jobs/mine`, {
+                    credentials: 'include'
+                });
+                const data = await res.json();
+
+                if (data.ok && data.jobs.length > 0) {
+                    container.innerHTML = data.jobs.map(job => createJobCard(job, 'active')).join('');
+                } else {
+                    container.innerHTML = '<div class="card"><p style="text-align:center; color:#718096;">No active jobs. Claim one from Available Jobs!</p></div>';
+                }
+            } catch (err) {
+                container.innerHTML = '<div class="alert alert-error">Error loading jobs. Please refresh.</div>';
+            }
+        }
+
+        // Load completed jobs
+        async function loadCompletedJobs() {
+            const container = document.getElementById('completedJobsContainer');
+            container.innerHTML = '<div class="loading"><div class="spinner"></div><p>Loading completed jobs...</p></div>';
+
+            try {
+                const res = await fetch(`${API_BASE}/api/va/jobs/completed`, {
+                    credentials: 'include'
+                });
+                const data = await res.json();
+
+                if (data.ok && data.jobs.length > 0) {
+                    container.innerHTML = data.jobs.map(job => createJobCard(job, 'completed')).join('');
+                } else {
+                    container.innerHTML = '<div class="card"><p style="text-align:center; color:#718096;">No completed jobs yet.</p></div>';
+                }
+            } catch (err) {
+                container.innerHTML = '<div class="alert alert-error">Error loading jobs. Please refresh.</div>';
+            }
+        }
+
+        // Create job card HTML
+        function createJobCard(job, type) {
+            const statusClass = job.status === 'available' ? 'status-available' : 
+                               job.status === 'in_progress' ? 'status-in_progress' : 'status-completed';
+            
+            return `
+                <div class="card job-card">
+                    <div class="job-header">
+                        <div>
+                            <div class="job-title">${job.service_type?.replace('_', ' ').toUpperCase() || 'Service'}</div>
+                            <div style="color: #718096; font-size: 14px; margin-top: 4px;">Job #${job.id}</div>
+                        </div>
+                        <span class="status-badge ${statusClass}">${job.status}</span>
+                    </div>
+
+                    <div class="job-details">
+                        <div class="detail-item">
+                            <span class="detail-label">Property</span>
+                            <span class="detail-value">${job.property_address || 'N/A'}</span>
+                        </div>
+                        <div class="detail-item">
+                            <span class="detail-label">Parcel</span>
+                            <span class="detail-value">${job.parcel || 'N/A'}</span>
+                        </div>
+                        <div class="detail-item">
+                            <span class="detail-label">Amount</span>
+                            <span class="detail-value">$${job.amount_charged?.toFixed(2) || '0.00'}</span>
+                        </div>
+                        <div class="detail-item">
+                            <span class="detail-label">Your Payout</span>
+                            <span class="detail-value">$${job.va_payout?.toFixed(2) || '0.00'}</span>
+                        </div>
+                    </div>
+
+                    ${type === 'available' ? `
+                        <button class="btn btn-primary" onclick="claimJob(${job.id})">Claim This Job</button>
+                    ` : ''}
+                    
+                    ${type === 'active' ? `
+                        <button class="btn btn-success" onclick="openJobModal(${job.id})">Work on This Job</button>
+                    ` : ''}
+                    
+                    ${type === 'completed' ? `
+                        <div style="margin-top: 10px; color: #718096; font-size: 14px;">
+                            Completed: ${new Date(job.completed_at).toLocaleDateString()}
+                        </div>
+                    ` : ''}
+                </div>
+            `;
+        }
+
+        // Claim job
+        async function claimJob(jobId) {
+            if (!confirm('Claim this job?')) return;
+
+            try {
+                const res = await fetch(`${API_BASE}/api/va/jobs/${jobId}/claim`, {
+                    method: 'POST',
+                    credentials: 'include'
+                });
+                const data = await res.json();
+
+                if (data.ok) {
+                    alert('✅ Job claimed successfully!');
+                    loadAvailableJobs();
+                    loadVAInfo();
+                } else {
+                    alert('❌ Error: ' + data.error);
+                }
+            } catch (err) {
+                alert('❌ Network error. Please try again.');
+            }
+        }
+
+        // Open job modal
+        async function openJobModal(jobId) {
+            currentJobId = jobId;
+            const modal = document.getElementById('jobModal');
+            const body = document.getElementById('modalBody');
+            
+            body.innerHTML = '<div class="loading"><div class="spinner"></div></div>';
+            modal.classList.add('show');
+
+            try {
+                const res = await fetch(`${API_BASE}/api/va/jobs/${jobId}`, {
+                    credentials: 'include'
+                });
+                const data = await res.json();
+
+                if (data.ok) {
+                    renderJobModal(data.job);
+                } else {
+                    body.innerHTML = '<div class="alert alert-error">Error loading job details.</div>';
+                }
+            } catch (err) {
+                body.innerHTML = '<div class="alert alert-error">Network error. Please try again.</div>';
+            }
+        }
+
+        // Render job modal content
+        function renderJobModal(job) {
+            const body = document.getElementById('modalBody');
+            timerSeconds = job.total_time_seconds || 0;
+            
+            body.innerHTML = `
+                <div class="alert alert-info">
+                    <strong>Property:</strong> ${job.property_address || 'N/A'}<br>
+                    <strong>Parcel:</strong> ${job.parcel || 'N/A'}<br>
+                    <strong>Service:</strong> ${job.service_type?.replace('_', ' ').toUpperCase() || 'N/A'}
+                </div>
+
+                <h3 style="margin-top: 20px;">⏱️ Time Tracker</h3>
+                <div class="timer-display" id="timerDisplay">${formatTime(timerSeconds)}</div>
+                <div class="timer-controls">
+                    <button class="btn btn-success" id="startBtn" onclick="startTimer()">▶️ Start</button>
+                    <button class="btn btn-danger" id="pauseBtn" onclick="pauseTimer()" style="display:none;">⏸️ Pause</button>
+                    <button class="btn btn-secondary" onclick="saveTime()">💾 Save Time</button>
+                </div>
+
+                <h3 style="margin-top: 30px;">📁 File Upload</h3>
+                <div class="file-upload" onclick="document.getElementById('fileInput').click()">
+                    <input type="file" id="fileInput" multiple onchange="handleFileSelect(event)">
+                    <p style="color: #718096;">📎 Click to select files or drag & drop</p>
+                    <p style="color: #a0aec0; font-size: 12px; margin-top: 8px;">PDF, Images, Documents accepted</p>
+                </div>
+                <div id="fileList" class="file-list"></div>
+
+                <h3 style="margin-top: 30px;">📝 Notes</h3>
+                <div class="notes-section">
+                    <textarea id="jobNotes" placeholder="Add notes about your work...">${job.notes || ''}</textarea>
+                    <button class="btn btn-primary" style="margin-top: 10px;" onclick="saveNotes()">Save Notes</button>
+                </div>
+
+                <h3 style="margin-top: 30px;">✅ Complete Job</h3>
+                <button class="btn btn-success" onclick="completeJob()" style="width: 100%;">Mark as Completed</button>
+            `;
+
+            loadJobFiles(job.id);
+        }
+
+        // Timer functions
+        function formatTime(seconds) {
+            if (!seconds || isNaN(seconds)) return "00:00:00";
+            const h = Math.floor(seconds / 3600);
+            const m = Math.floor((seconds % 3600) / 60);
+            const s = Math.floor(seconds % 60);
+            return `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
+        }
+
+        function startTimer() {
+            if (timerRunning) return;
+            timerRunning = true;
+            
+            document.getElementById('startBtn').style.display = 'none';
+            document.getElementById('pauseBtn').style.display = 'inline-block';
+            
+            timerInterval = setInterval(() => {
+                timerSeconds++;
+                document.getElementById('timerDisplay').textContent = formatTime(timerSeconds);
+            }, 1000);
+        }
+
+        function pauseTimer() {
+            if (!timerRunning) return;
+            timerRunning = false;
+            
+            clearInterval(timerInterval);
+            document.getElementById('startBtn').style.display = 'inline-block';
+            document.getElementById('pauseBtn').style.display = 'none';
+            
+            saveTime();
+        }
+
+        async function saveTime() {
+            if (!currentJobId) return;
+
+            try {
+                const res = await fetch(`${API_BASE}/api/va/jobs/${currentJobId}/time`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' }, credentials: 'include',
+                    body: JSON.stringify({ total_time_seconds: timerSeconds })
+                });
+
+                const data = await res.json();
+                if (data.ok) {
+                    showAlert('success', '✅ Time saved!');
+                } else {
+                    showAlert('error', '❌ Error saving time');
+                }
+            } catch (err) {
+                showAlert('error', '❌ Network error');
+            }
+        }
+
+        // File handling
+        async function handleFileSelect(event) {
+            const files = event.target.files;
+            if (!files.length) return;
+
+            for (let file of files) {
+                await uploadFile(file);
+            }
+        }
+
+        async function uploadFile(file) {
+            if (!currentJobId) return;
+
+            const formData = new FormData();
+            formData.append('file', file);
+
+            try {
+                const res = await fetch(`${API_BASE}/api/va/jobs/${currentJobId}/files`, {
+                    method: 'POST',
+                    credentials: 'include',
+                    body: formData
+                });
+
+                const data = await res.json();
+                if (data.ok) {
+                    showAlert('success', `✅ ${file.name} uploaded!`);
+                    loadJobFiles(currentJobId);
+                } else {
+                    showAlert('error', `❌ Error uploading ${file.name}`);
+                }
+            } catch (err) {
+                showAlert('error', `❌ Network error uploading ${file.name}`);
+            }
+        }
+
+        async function loadJobFiles(jobId) {
+            try {
+                const res = await fetch(`${API_BASE}/api/va/jobs/${jobId}/files`, {
+                    credentials: 'include'
+                });
+                const data = await res.json();
+
+                const fileList = document.getElementById('fileList');
+                if (data.ok && data.files && data.files.length > 0) {
+                    fileList.innerHTML = data.files.map(file => `
+                        <div class="file-item">
+                            <span>📄 ${file.original_filename || file.file_name}</span>
+                            <button class="btn btn-secondary" onclick="window.open('${file.file_url}', '_blank')">View</button>
+                        </div>
+                    `).join('');
+                } else {
+                    fileList.innerHTML = '<p style="color: #718096; text-align: center;">No files uploaded yet</p>';
+                }
+            } catch (err) {
+                console.error('Error loading files:', err);
+            }
+        }
+
+        // Save notes
+        async function saveNotes() {
+            if (!currentJobId) return;
+
+            const notes = document.getElementById('jobNotes').value;
+
+            try {
+                const res = await fetch(`${API_BASE}/api/va/jobs/${currentJobId}/notes`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' }, credentials: 'include',
+                    body: JSON.stringify({ notes })
+                });
+
+                const data = await res.json();
+                if (data.ok) {
+                    showAlert('success', '✅ Notes saved!');
+                } else {
+                    showAlert('error', '❌ Error saving notes');
+                }
+            } catch (err) {
+                showAlert('error', '❌ Network error');
+            }
+        }
+
+        // Complete job
+        async function completeJob() {
+            if (!currentJobId) return;
+            if (!confirm('Mark this job as completed?')) return;
+
+            try {
+                const res = await fetch(`${API_BASE}/api/va/jobs/${currentJobId}/complete`, {
+                    method: 'POST',
+                    credentials: 'include'
+                });
+
+                const data = await res.json();
+                if (data.ok) {
+                    alert('✅ Job completed successfully!');
+                    closeModal();
+                    loadMyJobs();
+                    loadVAInfo();
+                } else {
+                    alert('❌ Error: ' + data.error);
+                }
+            } catch (err) {
+                alert('❌ Network error. Please try again.');
+            }
+        }
+
+        // Modal controls
+        function closeModal() {
+            if (timerRunning) {
+                pauseTimer();
+            }
+            document.getElementById('jobModal').classList.remove('show');
+            currentJobId = null;
+        }
+
+        // Alert helper
+        function showAlert(type, message) {
+            const alertDiv = document.createElement('div');
+            alertDiv.className = `alert alert-${type}`;
+            alertDiv.textContent = message;
+            
+            const modalBody = document.getElementById('modalBody');
+            modalBody.insertBefore(alertDiv, modalBody.firstChild);
+            
+            setTimeout(() => alertDiv.remove(), 3000);
+        }
+
+        // Logout
+        function logout() {
+            localStorage.removeItem('token');
+            window.location.href = 'login.html';
+        }
+
+        // Initialize
+        loadVAInfo();
+        loadAvailableJobs();
+    </script>
+</body>
+</html>
