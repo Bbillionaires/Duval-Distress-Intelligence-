@@ -409,13 +409,27 @@
                     credentials: 'include'
                 });
                 const data = await res.json();
+                
+                console.log('✅ Available jobs data:', data);
+                console.log('✅ Jobs array:', data.jobs);
+                console.log('✅ First job:', data.jobs[0]);
 
                 if (data.ok && data.jobs.length > 0) {
-                    container.innerHTML = data.jobs.map(job => createJobCard(job, 'available')).join('');
+                    console.log('✅ Creating job cards for', data.jobs.length, 'jobs');
+                    const jobCards = data.jobs.map(job => {
+                        try {
+                            return createJobCard(job, 'available');
+                        } catch (err) {
+                            console.error('❌ Error creating card for job:', job, err);
+                            return '';
+                        }
+                    });
+                    container.innerHTML = jobCards.join('');
                 } else {
                     container.innerHTML = '<div class="card"><p style="text-align:center; color:#718096;">No available jobs at the moment.</p></div>';
                 }
             } catch (err) {
+                console.error('❌ Error in loadAvailableJobs:', err);
                 container.innerHTML = '<div class="alert alert-error">Error loading jobs. Please refresh.</div>';
             }
         }
