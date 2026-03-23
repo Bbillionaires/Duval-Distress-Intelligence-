@@ -502,11 +502,11 @@
                         </div>
                         <div class="detail-item">
                             <span class="detail-label">Amount</span>
-                            <span class="detail-value">$${job.amount_charged?.toFixed(2) || '0.00'}</span>
+                            <span class="detail-value">$${parseFloat(job.amount_charged || 0).toFixed(2)}</span>
                         </div>
                         <div class="detail-item">
                             <span class="detail-label">Your Payout</span>
-                            <span class="detail-value">$${job.va_payout?.toFixed(2) || '0.00'}</span>
+                            <span class="detail-value">$${parseFloat(job.va_payout || 0).toFixed(2)}</span>
                         </div>
                     </div>
 
