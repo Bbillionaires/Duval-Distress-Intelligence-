@@ -1,5 +1,4 @@
 """
-# VA Portal Complete - 2026-03-18
 Flask App with Automated Tax Lead Scraping - SaaS Ready
 
 Features:
@@ -104,15 +103,15 @@ def db_conn():
         try:
             conn = psycopg2.connect(dsn)
             if attempt > 0:
-                print(f"‚o. Database connection successful on attempt {attempt + 1}")
+                print(f"‚úÖ Database connection successful on attempt {attempt + 1}")
             return conn
         except psycopg2.OperationalError as e:
             if attempt < 2:  # Not the last attempt
                 wait_time = (attempt + 1) * 3  # 3s, 6s
-                print(f"‚s†Ô,? Database connection failed (attempt {attempt + 1}/3), retrying in {wait_time}s...")
+                print(f"‚ö†Ô∏è Database connection failed (attempt {attempt + 1}/3), retrying in {wait_time}s...")
                 time.sleep(wait_time)
             else:
-                print(f"‚?O Database connection failed after 3 attempts")
+                print(f"‚ùå Database connection failed after 3 attempts")
                 raise
 
 
@@ -410,8 +409,8 @@ def api_forgot_password():
                 
                 reset_url = f"https://real-estate-intel.onrender.com/reset-password?token={token}"
                 
-                print(f"dY"? Password reset requested for {email}")
-                print(f"dY" Reset URL: {reset_url}")
+                print(f"üîê Password reset requested for {email}")
+                print(f"üìß Reset URL: {reset_url}")
                 
                 # TODO: Send email with reset link in production
                 
@@ -424,7 +423,7 @@ def api_forgot_password():
                 })
     
     except Exception as e:
-        print(f"‚?O Forgot password error: {e}")
+        print(f"‚ùå Forgot password error: {e}")
         return jsonify({"ok": False, "error": "Failed to process request"}), 500
 
 
@@ -479,7 +478,7 @@ def api_reset_password():
                 
                 conn.commit()
                 
-                print(f"‚o. Password reset successful for {email} ({user_type})")
+                print(f"‚úÖ Password reset successful for {email} ({user_type})")
                 
                 return jsonify({
                     "ok": True,
@@ -488,7 +487,7 @@ def api_reset_password():
                 })
     
     except Exception as e:
-        print(f"‚?O Reset password error: {e}")
+        print(f"‚ùå Reset password error: {e}")
         return jsonify({"ok": False, "error": "Failed to reset password"}), 500
 
 
@@ -522,7 +521,7 @@ def api_verify_reset_token(token):
                 })
     
     except Exception as e:
-        print(f"‚?O Verify token error: {e}")
+        print(f"‚ùå Verify token error: {e}")
         return jsonify({"ok": False, "valid": False, "error": "Failed to verify"}), 500
 
 
@@ -1019,7 +1018,7 @@ def classify_stage_from_cert(cert_status, issued_date_str, deed_status):
             # Certificate exists but less than 1 year old
             return 'unpaid_new'
     except Exception as e:
-        print(f"‚s†Ô,? Classification error: {e}, issued_date={issued_date_str}")
+        print(f"‚ö†Ô∏è Classification error: {e}, issued_date={issued_date_str}")
         return 'pre_lien'
 
 
@@ -1064,7 +1063,7 @@ def process_excel_batch(rows, county):
             continue
     
     # Process all parcels in a single transaction for speed
-    print(f"dY"¶ Grouped into {len(parcel_groups)} unique parcels (from {len(rows)} rows)")
+    print(f"üì¶ Grouped into {len(parcel_groups)} unique parcels (from {len(rows)} rows)")
     
     with db_conn() as conn:
         with conn.cursor() as cur:
@@ -1157,11 +1156,11 @@ def process_excel_batch(rows, county):
                     imported += 1
                     
                 except Exception as e:
-                    error_msg = f"‚?O ERROR for parcel {parcel}: {str(e)}"
+                    error_msg = f"‚ùå ERROR for parcel {parcel}: {str(e)}"
                     print(error_msg)
                     errors.append(error_msg)
                     if len(errors) > 20:
-                        print(f"‚s†Ô,? Too many errors, stopping at 20. Total errors so far: {len(errors)}")
+                        print(f"‚ö†Ô∏è Too many errors, stopping at 20. Total errors so far: {len(errors)}")
                         break
             
             # Commit all changes at once
@@ -1200,7 +1199,7 @@ def api_upload_batch(county="duval"):
         
         if is_excel:
             # Excel file processing
-            print(f"dY"S Starting Excel upload for {county}...")
+            print(f"üìä Starting Excel upload for {county}...")
             wb = load_workbook(file.stream, read_only=True, data_only=True)
             ws = wb.active
             
@@ -1232,11 +1231,11 @@ def api_upload_batch(county="duval"):
                 errors.extend(result['errors'])
             
             wb.close()
-            print(f"‚o. Upload complete: {imported} imported, {skipped} skipped")
+            print(f"‚úÖ Upload complete: {imported} imported, {skipped} skipped")
         
         else:
             # CSV/TSV file processing
-            print(f"dY"S Starting CSV upload for {county}...")
+            print(f"üìä Starting CSV upload for {county}...")
             file_content = file.read().decode('utf-8', errors='ignore')
             
             # Detect delimiter (tab or comma)
@@ -1267,7 +1266,7 @@ def api_upload_batch(county="duval"):
                 imported += result['imported']
                 errors.extend(result['errors'])
             
-            print(f"‚o. Upload complete: {imported} imported, {skipped} skipped")
+            print(f"‚úÖ Upload complete: {imported} imported, {skipped} skipped")
         
         return jsonify({
             "ok": True,
@@ -1285,13 +1284,13 @@ def api_upload_batch(county="duval"):
 # All tables already exist, commenting out to avoid init error
 # try:
 #     db_init()
-#     print("‚o. Database initialized successfully!")
+#     print("‚úÖ Database initialized successfully!")
 # except Exception as e:
 #     import traceback
-#     print(f"‚s†Ô,?  Database init failed: {e}")
-#     print(f"‚s†Ô,?  Full traceback: {traceback.format_exc()}")
+#     print(f"‚ö†Ô∏è  Database init failed: {e}")
+#     print(f"‚ö†Ô∏è  Full traceback: {traceback.format_exc()}")
 
-print("‚s†Ô,?  db_init() disabled - tables already exist in database")
+print("‚ö†Ô∏è  db_init() disabled - tables already exist in database")
 
 
 # ========== STRIPE PAYMENT API ==========
@@ -1352,7 +1351,7 @@ def create_payment_intent():
                 })
     
     except Exception as e:
-        print(f"‚?O Create payment intent error: {e}")
+        print(f"‚ùå Create payment intent error: {e}")
         return jsonify({"ok": False, "error": "Payment failed"}), 500
 
 
@@ -1441,10 +1440,10 @@ def stripe_webhook():
                     total_amount = float(pricing['price_charged']) + tip_amount
                     update_user_rewards_tracking(user_email, amount_spent=total_amount, time_seconds=0)
                     
-                    print(f"‚o. Service request created from payment: {payment_intent['id']}")
+                    print(f"‚úÖ Service request created from payment: {payment_intent['id']}")
         
         except Exception as e:
-            print(f"‚?O Webhook processing error: {e}")
+            print(f"‚ùå Webhook processing error: {e}")
             return jsonify({"error": "Processing failed"}), 500
     
     return jsonify({"ok": True})
@@ -1478,7 +1477,7 @@ def api_get_active_pricing():
                 return jsonify({"ok": True, "pricing": pricing})
     
     except Exception as e:
-        print(f"‚?O Get active pricing error: {e}")
+        print(f"‚ùå Get active pricing error: {e}")
         return jsonify({"ok": False, "error": "Failed to load pricing"}), 500
 
 
@@ -1556,7 +1555,7 @@ def api_user_create_service_request():
                 })
     
     except Exception as e:
-        print(f"‚?O Create service request error: {e}")
+        print(f"‚ùå Create service request error: {e}")
         return jsonify({"ok": False, "error": "Failed to create request"}), 500
 
 
@@ -1581,7 +1580,7 @@ def api_user_get_service_requests():
                 return jsonify({"ok": True, "requests": requests})
     
     except Exception as e:
-        print(f"‚?O Get user service requests error: {e}")
+        print(f"‚ùå Get user service requests error: {e}")
         return jsonify({"ok": False, "error": "Failed to load requests"}), 500
 
 
@@ -1607,7 +1606,7 @@ def api_admin_get_pricing():
                 return jsonify({"ok": True, "pricing": pricing})
     
     except Exception as e:
-        print(f"‚?O Get pricing error: {e}")
+        print(f"‚ùå Get pricing error: {e}")
         return jsonify({"ok": False, "error": "Failed to load pricing"}), 500
 
 
@@ -1644,7 +1643,7 @@ def api_admin_update_pricing(pricing_id):
                 return jsonify({"ok": True, "message": "Pricing updated"})
     
     except Exception as e:
-        print(f"‚?O Update pricing error: {e}")
+        print(f"‚ùå Update pricing error: {e}")
         return jsonify({"ok": False, "error": "Failed to update pricing"}), 500
 
 
@@ -1673,7 +1672,7 @@ def api_admin_toggle_pricing(pricing_id):
                 return jsonify({"ok": True, "message": "Status updated"})
     
     except Exception as e:
-        print(f"‚?O Toggle pricing error: {e}")
+        print(f"‚ùå Toggle pricing error: {e}")
         return jsonify({"ok": False, "error": "Failed to update status"}), 500
 
 
@@ -1700,7 +1699,7 @@ def api_admin_get_service_requests():
                 return jsonify({"ok": True, "requests": requests})
     
     except Exception as e:
-        print(f"‚?O Admin service requests error: {e}")
+        print(f"‚ùå Admin service requests error: {e}")
         return jsonify({"ok": False, "error": "Failed to load requests"}), 500
 
 
@@ -1763,7 +1762,7 @@ def api_admin_approve_request(request_id):
                 return jsonify({"ok": True, "message": "Request approved"})
     
     except Exception as e:
-        print(f"‚?O Approve request error: {e}")
+        print(f"‚ùå Approve request error: {e}")
         return jsonify({"ok": False, "error": "Failed to approve request"}), 500
 
 
@@ -1801,7 +1800,7 @@ def api_admin_reject_request(request_id):
                 return jsonify({"ok": True, "message": "Request rejected and returned to queue"})
     
     except Exception as e:
-        print(f"‚?O Reject request error: {e}")
+        print(f"‚ùå Reject request error: {e}")
         return jsonify({"ok": False, "error": "Failed to reject request"}), 500
 
 
@@ -1868,7 +1867,7 @@ def bulk_upload_properties():
         return jsonify({"ok": True, "inserted": inserted})
         
     except Exception as e:
-        print(f"‚?O Bulk upload error: {e}")
+        print(f"‚ùå Bulk upload error: {e}")
         return jsonify({"ok": False, "error": str(e)}), 500
 
 
@@ -1930,7 +1929,7 @@ def api_va_login():
                 return resp
     
     except Exception as e:
-        print(f"‚?O VA login error: {e}")
+        print(f"‚ùå VA login error: {e}")
         return jsonify({"ok": False, "error": "Login failed"}), 500
 
 
@@ -1977,7 +1976,7 @@ def api_va_profile():
                 return jsonify({"ok": True, **va_data})
     
     except Exception as e:
-        print(f"‚?O VA profile error: {e}")
+        print(f"‚ùå VA profile error: {e}")
         return jsonify({"ok": False, "error": "Failed to load profile"}), 500
 
 
@@ -2028,7 +2027,7 @@ def api_va_jobs_available():
                 return jsonify({"ok": True, "jobs": jobs_list})
     
     except Exception as e:
-        print(f"‚?O VA available jobs error: {e}")
+        print(f"‚ùå VA available jobs error: {e}")
         return jsonify({"ok": False, "error": "Failed to load jobs"}), 500
 
 
@@ -2087,7 +2086,7 @@ def api_va_jobs():
                 })
     
     except Exception as e:
-        print(f"‚?O VA jobs error: {e}")
+        print(f"‚ùå VA jobs error: {e}")
         return jsonify({"ok": False, "error": "Failed to load jobs"}), 500
 
 
@@ -2148,7 +2147,7 @@ def api_va_claim_job(job_id):
                 return jsonify({"ok": True, "message": "Job claimed successfully"})
     
     except Exception as e:
-        print(f"‚?O Claim job error: {e}")
+        print(f"‚ùå Claim job error: {e}")
         return jsonify({"ok": False, "error": "Failed to claim job"}), 500
 
 
@@ -2224,7 +2223,7 @@ def api_va_submit_job(job_id):
                 return jsonify({"ok": True, "message": "Results submitted for review"})
     
     except Exception as e:
-        print(f"‚?O Submit job error: {e}")
+        print(f"‚ùå Submit job error: {e}")
         return jsonify({"ok": False, "error": "Failed to submit results"}), 500
 
 
@@ -2271,7 +2270,7 @@ def api_va_cancel_job(job_id):
                 return jsonify({"ok": True, "message": "Job cancelled and returned to queue"})
     
     except Exception as e:
-        print(f"‚?O Cancel job error: {e}")
+        print(f"‚ùå Cancel job error: {e}")
         return jsonify({"ok": False, "error": "Failed to cancel job"}), 500
 # DUAL MODEL API - ADD TO app_saas_automated.py
 # JV Partners + End Buyers System
@@ -2328,7 +2327,7 @@ def admin_create_listing():
                 return jsonify({"ok": True, "listing_id": listing_id})
                 
     except Exception as e:
-        print(f"‚?O Create listing error: {e}")
+        print(f"‚ùå Create listing error: {e}")
         return jsonify({"ok": False, "error": str(e)}), 500
 
 
@@ -2371,7 +2370,7 @@ def admin_get_listings():
         return jsonify({"ok": True, "listings": listings})
         
     except Exception as e:
-        print(f"‚?O Get listings error: {e}")
+        print(f"‚ùå Get listings error: {e}")
         return jsonify({"ok": False, "error": str(e)}), 500
 
 
@@ -2416,7 +2415,7 @@ def admin_update_listing(listing_id):
                 return jsonify({"ok": True})
                 
     except Exception as e:
-        print(f"‚?O Update listing error: {e}")
+        print(f"‚ùå Update listing error: {e}")
         return jsonify({"ok": False, "error": str(e)}), 500
 
 
@@ -2441,7 +2440,7 @@ def admin_get_listing_claims(listing_id):
         return jsonify({"ok": True, "claims": claims})
         
     except Exception as e:
-        print(f"‚?O Get claims error: {e}")
+        print(f"‚ùå Get claims error: {e}")
         return jsonify({"ok": False, "error": str(e)}), 500
 
 
@@ -2471,7 +2470,7 @@ def admin_approve_buyer(claim_id):
         return jsonify({"ok": True})
         
     except Exception as e:
-        print(f"‚?O Approve buyer error: {e}")
+        print(f"‚ùå Approve buyer error: {e}")
         return jsonify({"ok": False, "error": str(e)}), 500
 
 
@@ -2535,7 +2534,7 @@ def admin_close_jv_deal(claim_id):
                 })
                 
     except Exception as e:
-        print(f"‚?O Close deal error: {e}")
+        print(f"‚ùå Close deal error: {e}")
         return jsonify({"ok": False, "error": str(e)}), 500
 
 
@@ -2562,7 +2561,7 @@ def jv_get_available_listings():
         return jsonify({"ok": True, "listings": listings})
         
     except Exception as e:
-        print(f"‚?O Get JV listings error: {e}")
+        print(f"‚ùå Get JV listings error: {e}")
         return jsonify({"ok": False, "error": str(e)}), 500
 
 
@@ -2609,7 +2608,7 @@ def jv_claim_deal():
                 return jsonify({"ok": True, "claim_id": claim_id})
                 
     except Exception as e:
-        print(f"‚?O Claim deal error: {e}")
+        print(f"‚ùå Claim deal error: {e}")
         return jsonify({"ok": False, "error": str(e)}), 500
 
 
@@ -2640,7 +2639,7 @@ def jv_get_my_claims():
         return jsonify({"ok": True, "claims": claims})
         
     except Exception as e:
-        print(f"‚?O Get my claims error: {e}")
+        print(f"‚ùå Get my claims error: {e}")
         return jsonify({"ok": False, "error": str(e)}), 500
 
 
@@ -2679,7 +2678,7 @@ def jv_submit_buyer(claim_id):
         return jsonify({"ok": True})
         
     except Exception as e:
-        print(f"‚?O Submit buyer error: {e}")
+        print(f"‚ùå Submit buyer error: {e}")
         return jsonify({"ok": False, "error": str(e)}), 500
 
 
@@ -2713,7 +2712,7 @@ def jv_get_earnings():
         return jsonify({"ok": True, "earnings": earnings})
         
     except Exception as e:
-        print(f"‚?O Get earnings error: {e}")
+        print(f"‚ùå Get earnings error: {e}")
         return jsonify({"ok": False, "error": str(e)}), 500
 
 
@@ -2741,7 +2740,7 @@ def marketplace_get_listings():
         return jsonify({"ok": True, "listings": listings})
         
     except Exception as e:
-        print(f"‚?O Get marketplace listings error: {e}")
+        print(f"‚ùå Get marketplace listings error: {e}")
         return jsonify({"ok": False, "error": str(e)}), 500
 
 
@@ -2782,7 +2781,7 @@ def marketplace_get_listing_details(listing_id):
         return jsonify({"ok": True, "listing": listing})
         
     except Exception as e:
-        print(f"‚?O Get listing details error: {e}")
+        print(f"‚ùå Get listing details error: {e}")
         return jsonify({"ok": False, "error": str(e)}), 500
 
 
@@ -2847,7 +2846,7 @@ def marketplace_purchase_property():
                 })
                 
     except Exception as e:
-        print(f"‚?O Purchase error: {e}")
+        print(f"‚ùå Purchase error: {e}")
         return jsonify({"ok": False, "error": str(e)}), 500
 
 
@@ -2878,7 +2877,7 @@ def buyer_get_my_purchases():
         return jsonify({"ok": True, "purchases": purchases})
         
     except Exception as e:
-        print(f"‚?O Get purchases error: {e}")
+        print(f"‚ùå Get purchases error: {e}")
         return jsonify({"ok": False, "error": str(e)}), 500
 
 
@@ -2900,7 +2899,7 @@ def admin_revenue_summary():
         return jsonify({"ok": True, "revenue": revenue})
         
     except Exception as e:
-        print(f"‚?O Revenue summary error: {e}")
+        print(f"‚ùå Revenue summary error: {e}")
         return jsonify({"ok": False, "error": str(e)}), 500
 
 # END OF DUAL MODEL API
@@ -2965,7 +2964,7 @@ def update_user_rewards_tracking(user_email, amount_spent=0, time_seconds=0):
                 conn.commit()
                 return True
     except Exception as e:
-        print(f"‚?O Update rewards tracking error: {e}")
+        print(f"‚ùå Update rewards tracking error: {e}")
         return False
 
 
@@ -3009,7 +3008,7 @@ def get_user_rewards_status():
                         "spending_tier": 0, "spending_tier_name": "Bronze",
                         "base_reward_amount": 5.00, "total_minutes": 0,
                         "time_bonus_tier": 0, "time_bonus_name": "Explorer",
-                        "time_multiplier": 1.0, "time_badge": "dY"?",
+                        "time_multiplier": 1.0, "time_badge": "üîç",
                         "boosted_reward_amount": 5.00, "can_claim_reward": False,
                         "next_spending_tier": 100.00, "next_time_minutes": 180,
                         "lifetime_points": 0
@@ -3041,7 +3040,7 @@ def get_user_rewards_status():
                     "lifetime_points": int(status['lifetime_points'])
                 })
     except Exception as e:
-        print(f"‚?O Get rewards status error: {e}")
+        print(f"‚ùå Get rewards status error: {e}")
         return jsonify({"ok": False, "error": "Failed to load rewards status"}), 500
 
 
@@ -3106,7 +3105,7 @@ def claim_spending_reward():
                     "message": f"Claimed ${final_reward} {tier['tier_name']}!"
                 })
     except Exception as e:
-        print(f"‚?O Claim reward error: {e}")
+        print(f"‚ùå Claim reward error: {e}")
         return jsonify({"ok": False, "error": "Failed to claim reward"}), 500
 
 # ========== END REWARDS SYSTEM API ==========
@@ -3142,7 +3141,7 @@ def get_property_notes(property_id):
                 })
     
     except Exception as e:
-        print(f"‚?O Get notes error: {e}")
+        print(f"‚ùå Get notes error: {e}")
         return jsonify({"ok": False, "error": "Failed to load notes"}), 500
 
 
@@ -3186,7 +3185,7 @@ def add_property_note(property_id):
                 })
     
     except Exception as e:
-        print(f"‚?O Add note error: {e}")
+        print(f"‚ùå Add note error: {e}")
         return jsonify({"ok": False, "error": "Failed to add note"}), 500
 
 
@@ -3221,7 +3220,7 @@ def delete_property_note(property_id, note_id):
                 return jsonify({"ok": True, "message": "Note deleted"})
     
     except Exception as e:
-        print(f"‚?O Delete note error: {e}")
+        print(f"‚ùå Delete note error: {e}")
         return jsonify({"ok": False, "error": "Failed to delete note"}), 500
 
 
@@ -3329,7 +3328,7 @@ def upload_job_file(job_id):
                 })
     
     except Exception as e:
-        print(f"‚?O File upload error: {e}")
+        print(f"‚ùå File upload error: {e}")
         import traceback
         traceback.print_exc()
         return jsonify({"ok": False, "error": "Failed to upload file"}), 500
@@ -3358,7 +3357,7 @@ def get_job_files(job_id):
                 })
     
     except Exception as e:
-        print(f"‚?O Get files error: {e}")
+        print(f"‚ùå Get files error: {e}")
         return jsonify({"ok": False, "error": "Failed to load files"}), 500
 
 
@@ -3400,6 +3399,5 @@ def delete_job_file(job_id, file_id):
                 return jsonify({"ok": True, "message": "File deleted"})
     
     except Exception as e:
-        print(f"‚?O Delete file error: {e}")
+        print(f"‚ùå Delete file error: {e}")
         return jsonify({"ok": False, "error": "Failed to delete file"}), 500
-
