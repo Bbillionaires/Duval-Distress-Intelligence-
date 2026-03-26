@@ -1,812 +1,500 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>VA Portal - Service Requests</title>
-    <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>VA Portal — Real Estate Intelligence</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Segoe UI', system-ui, sans-serif; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); min-height: 100vh; color: #fff; }
 
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            min-height: 100vh;
-            padding: 20px;
-        }
+  /* LOGIN */
+  #login-screen { display:flex; align-items:center; justify-content:center; min-height:100vh; padding:20px; }
+  .login-card { background:rgba(255,255,255,0.15); backdrop-filter:blur(20px); border:1px solid rgba(255,255,255,0.3); border-radius:20px; padding:48px 40px; width:100%; max-width:420px; text-align:center; }
+  .login-icon { font-size:48px; margin-bottom:12px; }
+  .login-title { font-size:28px; font-weight:800; margin-bottom:6px; }
+  .login-subtitle { font-size:14px; opacity:0.8; margin-bottom:32px; }
+  .form-group { margin-bottom:16px; text-align:left; }
+  .form-label { display:block; font-size:12px; font-weight:700; letter-spacing:0.08em; text-transform:uppercase; opacity:0.8; margin-bottom:6px; }
+  .form-input { width:100%; background:rgba(255,255,255,0.2); border:1px solid rgba(255,255,255,0.35); border-radius:10px; padding:12px 16px; font-size:15px; color:#fff; outline:none; transition:all 0.2s; }
+  .form-input::placeholder { color:rgba(255,255,255,0.5); }
+  .form-input:focus { background:rgba(255,255,255,0.28); border-color:rgba(255,255,255,0.7); }
+  .login-error { background:rgba(239,68,68,0.25); border:1px solid rgba(239,68,68,0.5); border-radius:10px; padding:10px 16px; font-size:13px; margin-bottom:16px; display:none; text-align:left; }
+  .btn-login { width:100%; padding:14px; background:#fff; color:#764ba2; border:none; border-radius:12px; font-size:15px; font-weight:800; cursor:pointer; transition:all 0.2s; }
+  .btn-login:hover { background:#f0e8ff; transform:translateY(-1px); box-shadow:0 8px 24px rgba(0,0,0,0.2); }
+  .btn-login:disabled { opacity:0.6; transform:none; cursor:not-allowed; }
 
-        .container {
-            max-width: 1400px;
-            margin: 0 auto;
-        }
+  /* APP */
+  #app-screen { display:none; min-height:100vh; }
+  .topbar { background:rgba(255,255,255,0.15); backdrop-filter:blur(20px); border-bottom:1px solid rgba(255,255,255,0.2); padding:16px 28px; display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap; position:sticky; top:0; z-index:100; }
+  .topbar-brand { display:flex; align-items:center; gap:10px; }
+  .topbar-brand-text { font-size:18px; font-weight:800; }
+  .topbar-brand-sub { font-size:12px; opacity:0.7; }
+  .topbar-right { display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
+  .topbar-user { background:rgba(255,255,255,0.15); border:1px solid rgba(255,255,255,0.25); border-radius:20px; padding:6px 14px; font-size:13px; }
+  .btn-logout { background:rgba(255,255,255,0.15); border:1px solid rgba(255,255,255,0.3); color:#fff; padding:8px 16px; border-radius:20px; cursor:pointer; font-size:13px; font-weight:600; transition:all 0.2s; }
+  .btn-logout:hover { background:rgba(239,68,68,0.3); }
 
-        .header {
-            background: white;
-            padding: 20px 30px;
-            border-radius: 10px;
-            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 30px;
-        }
+  /* STATS */
+  .stats-row { display:grid; grid-template-columns:repeat(4,1fr); gap:16px; padding:24px 28px; max-width:1100px; margin:0 auto; }
+  .stat-card { background:rgba(255,255,255,0.15); backdrop-filter:blur(10px); border:1px solid rgba(255,255,255,0.25); border-radius:16px; padding:20px; text-align:center; }
+  .stat-num { font-size:32px; font-weight:800; margin-bottom:4px; }
+  .stat-lbl { font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:0.1em; opacity:0.75; }
 
-        .header h1 {
-            color: #2d3748;
-            font-size: 24px;
-        }
+  /* TABS */
+  .tabs-wrapper { padding:0 28px 0; max-width:1100px; margin:0 auto; }
+  .tabs { display:flex; gap:4px; background:rgba(255,255,255,0.1); border-radius:14px; padding:4px; width:fit-content; }
+  .tab { padding:10px 22px; border-radius:10px; font-size:13px; font-weight:700; cursor:pointer; transition:all 0.2s; opacity:0.7; display:flex; align-items:center; gap:8px; white-space:nowrap; }
+  .tab:hover { opacity:1; }
+  .tab.active { background:#fff; color:#764ba2; opacity:1; }
+  .tab-ct { background:rgba(118,75,162,0.2); border-radius:10px; padding:1px 8px; font-size:11px; }
+  .tab.active .tab-ct { background:#764ba2; color:#fff; }
 
-        .logout-btn {
-            padding: 10px 20px;
-            background: #f56565;
-            color: white;
-            border: none;
-            border-radius: 6px;
-            cursor: pointer;
-            font-weight: 500;
-        }
+  /* CONTENT */
+  .content { padding:20px 28px 48px; max-width:1100px; margin:0 auto; }
+  .panel { display:none; }
+  .panel.active { display:block; }
+  .jobs-grid { display:flex; flex-direction:column; gap:14px; margin-top:16px; }
 
-        .tabs {
-            display: flex;
-            gap: 10px;
-            margin-bottom: 20px;
-        }
+  /* JOB CARDS */
+  .job-card { background:rgba(255,255,255,0.97); color:#1a1a2e; border-radius:16px; padding:24px; box-shadow:0 4px 24px rgba(0,0,0,0.12); transition:transform 0.2s, box-shadow 0.2s; }
+  .job-card:hover { transform:translateY(-2px); box-shadow:0 8px 32px rgba(0,0,0,0.18); }
+  .job-hdr { display:flex; align-items:flex-start; justify-content:space-between; gap:12px; margin-bottom:16px; flex-wrap:wrap; }
+  .job-hdr-left { display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
+  .svc-badge { font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:0.08em; padding:4px 12px; border-radius:20px; }
+  .b-skiptrace { background:#f3e8ff; color:#7c3aed; }
+  .b-cold_call_block { background:#dbeafe; color:#1d4ed8; }
+  .b-postcard { background:#dcfce7; color:#15803d; }
+  .b-door_knock { background:#ffedd5; color:#c2410c; }
+  .b-default { background:#f1f5f9; color:#475569; }
+  .status-pill { font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:0.06em; padding:4px 12px; border-radius:20px; }
+  .s-pending { background:#fef3c7; color:#92400e; }
+  .s-claimed { background:#dbeafe; color:#1e40af; }
+  .s-submitted { background:#ede9fe; color:#6d28d9; }
+  .s-approved { background:#dcfce7; color:#166534; }
+  .s-rejected { background:#fee2e2; color:#991b1b; }
+  .payout { font-size:26px; font-weight:800; color:#15803d; white-space:nowrap; }
 
-        .tab {
-            padding: 12px 24px;
-            background: white;
-            border: none;
-            border-radius: 8px;
-            cursor: pointer;
-            font-weight: 600;
-            color: #718096;
-            transition: all 0.2s;
-        }
+  .job-meta { display:grid; grid-template-columns:repeat(auto-fill,minmax(170px,1fr)); gap:10px; margin-bottom:16px; background:#f8fafc; border-radius:10px; padding:14px; }
+  .meta-lbl { font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:0.1em; color:#94a3b8; margin-bottom:2px; }
+  .meta-val { font-size:14px; font-weight:600; color:#1e293b; }
 
-        .tab.active {
-            background: #667eea;
-            color: white;
-        }
+  /* BUTTONS */
+  .btn { padding:10px 20px; border-radius:10px; font-size:13px; font-weight:700; cursor:pointer; border:none; transition:all 0.2s; }
+  .btn:disabled { opacity:0.45; cursor:not-allowed; transform:none !important; }
+  .btn-claim { background:linear-gradient(135deg,#667eea,#764ba2); color:#fff; }
+  .btn-claim:hover:not(:disabled) { transform:translateY(-1px); box-shadow:0 4px 16px rgba(102,126,234,0.5); }
+  .btn-start { background:linear-gradient(135deg,#22c55e,#16a34a); color:#fff; }
+  .btn-start:hover:not(:disabled) { transform:translateY(-1px); box-shadow:0 4px 16px rgba(34,197,94,0.4); }
+  .btn-submit { background:linear-gradient(135deg,#667eea,#764ba2); color:#fff; }
+  .btn-submit:hover:not(:disabled) { transform:translateY(-1px); box-shadow:0 4px 16px rgba(118,75,162,0.5); }
+  .btn-retry { background:#f1f5f9; color:#475569; border:1px solid #e2e8f0; }
 
-        .tab-content {
-            display: none;
-        }
+  /* TIMER */
+  .timer-block { display:flex; align-items:center; gap:14px; padding:12px 16px; background:#f0fdf4; border:1px solid #bbf7d0; border-radius:10px; margin-bottom:14px; flex-wrap:wrap; }
+  .timer-lbl { font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:0.1em; color:#15803d; margin-bottom:2px; }
+  .timer-val { font-size:28px; font-weight:800; color:#15803d; font-family:'Courier New',monospace; letter-spacing:0.05em; }
+  .timer-val.running { animation:tpulse 1s ease-in-out infinite alternate; }
+  @keyframes tpulse { from{opacity:0.7} to{opacity:1} }
 
-        .tab-content.active {
-            display: block;
-        }
+  /* UPLOAD */
+  .upload-lbl { font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:0.1em; color:#64748b; display:block; margin-bottom:8px; }
+  .drop-zone { border:2px dashed #cbd5e1; border-radius:10px; padding:24px; text-align:center; cursor:pointer; transition:all 0.2s; background:#f8fafc; }
+  .drop-zone:hover, .drop-zone.over { border-color:#667eea; background:#f0f0ff; }
+  .drop-zone input { display:none; }
+  .drop-icon { font-size:28px; margin-bottom:8px; }
+  .drop-text { font-size:13px; color:#64748b; }
+  .drop-text strong { color:#667eea; }
+  .file-prev { display:flex; align-items:center; gap:10px; padding:10px 14px; background:#f0f9ff; border:1px solid #bae6fd; border-radius:8px; margin-top:8px; }
+  .file-name { font-size:13px; font-weight:600; color:#0369a1; flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .file-sz { font-size:12px; color:#64748b; white-space:nowrap; }
+  .file-rm { cursor:pointer; color:#ef4444; font-size:18px; flex-shrink:0; }
 
-        .card {
-            background: white;
-            border-radius: 10px;
-            padding: 25px;
-            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-            margin-bottom: 20px;
-        }
+  /* NOTES */
+  .notes-ta { width:100%; border:1px solid #e2e8f0; border-radius:10px; padding:12px 14px; font-size:13px; font-family:inherit; color:#1e293b; resize:vertical; min-height:80px; background:#f8fafc; outline:none; transition:border-color 0.2s; margin-bottom:14px; }
+  .notes-ta:focus { border-color:#667eea; background:#fff; }
 
-        .job-card {
-            border-left: 4px solid #667eea;
-            transition: transform 0.2s;
-        }
+  /* SUBMITTED */
+  .submitted-banner { background:linear-gradient(135deg,#ede9fe,#f3e8ff); border:1px solid #c4b5fd; border-radius:10px; padding:14px 18px; font-size:14px; font-weight:600; color:#5b21b6; }
 
-        .job-card:hover {
-            transform: translateX(5px);
-        }
+  /* PROOF */
+  .proof-thumb { width:72px; height:72px; object-fit:cover; border-radius:8px; border:1px solid #e2e8f0; cursor:pointer; transition:transform 0.2s; }
+  .proof-thumb:hover { transform:scale(1.05); }
+  .proof-link { font-size:13px; color:#667eea; font-weight:600; text-decoration:none; }
 
-        .job-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: start;
-            margin-bottom: 15px;
-        }
+  /* EMPTY / ERROR */
+  .empty-state { text-align:center; padding:60px 20px; background:rgba(255,255,255,0.08); border:1px solid rgba(255,255,255,0.15); border-radius:16px; margin-top:16px; }
+  .empty-icon { font-size:48px; margin-bottom:12px; opacity:0.6; }
+  .empty-title { font-size:18px; font-weight:700; margin-bottom:6px; }
+  .empty-text { font-size:14px; opacity:0.75; }
+  .error-state { text-align:center; padding:48px 24px; background:rgba(239,68,68,0.12); border:1px solid rgba(239,68,68,0.3); border-radius:16px; margin-top:16px; }
 
-        .job-title {
-            font-size: 18px;
-            font-weight: 600;
-            color: #2d3748;
-        }
+  /* LOADING */
+  .loading-state { display:flex; align-items:center; justify-content:center; gap:10px; padding:48px; color:rgba(255,255,255,0.75); font-size:14px; }
+  .spinner { width:20px; height:20px; border:2px solid rgba(255,255,255,0.3); border-top-color:#fff; border-radius:50%; animation:spin 0.8s linear infinite; }
+  @keyframes spin { to { transform:rotate(360deg); } }
 
-        .status-badge {
-            padding: 5px 12px;
-            border-radius: 20px;
-            font-size: 12px;
-            font-weight: 600;
-            text-transform: uppercase;
-        }
+  /* TOAST */
+  #toasts { position:fixed; bottom:24px; right:24px; display:flex; flex-direction:column; gap:10px; z-index:9999; pointer-events:none; }
+  .toast { background:#fff; color:#1e293b; border-radius:12px; padding:14px 18px; font-size:14px; font-weight:600; box-shadow:0 8px 32px rgba(0,0,0,0.2); display:flex; align-items:center; gap:10px; animation:tIn 0.3s ease; pointer-events:all; min-width:280px; border-left:4px solid #667eea; }
+  .toast.success { border-left-color:#22c55e; }
+  .toast.error { border-left-color:#ef4444; }
+  @keyframes tIn { from{transform:translateX(120px);opacity:0} to{transform:translateX(0);opacity:1} }
 
-        .status-available { background: #c6f6d5; color: #22543d; }
-        .status-in_progress { background: #fed7d7; color: #742a2a; }
-        .status-completed { background: #bee3f8; color: #2c5282; }
-
-        .job-details {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-            gap: 15px;
-            margin: 15px 0;
-            padding: 15px;
-            background: #f7fafc;
-            border-radius: 8px;
-        }
-
-        .detail-item {
-            display: flex;
-            flex-direction: column;
-        }
-
-        .detail-label {
-            font-size: 12px;
-            color: #718096;
-            margin-bottom: 4px;
-        }
-
-        .detail-value {
-            font-weight: 600;
-            color: #2d3748;
-        }
-
-        .timer-display {
-            font-size: 32px;
-            font-weight: 700;
-            color: #667eea;
-            text-align: center;
-            padding: 20px;
-            background: #f7fafc;
-            border-radius: 8px;
-            margin: 15px 0;
-            font-family: 'Courier New', monospace;
-        }
-
-        .timer-controls {
-            display: flex;
-            gap: 10px;
-            justify-content: center;
-            margin-top: 15px;
-        }
-
-        .btn {
-            padding: 10px 20px;
-            border: none;
-            border-radius: 6px;
-            cursor: pointer;
-            font-weight: 500;
-            transition: all 0.2s;
-        }
-
-        .btn-primary { background: #667eea; color: white; }
-        .btn-success { background: #48bb78; color: white; }
-        .btn-danger { background: #f56565; color: white; }
-        .btn-secondary { background: #e2e8f0; color: #2d3748; }
-
-        .btn:hover {
-            opacity: 0.9;
-            transform: translateY(-2px);
-        }
-
-        .file-upload {
-            border: 2px dashed #cbd5e0;
-            border-radius: 8px;
-            padding: 30px;
-            text-align: center;
-            margin: 20px 0;
-            transition: all 0.2s;
-        }
-
-        .file-upload:hover {
-            border-color: #667eea;
-            background: #f7fafc;
-        }
-
-        .file-upload input[type="file"] {
-            display: none;
-        }
-
-        .file-list {
-            margin-top: 20px;
-        }
-
-        .file-item {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            padding: 12px;
-            background: #f7fafc;
-            border-radius: 6px;
-            margin-bottom: 10px;
-        }
-
-        .notes-section textarea {
-            width: 100%;
-            min-height: 120px;
-            padding: 12px;
-            border: 1px solid #cbd5e0;
-            border-radius: 6px;
-            font-family: inherit;
-            resize: vertical;
-        }
-
-        .alert {
-            padding: 12px 16px;
-            border-radius: 6px;
-            margin-bottom: 15px;
-            font-weight: 500;
-        }
-
-        .alert-success { background: #c6f6d5; color: #22543d; }
-        .alert-error { background: #fed7d7; color: #742a2a; }
-        .alert-info { background: #bee3f8; color: #2c5282; }
-
-        .loading {
-            text-align: center;
-            padding: 40px;
-        }
-
-        .spinner {
-            border: 4px solid #f3f3f3;
-            border-top: 4px solid #667eea;
-            border-radius: 50%;
-            width: 40px;
-            height: 40px;
-            animation: spin 1s linear infinite;
-            margin: 0 auto;
-        }
-
-        @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
-        }
-
-        .modal {
-            display: none;
-            position: fixed;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            background: rgba(0,0,0,0.5);
-            z-index: 1000;
-            align-items: center;
-            justify-content: center;
-        }
-
-        .modal.show {
-            display: flex;
-        }
-
-        .modal-content {
-            background: white;
-            border-radius: 10px;
-            padding: 30px;
-            max-width: 600px;
-            width: 90%;
-            max-height: 80vh;
-            overflow-y: auto;
-        }
-
-        .modal-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 20px;
-        }
-
-        .close-modal {
-            background: none;
-            border: none;
-            font-size: 24px;
-            cursor: pointer;
-            color: #718096;
-        }
-    </style>
+  @media(max-width:640px) {
+    .stats-row { grid-template-columns:repeat(2,1fr); padding:16px; }
+    .content,.tabs-wrapper { padding-left:16px; padding-right:16px; }
+    .topbar { padding:12px 16px; }
+  }
+</style>
 </head>
 <body>
-    <div class="container">
-        <div class="header">
-            <h1>🎯 VA Portal</h1>
-            <div style="display: flex; gap: 15px; align-items: center;">
-                <div style="text-align: right;">
-                    <div id="vaName" style="font-weight: 600; color: #2d3748;"></div>
-                    <div id="vaStats" style="font-size: 14px; color: #718096;"></div>
-                </div>
-                <button onclick="logout()" class="logout-btn">Logout</button>
-            </div>
-        </div>
 
-        <div class="tabs">
-            <button class="tab active" onclick="switchTab('available')">Available Jobs</button>
-            <button class="tab" onclick="switchTab('my-jobs')">My Jobs</button>
-            <button class="tab" onclick="switchTab('completed')">Completed</button>
-        </div>
-
-        <!-- Available Jobs Tab -->
-        <div id="available-tab" class="tab-content active">
-            <div id="availableJobsContainer"></div>
-        </div>
-
-        <!-- My Jobs Tab -->
-        <div id="my-jobs-tab" class="tab-content">
-            <div id="myJobsContainer"></div>
-        </div>
-
-        <!-- Completed Jobs Tab -->
-        <div id="completed-tab" class="tab-content">
-            <div id="completedJobsContainer"></div>
-        </div>
+<!-- LOGIN -->
+<div id="login-screen">
+  <div class="login-card">
+    <div class="login-icon">🏠</div>
+    <div class="login-title">Real Estate Intelligence</div>
+    <div class="login-subtitle">VA Portal — Sign in to access your jobs</div>
+    <div class="login-error" id="login-error"></div>
+    <div class="form-group">
+      <label class="form-label">Email Address</label>
+      <input type="email" class="form-input" id="login-email" placeholder="va@example.com" autocomplete="email">
     </div>
-
-    <!-- Job Details Modal -->
-    <div id="jobModal" class="modal">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h2 id="modalTitle">Job Details</h2>
-                <button class="close-modal" onclick="closeModal()">&times;</button>
-            </div>
-            <div id="modalBody"></div>
-        </div>
+    <div class="form-group" style="margin-bottom:24px">
+      <label class="form-label">Password</label>
+      <input type="password" class="form-input" id="login-password" placeholder="••••••••" autocomplete="current-password">
     </div>
+    <button class="btn-login" id="login-btn" onclick="doLogin()">Sign In</button>
+  </div>
+</div>
 
-    <script>
-        const API_BASE = 'https://real-estate-intel.onrender.com';
-        
-        // Check if VA is logged in
-        async function checkVALogin() {
-            try {
-                const res = await fetch(`${API_BASE}/api/va/profile`, { credentials: 'include' });
-                if (!res.ok) {
-                    window.location.href = '/login?type=va';
-                }
-            } catch (err) {
-                window.location.href = '/login?type=va';
-            }
-        }
-        
-        // Check on page load
-        checkVALogin();
+<!-- APP -->
+<div id="app-screen">
+  <div class="topbar">
+    <div class="topbar-brand">
+      <div style="font-size:24px">🏠</div>
+      <div><div class="topbar-brand-text">Real Estate Intelligence</div><div class="topbar-brand-sub">VA Portal</div></div>
+    </div>
+    <div class="topbar-right">
+      <div class="topbar-user">👤 <span id="va-email-display">—</span></div>
+      <button class="btn-logout" onclick="doLogout()">Log Out</button>
+    </div>
+  </div>
 
-                let currentJobId = null;
-        let timerInterval = null;
-        let timerSeconds = 0;
-        let timerRunning = false;
+  <div class="stats-row">
+    <div class="stat-card"><div class="stat-num" id="stat-available">—</div><div class="stat-lbl">Available Jobs</div></div>
+    <div class="stat-card"><div class="stat-num" id="stat-active">—</div><div class="stat-lbl">Active Jobs</div></div>
+    <div class="stat-card"><div class="stat-num" id="stat-completed">—</div><div class="stat-lbl">Completed</div></div>
+    <div class="stat-card"><div class="stat-num" id="stat-earned">$—</div><div class="stat-lbl">Total Earned</div></div>
+  </div>
 
-        // Load VA info
-        async function loadVAInfo() {
-            try {
-                const res = await fetch(`${API_BASE}/api/va/profile`, {
-                    credentials: 'include'
-                });
-                const data = await res.json();
-                if (data.ok) {
-                    document.getElementById('vaName').textContent = data.email;
-                    document.getElementById('vaStats').textContent = `Active: ${data.active_jobs || 0} | Completed: ${data.completed_jobs || 0}`;
-                }
-            } catch (err) {
-                console.error('Error loading VA info:', err);
-            }
-        }
+  <div class="tabs-wrapper">
+    <div class="tabs">
+      <div class="tab active" onclick="switchTab('available')" id="tab-available">📋 Available <span class="tab-ct" id="count-available">0</span></div>
+      <div class="tab" onclick="switchTab('mine')" id="tab-mine">⚡ My Jobs <span class="tab-ct" id="count-mine">0</span></div>
+      <div class="tab" onclick="switchTab('completed')" id="tab-completed">✅ Completed <span class="tab-ct" id="count-completed">0</span></div>
+    </div>
+  </div>
 
-        // Switch tabs
-        function switchTab(tab) {
-            document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
-            document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
-            
-            event.target.classList.add('active');
-            document.getElementById(`${tab}-tab`).classList.add('active');
+  <div class="content">
+    <div class="panel active" id="panel-available"><div id="avail-wrap"><div class="loading-state"><div class="spinner"></div> Loading available jobs…</div></div></div>
+    <div class="panel" id="panel-mine"><div id="mine-wrap"><div class="loading-state"><div class="spinner"></div> Loading your jobs…</div></div></div>
+    <div class="panel" id="panel-completed"><div id="done-wrap"><div class="loading-state"><div class="spinner"></div> Loading completed jobs…</div></div></div>
+  </div>
+</div>
 
-            if (tab === 'available') loadAvailableJobs();
-            if (tab === 'my-jobs') loadMyJobs();
-            if (tab === 'completed') loadCompletedJobs();
-        }
+<div id="toasts"></div>
 
-        // Load available jobs
-        async function loadAvailableJobs() {
-            const container = document.getElementById('availableJobsContainer');
-            container.innerHTML = '<div class="loading"><div class="spinner"></div><p>Loading jobs...</p></div>';
+<script>
+let currentVA = null, timers = {}, files = {};
 
-            try {
-                const res = await fetch(`${API_BASE}/api/va/jobs/available`, {
-                    credentials: 'include'
-                });
-                const data = await res.json();
-                
-                console.log('✅ Available jobs data:', data);
-                console.log('✅ Jobs array:', data.jobs);
-                console.log('✅ First job:', data.jobs[0]);
+// INIT
+window.addEventListener('DOMContentLoaded', async () => {
+  try {
+    const r = await fetch('/api/va/profile', { credentials:'include' });
+    if (r.ok) { const d = await r.json(); if (d.email) { currentVA = d; showApp(); return; } }
+  } catch(e) {}
+  showLogin();
+});
 
-                if (data.ok && data.jobs.length > 0) {
-                    console.log('✅ Creating job cards for', data.jobs.length, 'jobs');
-                    const jobCards = data.jobs.map(job => {
-                        try {
-                            return createJobCard(job, 'available');
-                        } catch (err) {
-                            console.error('❌ Error creating card for job:', job, err);
-                            return '';
-                        }
-                    });
-                    container.innerHTML = jobCards.join('');
-                } else {
-                    container.innerHTML = '<div class="card"><p style="text-align:center; color:#718096;">No available jobs at the moment.</p></div>';
-                }
-            } catch (err) {
-                console.error('❌ Error in loadAvailableJobs:', err);
-                container.innerHTML = '<div class="alert alert-error">Error loading jobs. Please refresh.</div>';
-            }
-        }
+function showLogin() { document.getElementById('login-screen').style.display='flex'; document.getElementById('app-screen').style.display='none'; }
+function showApp() {
+  document.getElementById('login-screen').style.display='none';
+  document.getElementById('app-screen').style.display='block';
+  document.getElementById('va-email-display').textContent = currentVA?.email||'';
+  Promise.all([loadAvailable(), loadMine(), loadDone()]);
+}
 
-        // Load my jobs
-        async function loadMyJobs() {
-            const container = document.getElementById('myJobsContainer');
-            container.innerHTML = '<div class="loading"><div class="spinner"></div><p>Loading your jobs...</p></div>';
+// AUTH
+async function doLogin() {
+  const email=document.getElementById('login-email').value.trim(), pw=document.getElementById('login-password').value;
+  const btn=document.getElementById('login-btn'), err=document.getElementById('login-error');
+  err.style.display='none';
+  if (!email||!pw) { showErr('Please enter email and password.'); return; }
+  btn.disabled=true; btn.textContent='Signing in…';
+  try {
+    const r = await fetch('/api/va/login',{method:'POST',headers:{'Content-Type':'application/json'},credentials:'include',body:JSON.stringify({email,password:pw})});
+    const d = await r.json();
+    if (r.ok && d.ok) { currentVA={email:d.email||email}; showApp(); }
+    else showErr(d.error||'Invalid credentials.');
+  } catch(e) { showErr('Connection error. Try again.'); }
+  finally { btn.disabled=false; btn.textContent='Sign In'; }
+}
+function showErr(m) { const e=document.getElementById('login-error'); e.textContent=m; e.style.display='block'; }
+document.addEventListener('keydown', e => { if (e.key==='Enter' && document.getElementById('login-screen').style.display!=='none') doLogin(); });
+async function doLogout() {
+  try { await fetch('/api/va/logout',{method:'POST',credentials:'include'}); } catch(e) {}
+  Object.values(timers).forEach(t=>clearInterval(t.interval)); timers={}; currentVA=null; showLogin();
+}
 
-            try {
-                const res = await fetch(`${API_BASE}/api/va/jobs/mine`, {
-                    credentials: 'include'
-                });
-                const data = await res.json();
+// TABS
+function switchTab(n) {
+  document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+  document.querySelectorAll('.panel').forEach(p=>p.classList.remove('active'));
+  document.getElementById('tab-'+n).classList.add('active');
+  document.getElementById('panel-'+n).classList.add('active');
+  if (n==='available') loadAvailable();
+  if (n==='mine') loadMine();
+  if (n==='completed') loadDone();
+}
 
-                if (data.ok && data.jobs.length > 0) {
-                    container.innerHTML = data.jobs.map(job => createJobCard(job, 'active')).join('');
-                } else {
-                    container.innerHTML = '<div class="card"><p style="text-align:center; color:#718096;">No active jobs. Claim one from Available Jobs!</p></div>';
-                }
-            } catch (err) {
-                container.innerHTML = '<div class="alert alert-error">Error loading jobs. Please refresh.</div>';
-            }
-        }
+// BADGE HELPER
+function badgeClass(st) { return ['skiptrace','cold_call_block','postcard','door_knock'].includes(st)?`b-${st}`:'b-default'; }
 
-        // Load completed jobs
-        async function loadCompletedJobs() {
-            const container = document.getElementById('completedJobsContainer');
-            container.innerHTML = '<div class="loading"><div class="spinner"></div><p>Loading completed jobs...</p></div>';
+// AVAILABLE
+async function loadAvailable() {
+  const c = document.getElementById('avail-wrap');
+  c.innerHTML = '<div class="loading-state"><div class="spinner"></div> Loading available jobs…</div>';
+  try {
+    const r = await fetch('/api/va/jobs/available',{credentials:'include'});
+    let d; try { d=await r.json(); } catch(e) { throw new Error('Invalid server response'); }
+    if (!r.ok) throw new Error(d.error||`Server error ${r.status}`);
+    const jobs = Array.isArray(d)?d:(d.jobs||[]);
+    document.getElementById('count-available').textContent = jobs.length;
+    document.getElementById('stat-available').textContent = jobs.length;
+    if (!jobs.length) { c.innerHTML=`<div class="empty-state"><div class="empty-icon">📭</div><div class="empty-title">No Available Jobs</div><div class="empty-text">Check back soon — new jobs are posted regularly.</div></div>`; return; }
+    c.innerHTML = '<div class="jobs-grid">'+jobs.map(j=>`
+      <div class="job-card" id="job-${j.id}">
+        <div class="job-hdr">
+          <div class="job-hdr-left">
+            <span class="svc-badge ${badgeClass(j.service_type)}">${(j.service_type||'task').replace(/_/g,' ')}</span>
+            <span class="status-pill s-pending">Pending</span>
+          </div>
+          <div class="payout">+$${parseFloat(j.va_payout||0).toFixed(2)}</div>
+        </div>
+        <div class="job-meta">
+          <div><div class="meta-lbl">Property Address</div><div class="meta-val">${j.property_address||j.address||'—'}</div></div>
+          <div><div class="meta-lbl">Owner</div><div class="meta-val">${j.owner_name||'Unknown'}</div></div>
+          <div><div class="meta-lbl">Parcel</div><div class="meta-val">${j.parcel||j.parcel_id||'—'}</div></div>
+          <div><div class="meta-lbl">Posted</div><div class="meta-val">${j.submitted_at?new Date(j.submitted_at).toLocaleDateString():'—'}</div></div>
+          <div><div class="meta-lbl">Client Pays</div><div class="meta-val">$${parseFloat(j.amount_charged||0).toFixed(2)}</div></div>
+        </div>
+        <div><button class="btn btn-claim" onclick="claimJob(${j.id})">⚡ Claim This Job</button></div>
+      </div>`).join('')+'</div>';
+  } catch(e) {
+    c.innerHTML=`<div class="error-state"><div style="font-size:36px;margin-bottom:12px">⚠️</div><div style="font-size:16px;font-weight:700;margin-bottom:8px">Failed to Load Jobs</div><div style="font-size:13px;opacity:0.8;margin-bottom:16px">${e.message}</div><button class="btn btn-retry" onclick="loadAvailable()">Try Again</button></div>`;
+  }
+}
 
-            try {
-                const res = await fetch(`${API_BASE}/api/va/jobs/completed`, {
-                    credentials: 'include'
-                });
-                const data = await res.json();
+// CLAIM
+async function claimJob(id) {
+  const card=document.getElementById('job-'+id), btn=card?.querySelector('.btn-claim');
+  if (btn) { btn.disabled=true; btn.textContent='Claiming…'; }
+  try {
+    const r=await fetch(`/api/va/jobs/${id}/claim`,{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'}});
+    const d=await r.json();
+    if (r.ok&&(d.ok||d.success||d.status==='claimed')) {
+      toast('✅ Job claimed! Switching to My Jobs…','success');
+      loadAvailable(); loadMine(); setTimeout(()=>switchTab('mine'),900);
+    } else { toast(d.error||'Failed to claim job','error'); if(btn){btn.disabled=false;btn.textContent='⚡ Claim This Job';} }
+  } catch(e) { toast('Connection error','error'); if(btn){btn.disabled=false;btn.textContent='⚡ Claim This Job';} }
+}
 
-                if (data.ok && data.jobs.length > 0) {
-                    container.innerHTML = data.jobs.map(job => createJobCard(job, 'completed')).join('');
-                } else {
-                    container.innerHTML = '<div class="card"><p style="text-align:center; color:#718096;">No completed jobs yet.</p></div>';
-                }
-            } catch (err) {
-                container.innerHTML = '<div class="alert alert-error">Error loading jobs. Please refresh.</div>';
-            }
-        }
+// MY JOBS
+async function loadMine() {
+  const c=document.getElementById('mine-wrap');
+  c.innerHTML='<div class="loading-state"><div class="spinner"></div> Loading your jobs…</div>';
+  try {
+    const r=await fetch('/api/va/jobs/mine',{credentials:'include'});
+    let d; try{d=await r.json();}catch(e){throw new Error('Invalid response');}
+    if (!r.ok) throw new Error(d.error||`Server error ${r.status}`);
+    const jobs=Array.isArray(d)?d:(d.jobs||[]);
+    document.getElementById('count-mine').textContent=jobs.length;
+    document.getElementById('stat-active').textContent=jobs.length;
+    if (!jobs.length) { c.innerHTML=`<div class="empty-state"><div class="empty-icon">📋</div><div class="empty-title">No Active Jobs</div><div class="empty-text">Claim a job from Available Jobs to get started.</div></div>`; return; }
+    c.innerHTML='<div class="jobs-grid">'+jobs.map(renderMineJob).join('')+'</div>';
+    jobs.forEach(j => {
+      if (j.timer_started_at && j.status!=='submitted') {
+        const elapsed=Math.floor((Date.now()-new Date(j.timer_started_at).getTime())/1000);
+        startTimer(j.id, elapsed);
+      }
+    });
+  } catch(e) {
+    c.innerHTML=`<div class="error-state"><div style="font-size:36px;margin-bottom:12px">⚠️</div><div style="font-size:16px;font-weight:700;margin-bottom:8px">Failed to Load</div><div style="font-size:13px;opacity:0.8;margin-bottom:16px">${e.message}</div><button class="btn btn-retry" onclick="loadMine()">Try Again</button></div>`;
+  }
+}
 
-        // Create job card HTML
-        function createJobCard(job, type) {
-            const statusClass = job.status === 'available' ? 'status-available' : 
-                               job.status === 'in_progress' ? 'status-in_progress' : 'status-completed';
-            
-            return `
-                <div class="card job-card">
-                    <div class="job-header">
-                        <div>
-                            <div class="job-title">${job.service_type?.replace('_', ' ').toUpperCase() || 'Service'}</div>
-                            <div style="color: #718096; font-size: 14px; margin-top: 4px;">Job #${job.id}</div>
-                        </div>
-                        <span class="status-badge ${statusClass}">${job.status}</span>
-                    </div>
+function renderMineJob(j) {
+  const payout=parseFloat(j.va_payout||0).toFixed(2);
+  const st=j.service_type||'';
+  const hasTimer=!!j.timer_started_at;
+  const elapsed=hasTimer?Math.floor((Date.now()-new Date(j.timer_started_at).getTime())/1000):0;
+  const isSubmitted=j.status==='submitted';
+  const statusClass=`s-${j.status||'claimed'}`;
+  if (isSubmitted) return `
+    <div class="job-card" id="job-${j.id}">
+      <div class="job-hdr">
+        <div class="job-hdr-left"><span class="svc-badge ${badgeClass(st)}">${st.replace(/_/g,' ')||'task'}</span><span class="status-pill ${statusClass}">${(j.status||'').replace(/_/g,' ')}</span></div>
+        <div class="payout">+$${payout}</div>
+      </div>
+      <div class="job-meta">
+        <div><div class="meta-lbl">Property</div><div class="meta-val">${j.property_address||j.address||'—'}</div></div>
+        <div><div class="meta-lbl">Owner</div><div class="meta-val">${j.owner_name||'—'}</div></div>
+        <div><div class="meta-lbl">Job ID</div><div class="meta-val">#${j.id}</div></div>
+      </div>
+      <div class="submitted-banner">⏳ Submitted — Awaiting admin review</div>
+    </div>`;
+  return `
+    <div class="job-card" id="job-${j.id}">
+      <div class="job-hdr">
+        <div class="job-hdr-left"><span class="svc-badge ${badgeClass(st)}">${st.replace(/_/g,' ')||'task'}</span><span class="status-pill ${statusClass}">${(j.status||'claimed').replace(/_/g,' ')}</span></div>
+        <div class="payout">+$${payout}</div>
+      </div>
+      <div class="job-meta">
+        <div><div class="meta-lbl">Property</div><div class="meta-val">${j.property_address||j.address||'—'}</div></div>
+        <div><div class="meta-lbl">Owner</div><div class="meta-val">${j.owner_name||'—'}</div></div>
+        <div><div class="meta-lbl">Job ID</div><div class="meta-val">#${j.id}</div></div>
+      </div>
+      <div class="timer-block">
+        <div><div class="timer-lbl">⏱ Time Worked</div><div class="timer-val ${hasTimer?'running':''}" id="timer-${j.id}">${fmt(elapsed)}</div></div>
+        ${!hasTimer?`<button class="btn btn-start" onclick="startJobTimer(${j.id})">▶ Start Timer</button>`:`<span style="font-size:13px;color:#15803d;font-weight:600">● Timer running</span>`}
+      </div>
+      <label class="upload-lbl">Work Notes (optional)</label>
+      <textarea class="notes-ta" id="notes-${j.id}" placeholder="Describe what you did, findings, contact attempts, etc.">${j.notes||''}</textarea>
+      <label class="upload-lbl">📎 Proof of Work</label>
+      <div class="drop-zone" id="dz-${j.id}" onclick="document.getElementById('fi-${j.id}').click()" ondragover="event.preventDefault();this.classList.add('over')" ondragleave="this.classList.remove('over')" ondrop="handleDrop(event,${j.id})">
+        <input type="file" id="fi-${j.id}" accept="image/*,.pdf,.doc,.docx" onchange="handleFile(event,${j.id})">
+        <div class="drop-icon">📤</div>
+        <div class="drop-text"><strong>Click to upload</strong> or drag & drop<br><span style="font-size:11px">Images, PDF, Word docs • Max 10MB</span></div>
+      </div>
+      <div id="fp-${j.id}"></div>
+      <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-top:14px">
+        <button class="btn btn-submit" id="sb-${j.id}" onclick="submitJob(${j.id})" ${!hasTimer?'disabled':''}>📤 Submit Completed Work</button>
+        ${!hasTimer?`<span style="font-size:12px;color:#94a3b8">Start the timer first</span>`:''}
+      </div>
+    </div>`;
+}
 
-                    <div class="job-details">
-                        <div class="detail-item">
-                            <span class="detail-label">Property</span>
-                            <span class="detail-value">${job.property_address || 'N/A'}</span>
-                        </div>
-                        <div class="detail-item">
-                            <span class="detail-label">Parcel</span>
-                            <span class="detail-value">${job.parcel || 'N/A'}</span>
-                        </div>
-                        <div class="detail-item">
-                            <span class="detail-label">Amount</span>
-                            <span class="detail-value">$${parseFloat(job.amount_charged || 0).toFixed(2)}</span>
-                        </div>
-                        <div class="detail-item">
-                            <span class="detail-label">Your Payout</span>
-                            <span class="detail-value">$${parseFloat(job.va_payout || 0).toFixed(2)}</span>
-                        </div>
-                    </div>
+// TIMER
+function startTimer(id, init=0) {
+  if (timers[id]) return;
+  const t0=Date.now()-(init*1000);
+  const iv=setInterval(()=>{
+    const el=document.getElementById('timer-'+id);
+    if (el) { el.textContent=fmt(Math.floor((Date.now()-t0)/1000)); el.classList.add('running'); }
+  },1000);
+  timers[id]={interval:iv,startTime:t0};
+}
+async function startJobTimer(id) {
+  const btn=document.querySelector(`#job-${id} .btn-start`);
+  if (btn){btn.disabled=true;btn.textContent='Starting…';}
+  try {
+    const r=await fetch(`/api/va/jobs/${id}/timer/start`,{method:'POST',credentials:'include'});
+    const d=await r.json();
+    if (r.ok&&(d.ok||d.success)) {
+      startTimer(id,0);
+      if (btn) btn.replaceWith(Object.assign(document.createElement('span'),{style:'font-size:13px;color:#15803d;font-weight:600',textContent:'● Timer running'}));
+      const sb=document.getElementById('sb-'+id); if(sb){sb.disabled=false;}
+      const hint=document.querySelector(`#job-${id} .job-actions span`); if(hint)hint.remove();
+      toast('⏱ Timer started!','success');
+    } else { toast(d.error||'Failed to start timer','error'); if(btn){btn.disabled=false;btn.textContent='▶ Start Timer';} }
+  } catch(e) { toast('Connection error','error'); if(btn){btn.disabled=false;btn.textContent='▶ Start Timer';} }
+}
+function fmt(s){const h=Math.floor(s/3600),m=Math.floor((s%3600)/60),sec=s%60;return[h,m,sec].map(v=>String(v).padStart(2,'0')).join(':');}
 
-                    ${type === 'available' ? `
-                        <button class="btn btn-primary" onclick="claimJob(${job.id})">Claim This Job</button>
-                    ` : ''}
-                    
-                    ${type === 'active' ? `
-                        <button class="btn btn-success" onclick="openJobModal(${job.id})">Work on This Job</button>
-                    ` : ''}
-                    
-                    ${type === 'completed' ? `
-                        <div style="margin-top: 10px; color: #718096; font-size: 14px;">
-                            Completed: ${new Date(job.completed_at).toLocaleDateString()}
-                        </div>
-                    ` : ''}
-                </div>
-            `;
-        }
+// FILES
+function handleFile(e,id){if(e.target.files[0])attach(id,e.target.files[0]);}
+function handleDrop(e,id){e.preventDefault();document.getElementById('dz-'+id).classList.remove('over');if(e.dataTransfer.files[0])attach(id,e.dataTransfer.files[0]);}
+function attach(id,f){
+  if(f.size>10*1024*1024){toast('File too large (max 10MB)','error');return;}
+  files[id]=f;
+  const sz=f.size>1048576?(f.size/1048576).toFixed(1)+' MB':(f.size/1024).toFixed(0)+' KB';
+  document.getElementById('fp-'+id).innerHTML=`<div class="file-prev"><span>📄</span><span class="file-name">${f.name}</span><span class="file-sz">${sz}</span><span class="file-rm" onclick="rmFile(${id})">✕</span></div>`;
+}
+function rmFile(id){delete files[id];document.getElementById('fp-'+id).innerHTML='';document.getElementById('fi-'+id).value='';}
 
-        // Claim job
-        async function claimJob(jobId) {
-            if (!confirm('Claim this job?')) return;
+// SUBMIT
+async function submitJob(id) {
+  const btn=document.getElementById('sb-'+id);
+  if(btn){btn.disabled=true;btn.textContent='📤 Submitting…';}
+  try {
+    const notes=document.getElementById('notes-'+id)?.value||'';
+    const f=files[id];
+    let body,headers={};
+    if(f){body=new FormData();body.append('notes',notes);body.append('proof',f);}
+    else{body=JSON.stringify({notes});headers['Content-Type']='application/json';}
+    const r=await fetch(`/api/va/jobs/${id}/submit`,{method:'POST',credentials:'include',headers,body});
+    const d=await r.json();
+    if(r.ok&&(d.ok||d.success)){
+      if(timers[id]){clearInterval(timers[id].interval);delete timers[id];}
+      toast('✅ Work submitted! Awaiting admin review.','success');
+      loadMine(); loadDone();
+    } else { toast(d.error||'Submission failed','error'); if(btn){btn.disabled=false;btn.textContent='📤 Submit Completed Work';} }
+  } catch(e){ toast('Connection error','error'); if(btn){btn.disabled=false;btn.textContent='📤 Submit Completed Work';} }
+}
 
-            try {
-                const res = await fetch(`${API_BASE}/api/va/jobs/${jobId}/claim`, {
-                    method: 'POST',
-                    credentials: 'include'
-                });
-                const data = await res.json();
+// COMPLETED
+async function loadDone() {
+  const c=document.getElementById('done-wrap');
+  c.innerHTML='<div class="loading-state"><div class="spinner"></div> Loading completed jobs…</div>';
+  try {
+    const r=await fetch('/api/va/jobs/completed',{credentials:'include'});
+    let d; try{d=await r.json();}catch(e){throw new Error('Invalid response');}
+    if(!r.ok) throw new Error(d.error||`Server error ${r.status}`);
+    const jobs=Array.isArray(d)?d:(d.jobs||[]);
+    document.getElementById('count-completed').textContent=jobs.length;
+    document.getElementById('stat-completed').textContent=jobs.length;
+    const earned=jobs.filter(j=>j.status==='approved').reduce((s,j)=>s+parseFloat(j.va_payout||0),0);
+    document.getElementById('stat-earned').textContent='$'+earned.toFixed(2);
+    if(!jobs.length){ c.innerHTML=`<div class="empty-state"><div class="empty-icon">🏆</div><div class="empty-title">No Completed Jobs Yet</div><div class="empty-text">Completed and approved jobs appear here.</div></div>`; return; }
+    c.innerHTML='<div class="jobs-grid">'+jobs.map(j=>{
+      const payout=parseFloat(j.va_payout||0).toFixed(2);
+      const st=j.service_type||'';
+      const elapsed=j.total_time_seconds?fmt(j.total_time_seconds):'—';
+      const completedAt=j.completed_at?new Date(j.completed_at).toLocaleDateString():'—';
+      const sc=`s-${j.status||'submitted'}`;
+      const isApproved=j.status==='approved';
+      const proof=j.proof_url
+        ?(/\.(jpg|jpeg|png|gif|webp)$/i.test(j.proof_url)?`<img src="${j.proof_url}" class="proof-thumb" onclick="window.open('${j.proof_url}','_blank')">`:`<a href="${j.proof_url}" target="_blank" class="proof-link">📎 View Proof File</a>`)
+        :`<span style="font-size:12px;color:#94a3b8">No file attached</span>`;
+      return `
+        <div class="job-card" id="job-${j.id}">
+          <div class="job-hdr">
+            <div class="job-hdr-left"><span class="svc-badge ${badgeClass(st)}">${st.replace(/_/g,' ')||'task'}</span><span class="status-pill ${sc}">${(j.status||'').replace(/_/g,' ')}</span></div>
+            <div class="payout" style="${isApproved?'':'color:#94a3b8'}">${isApproved?'✅':'⏳'} $${payout}</div>
+          </div>
+          <div class="job-meta">
+            <div><div class="meta-lbl">Property</div><div class="meta-val">${j.property_address||j.address||'—'}</div></div>
+            <div><div class="meta-lbl">Time Worked</div><div class="meta-val">${elapsed}</div></div>
+            <div><div class="meta-lbl">Completed</div><div class="meta-val">${completedAt}</div></div>
+          </div>
+          <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding-top:4px">
+            <span style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.1em;color:#94a3b8">Proof of Work</span>
+            ${proof}
+          </div>
+          ${j.admin_notes?`<div style="margin-top:12px;padding:12px 14px;background:#fef3c7;border:1px solid #fde68a;border-radius:8px"><div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.1em;color:#92400e;margin-bottom:4px">Admin Notes</div><div style="font-size:13px;color:#78350f">${j.admin_notes}</div></div>`:''}
+        </div>`; }).join('')+'</div>';
+  } catch(e) {
+    c.innerHTML=`<div class="error-state"><div style="font-size:36px;margin-bottom:12px">⚠️</div><div style="font-size:16px;font-weight:700;margin-bottom:8px">Failed to Load</div><div style="font-size:13px;opacity:0.8;margin-bottom:16px">${e.message}</div><button class="btn btn-retry" onclick="loadDone()">Try Again</button></div>`;
+  }
+}
 
-                if (data.ok) {
-                    alert('✅ Job claimed successfully!');
-                    loadAvailableJobs();
-                    loadVAInfo();
-                } else {
-                    alert('❌ Error: ' + data.error);
-                }
-            } catch (err) {
-                alert('❌ Network error. Please try again.');
-            }
-        }
-
-        // Open job modal
-        async function openJobModal(jobId) {
-            currentJobId = jobId;
-            const modal = document.getElementById('jobModal');
-            const body = document.getElementById('modalBody');
-            
-            body.innerHTML = '<div class="loading"><div class="spinner"></div></div>';
-            modal.classList.add('show');
-
-            try {
-                const res = await fetch(`${API_BASE}/api/va/jobs/${jobId}`, {
-                    credentials: 'include'
-                });
-                const data = await res.json();
-
-                if (data.ok) {
-                    renderJobModal(data.job);
-                } else {
-                    body.innerHTML = '<div class="alert alert-error">Error loading job details.</div>';
-                }
-            } catch (err) {
-                body.innerHTML = '<div class="alert alert-error">Network error. Please try again.</div>';
-            }
-        }
-
-        // Render job modal content
-        function renderJobModal(job) {
-            const body = document.getElementById('modalBody');
-            timerSeconds = job.total_time_seconds || 0;
-            
-            body.innerHTML = `
-                <div class="alert alert-info">
-                    <strong>Property:</strong> ${job.property_address || 'N/A'}<br>
-                    <strong>Parcel:</strong> ${job.parcel || 'N/A'}<br>
-                    <strong>Service:</strong> ${job.service_type?.replace('_', ' ').toUpperCase() || 'N/A'}
-                </div>
-
-                <h3 style="margin-top: 20px;">⏱️ Time Tracker</h3>
-                <div class="timer-display" id="timerDisplay">${formatTime(timerSeconds)}</div>
-                <div class="timer-controls">
-                    <button class="btn btn-success" id="startBtn" onclick="startTimer()">▶️ Start</button>
-                    <button class="btn btn-danger" id="pauseBtn" onclick="pauseTimer()" style="display:none;">⏸️ Pause</button>
-                    <button class="btn btn-secondary" onclick="saveTime()">💾 Save Time</button>
-                </div>
-
-                <h3 style="margin-top: 30px;">📁 File Upload</h3>
-                <div class="file-upload" onclick="document.getElementById('fileInput').click()">
-                    <input type="file" id="fileInput" multiple onchange="handleFileSelect(event)">
-                    <p style="color: #718096;">📎 Click to select files or drag & drop</p>
-                    <p style="color: #a0aec0; font-size: 12px; margin-top: 8px;">PDF, Images, Documents accepted</p>
-                </div>
-                <div id="fileList" class="file-list"></div>
-
-                <h3 style="margin-top: 30px;">📝 Notes</h3>
-                <div class="notes-section">
-                    <textarea id="jobNotes" placeholder="Add notes about your work...">${job.notes || ''}</textarea>
-                    <button class="btn btn-primary" style="margin-top: 10px;" onclick="saveNotes()">Save Notes</button>
-                </div>
-
-                <h3 style="margin-top: 30px;">✅ Complete Job</h3>
-                <button class="btn btn-success" onclick="completeJob()" style="width: 100%;">Mark as Completed</button>
-            `;
-
-            loadJobFiles(job.id);
-        }
-
-        // Timer functions
-        function formatTime(seconds) {
-            if (!seconds || isNaN(seconds)) return "00:00:00";
-            const h = Math.floor(seconds / 3600);
-            const m = Math.floor((seconds % 3600) / 60);
-            const s = Math.floor(seconds % 60);
-            return `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
-        }
-
-        function startTimer() {
-            if (timerRunning) return;
-            timerRunning = true;
-            
-            document.getElementById('startBtn').style.display = 'none';
-            document.getElementById('pauseBtn').style.display = 'inline-block';
-            
-            timerInterval = setInterval(() => {
-                timerSeconds++;
-                document.getElementById('timerDisplay').textContent = formatTime(timerSeconds);
-            }, 1000);
-        }
-
-        function pauseTimer() {
-            if (!timerRunning) return;
-            timerRunning = false;
-            
-            clearInterval(timerInterval);
-            document.getElementById('startBtn').style.display = 'inline-block';
-            document.getElementById('pauseBtn').style.display = 'none';
-            
-            saveTime();
-        }
-
-        async function saveTime() {
-            if (!currentJobId) return;
-
-            try {
-                const res = await fetch(`${API_BASE}/api/va/jobs/${currentJobId}/time`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' }, credentials: 'include',
-                    body: JSON.stringify({ total_time_seconds: timerSeconds })
-                });
-
-                const data = await res.json();
-                if (data.ok) {
-                    showAlert('success', '✅ Time saved!');
-                } else {
-                    showAlert('error', '❌ Error saving time');
-                }
-            } catch (err) {
-                showAlert('error', '❌ Network error');
-            }
-        }
-
-        // File handling
-        async function handleFileSelect(event) {
-            const files = event.target.files;
-            if (!files.length) return;
-
-            for (let file of files) {
-                await uploadFile(file);
-            }
-        }
-
-        async function uploadFile(file) {
-            if (!currentJobId) return;
-
-            const formData = new FormData();
-            formData.append('file', file);
-
-            try {
-                const res = await fetch(`${API_BASE}/api/va/jobs/${currentJobId}/files`, {
-                    method: 'POST',
-                    credentials: 'include',
-                    body: formData
-                });
-
-                const data = await res.json();
-                if (data.ok) {
-                    showAlert('success', `✅ ${file.name} uploaded!`);
-                    loadJobFiles(currentJobId);
-                } else {
-                    showAlert('error', `❌ Error uploading ${file.name}`);
-                }
-            } catch (err) {
-                showAlert('error', `❌ Network error uploading ${file.name}`);
-            }
-        }
-
-        async function loadJobFiles(jobId) {
-            try {
-                const res = await fetch(`${API_BASE}/api/va/jobs/${jobId}/files`, {
-                    credentials: 'include'
-                });
-                const data = await res.json();
-
-                const fileList = document.getElementById('fileList');
-                if (data.ok && data.files && data.files.length > 0) {
-                    fileList.innerHTML = data.files.map(file => `
-                        <div class="file-item">
-                            <span>📄 ${file.original_filename || file.file_name}</span>
-                            <button class="btn btn-secondary" onclick="window.open('${file.file_url}', '_blank')">View</button>
-                        </div>
-                    `).join('');
-                } else {
-                    fileList.innerHTML = '<p style="color: #718096; text-align: center;">No files uploaded yet</p>';
-                }
-            } catch (err) {
-                console.error('Error loading files:', err);
-            }
-        }
-
-        // Save notes
-        async function saveNotes() {
-            if (!currentJobId) return;
-
-            const notes = document.getElementById('jobNotes').value;
-
-            try {
-                const res = await fetch(`${API_BASE}/api/va/jobs/${currentJobId}/notes`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' }, credentials: 'include',
-                    body: JSON.stringify({ notes })
-                });
-
-                const data = await res.json();
-                if (data.ok) {
-                    showAlert('success', '✅ Notes saved!');
-                } else {
-                    showAlert('error', '❌ Error saving notes');
-                }
-            } catch (err) {
-                showAlert('error', '❌ Network error');
-            }
-        }
-
-        // Complete job
-        async function completeJob() {
-            if (!currentJobId) return;
-            if (!confirm('Mark this job as completed?')) return;
-
-            try {
-                const res = await fetch(`${API_BASE}/api/va/jobs/${currentJobId}/complete`, {
-                    method: 'POST',
-                    credentials: 'include'
-                });
-
-                const data = await res.json();
-                if (data.ok) {
-                    alert('✅ Job completed successfully!');
-                    closeModal();
-                    loadMyJobs();
-                    loadVAInfo();
-                } else {
-                    alert('❌ Error: ' + data.error);
-                }
-            } catch (err) {
-                alert('❌ Network error. Please try again.');
-            }
-        }
-
-        // Modal controls
-        function closeModal() {
-            if (timerRunning) {
-                pauseTimer();
-            }
-            document.getElementById('jobModal').classList.remove('show');
-            currentJobId = null;
-        }
-
-        // Alert helper
-        function showAlert(type, message) {
-            const alertDiv = document.createElement('div');
-            alertDiv.className = `alert alert-${type}`;
-            alertDiv.textContent = message;
-            
-            const modalBody = document.getElementById('modalBody');
-            modalBody.insertBefore(alertDiv, modalBody.firstChild);
-            
-            setTimeout(() => alertDiv.remove(), 3000);
-        }
-
-        // Logout
-        function logout() {
-            localStorage.removeItem('token');
-            window.location.href = 'login.html';
-        }
-
-        // Initialize
-        loadVAInfo();
-        loadAvailableJobs();
-    </script>
+// TOAST
+function toast(msg,type='info'){
+  const t=document.createElement('div'); t.className=`toast ${type}`; t.textContent=msg;
+  document.getElementById('toasts').appendChild(t); setTimeout(()=>t.remove(),4000);
+}
+</script>
 </body>
 </html>
