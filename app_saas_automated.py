@@ -1559,6 +1559,15 @@ def api_user_create_service_request():
         return jsonify({"ok": False, "error": "Failed to create request"}), 500
 
 
+@app.get("/api/user/profile")
+def api_user_profile():
+    """Get current user profile - used for auth check"""
+    u = require_login(admin=False)
+    if not u:
+        return jsonify({"ok": False, "error": "Not authorized"}), 401
+    return jsonify({"ok": True, "email": u['email'], "role": u.get('role', 'user')})
+
+
 @app.get("/api/user/service-requests")
 def api_user_get_service_requests():
     """Get user's service requests"""
@@ -2241,75 +2250,91 @@ def api_va_claim_job(job_id):
 
 @app.post("/api/va/jobs/<int:job_id>/submit")
 def api_va_submit_job(job_id):
-    """Submit job results"""
-    va_email = request.headers.get('X-VA-Email', '').strip().lower()
-    data = request.get_json()
-    
-    if not va_email:
+    """Submit job results - supports both JSON and multipart/form-data (file upload)"""
+    va_session = request.cookies.get('va_session', '')
+    if not va_session:
         return jsonify({"ok": False, "error": "Not authorized"}), 401
-    
-    phone = data.get('phone', '').strip()
-    email = data.get('email', '').strip()
-    notes = data.get('notes', '').strip()
-    hours_used = data.get('hours_used')
-    call_outcome = data.get('call_outcome')
-    
+
+    # Parse body — handle both multipart (file upload) and JSON
+    content_type = request.content_type or ''
+    if 'multipart' in content_type or 'form' in content_type:
+        notes = request.form.get('notes', '').strip()
+        phone = request.form.get('phone', '').strip()
+        email_field = request.form.get('email', '').strip()
+        call_outcome = request.form.get('call_outcome', '')
+        hours_used = request.form.get('hours_used')
+        proof_file = request.files.get('proof')
+    else:
+        data = request.get_json(silent=True) or {}
+        notes = data.get('notes', '').strip()
+        phone = data.get('phone', '').strip()
+        email_field = data.get('email', '').strip()
+        call_outcome = data.get('call_outcome', '')
+        hours_used = data.get('hours_used')
+        proof_file = None
+
     try:
         with db_conn() as conn:
             with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
-                # Get VA
-                cur.execute("SELECT id FROM va_users WHERE email = %s AND active = TRUE", (va_email,))
-                va = cur.fetchone()
-                
-                if not va:
-                    return jsonify({"ok": False, "error": "VA not found"}), 404
-                
-                # Check if this VA owns this job
+                # Verify session
                 cur.execute("""
-                    SELECT status, service_type, timer_started_at FROM service_requests 
+                    SELECT va_user_id FROM va_sessions
+                    WHERE token = %s AND expires_at > NOW()
+                """, (va_session,))
+                session = cur.fetchone()
+                if not session:
+                    return jsonify({"ok": False, "error": "Session expired"}), 401
+                va_id = session['va_user_id']
+
+                # Check job belongs to this VA
+                cur.execute("""
+                    SELECT status, timer_started_at FROM service_requests
                     WHERE id = %s AND claimed_by_va_id = %s
-                """, (job_id, va['id']))
-                
+                """, (job_id, va_id))
                 job = cur.fetchone()
-                
                 if not job:
                     return jsonify({"ok": False, "error": "Job not found or not yours"}), 404
-                
                 if job['status'] not in ['claimed', 'in_progress']:
-                    return jsonify({"ok": False, "error": "Job cannot be submitted in current status"}), 400
-                
-                # Calculate total time worked
+                    return jsonify({"ok": False, "error": f"Job cannot be submitted in status: {job['status']}"}), 400
+
+                # Calculate time worked
                 total_seconds = 0
                 if job['timer_started_at']:
                     from datetime import datetime, timezone
-                    elapsed = datetime.now(timezone.utc) - job['timer_started_at'].replace(tzinfo=timezone.utc)
-                    total_seconds = int(elapsed.total_seconds())
-                
-                # Update job with results
+                    started = job['timer_started_at']
+                    if hasattr(started, 'tzinfo') and started.tzinfo is None:
+                        started = started.replace(tzinfo=timezone.utc)
+                    total_seconds = int((datetime.now(timezone.utc) - started).total_seconds())
+
+                # Handle proof file upload
+                proof_url = None
+                if proof_file and proof_file.filename:
+                    import uuid, os
+                    filename = f"{uuid.uuid4()}_{proof_file.filename}"
+                    upload_dir = BASE_DIR / "static" / "uploads"
+                    upload_dir.mkdir(parents=True, exist_ok=True)
+                    save_path = upload_dir / filename
+                    proof_file.save(str(save_path))
+                    proof_url = f"/static/uploads/{filename}"
+
+                # Update job
                 cur.execute("""
                     UPDATE service_requests
                     SET status = 'submitted',
-                        phone = %s,
-                        email = %s,
                         notes = %s,
-                        hours_used = %s,
-                        call_outcome = %s,
+                        phone = %s,
                         total_time_seconds = %s,
                         submitted_at = NOW(),
                         updated_at = NOW()
+                        """ + (", proof_url = %s" if proof_url else "") + """
                     WHERE id = %s
-                """, (phone or None, email or None, notes or None, hours_used, call_outcome, total_seconds, job_id))
-                
-                # Log activity
-                cur.execute("""
-                    INSERT INTO va_activity_log (va_id, service_request_id, action, notes)
-                    VALUES (%s, %s, 'submitted', %s)
-                """, (va['id'], job_id, 'Results submitted for review'))
-                
+                """, ([notes or None, phone or None, total_seconds] +
+                      ([proof_url] if proof_url else []) +
+                      [job_id]))
+
                 conn.commit()
-                
-                return jsonify({"ok": True, "message": "Results submitted for review"})
-    
+                return jsonify({"ok": True, "message": "Work submitted for review"})
+
     except Exception as e:
         print(f"❌ Submit job error: {e}")
         return jsonify({"ok": False, "error": "Failed to submit results"}), 500
