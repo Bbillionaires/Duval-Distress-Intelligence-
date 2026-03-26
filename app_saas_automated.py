@@ -2003,13 +2003,13 @@ def api_va_jobs_available():
                 if not session:
                     return jsonify({"ok": False, "error": "Invalid session"}), 401
                 
-                # Get available jobs
+                # Get available jobs - NO JOIN, use service_requests columns only
                 cur.execute("""
-                    SELECT sr.*, p.address, p.parcel, p.owner
-                    FROM service_requests sr
-                    LEFT JOIN property_listings p ON p.id = sr.property_id
-                    WHERE sr.status = 'pending'
-                    ORDER BY sr.created_at ASC
+                    SELECT *
+                    FROM service_requests
+                    WHERE status = 'pending'
+                    AND claimed_by_va_id IS NULL
+                    ORDER BY submitted_at ASC
                     LIMIT 50
                 """)
                 
@@ -2019,15 +2019,89 @@ def api_va_jobs_available():
                 jobs_list = []
                 for job in jobs:
                     job_dict = dict(job)
-                    # Convert any Decimal to float
-                    if 'va_payout' in job_dict and job_dict['va_payout']:
-                        job_dict['va_payout'] = float(job_dict['va_payout'])
+                    for field in ['va_payout', 'amount_charged']:
+                        if job_dict.get(field):
+                            job_dict[field] = float(job_dict[field])
                     jobs_list.append(job_dict)
                 
                 return jsonify({"ok": True, "jobs": jobs_list})
     
     except Exception as e:
         print(f"❌ VA available jobs error: {e}")
+        return jsonify({"ok": False, "error": "Failed to load jobs"}), 500
+
+
+@app.get("/api/va/jobs/mine")
+def api_va_jobs_mine():
+    """Get jobs claimed by this VA"""
+    va_session = request.cookies.get("va_session", "")
+    if not va_session:
+        return jsonify({"ok": False, "error": "Not authenticated"}), 401
+    try:
+        with db_conn() as conn:
+            with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+                cur.execute("""
+                    SELECT va_user_id FROM va_sessions
+                    WHERE token = %s AND expires_at > NOW()
+                """, (va_session,))
+                session = cur.fetchone()
+                if not session:
+                    return jsonify({"ok": False, "error": "Invalid session"}), 401
+                va_id = session['va_user_id']
+                cur.execute("""
+                    SELECT * FROM service_requests
+                    WHERE claimed_by_va_id = %s
+                    AND status IN ('claimed', 'in_progress', 'submitted')
+                    ORDER BY claimed_at DESC
+                """, (va_id,))
+                jobs = cur.fetchall()
+                jobs_list = []
+                for job in jobs:
+                    job_dict = dict(job)
+                    for field in ['va_payout', 'amount_charged']:
+                        if job_dict.get(field):
+                            job_dict[field] = float(job_dict[field])
+                    jobs_list.append(job_dict)
+                return jsonify({"ok": True, "jobs": jobs_list})
+    except Exception as e:
+        print(f"❌ VA mine jobs error: {e}")
+        return jsonify({"ok": False, "error": "Failed to load jobs"}), 500
+
+
+@app.get("/api/va/jobs/completed")
+def api_va_jobs_completed():
+    """Get completed/approved/rejected jobs for this VA"""
+    va_session = request.cookies.get("va_session", "")
+    if not va_session:
+        return jsonify({"ok": False, "error": "Not authenticated"}), 401
+    try:
+        with db_conn() as conn:
+            with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+                cur.execute("""
+                    SELECT va_user_id FROM va_sessions
+                    WHERE token = %s AND expires_at > NOW()
+                """, (va_session,))
+                session = cur.fetchone()
+                if not session:
+                    return jsonify({"ok": False, "error": "Invalid session"}), 401
+                va_id = session['va_user_id']
+                cur.execute("""
+                    SELECT * FROM service_requests
+                    WHERE claimed_by_va_id = %s
+                    AND status IN ('approved', 'rejected', 'completed')
+                    ORDER BY completed_at DESC
+                """, (va_id,))
+                jobs = cur.fetchall()
+                jobs_list = []
+                for job in jobs:
+                    job_dict = dict(job)
+                    for field in ['va_payout', 'amount_charged']:
+                        if job_dict.get(field):
+                            job_dict[field] = float(job_dict[field])
+                    jobs_list.append(job_dict)
+                return jsonify({"ok": True, "jobs": jobs_list})
+    except Exception as e:
+        print(f"❌ VA completed jobs error: {e}")
         return jsonify({"ok": False, "error": "Failed to load jobs"}), 500
 
 
