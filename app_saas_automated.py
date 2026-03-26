@@ -2306,10 +2306,16 @@ def api_va_submit_job(job_id):
                         started = started.replace(tzinfo=timezone.utc)
                     total_seconds = int((datetime.now(timezone.utc) - started).total_seconds())
 
+                # Ensure proof_url column exists (safe to run every time)
+                cur.execute("""
+                    ALTER TABLE service_requests
+                    ADD COLUMN IF NOT EXISTS proof_url TEXT
+                """)
+
                 # Handle proof file upload
                 proof_url = None
                 if proof_file and proof_file.filename:
-                    import uuid, os
+                    import uuid
                     filename = f"{uuid.uuid4()}_{proof_file.filename}"
                     upload_dir = BASE_DIR / "static" / "uploads"
                     upload_dir.mkdir(parents=True, exist_ok=True)
@@ -2317,27 +2323,25 @@ def api_va_submit_job(job_id):
                     proof_file.save(str(save_path))
                     proof_url = f"/static/uploads/{filename}"
 
-                # Update job
+                # Update job — always include proof_url column now that it exists
                 cur.execute("""
                     UPDATE service_requests
                     SET status = 'submitted',
                         notes = %s,
                         phone = %s,
                         total_time_seconds = %s,
+                        proof_url = %s,
                         submitted_at = NOW(),
                         updated_at = NOW()
-                        """ + (", proof_url = %s" if proof_url else "") + """
                     WHERE id = %s
-                """, ([notes or None, phone or None, total_seconds] +
-                      ([proof_url] if proof_url else []) +
-                      [job_id]))
+                """, (notes or None, phone or None, total_seconds, proof_url, job_id))
 
                 conn.commit()
                 return jsonify({"ok": True, "message": "Work submitted for review"})
 
     except Exception as e:
         print(f"❌ Submit job error: {e}")
-        return jsonify({"ok": False, "error": "Failed to submit results"}), 500
+        return jsonify({"ok": False, "error": f"Failed to submit results: {str(e)}"}), 500
 
 
 @app.post("/api/va/jobs/<int:job_id>/cancel")

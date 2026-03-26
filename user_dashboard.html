@@ -1,695 +1,764 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Property Intelligence Dashboard</title>
-    <script src="https://js.stripe.com/v3/"></script>
-    <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            min-height: 100vh;
-            padding: 20px;
-        }
-        .container { max-width: 1600px; margin: 0 auto; }
-        .header {
-            background: white;
-            padding: 20px 30px;
-            border-radius: 10px;
-            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 30px;
-        }
-        .header h1 { color: #2d3748; font-size: 28px; }
-        .btn {
-            padding: 10px 20px;
-            border: none;
-            border-radius: 6px;
-            cursor: pointer;
-            font-size: 14px;
-            font-weight: 500;
-            transition: all 0.2s;
-        }
-        .btn-primary { background: #667eea; color: white; }
-        .btn-success { background: #48bb78; color: white; }
-        .btn-danger { background: #f56565; color: white; }
-        .btn-secondary { background: #e2e8f0; color: #2d3748; }
-        .btn-sm { padding: 6px 12px; font-size: 12px; }
-        .card {
-            background: white;
-            border-radius: 10px;
-            padding: 25px;
-            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-            margin-bottom: 20px;
-        }
-        .tabs {
-            display: flex;
-            gap: 10px;
-            margin-bottom: 30px;
-            flex-wrap: wrap;
-        }
-        .tab {
-            padding: 12px 24px;
-            background: white;
-            border-radius: 8px;
-            cursor: pointer;
-            font-weight: 500;
-            transition: all 0.2s;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-        }
-        .tab.active { background: #667eea; color: white; }
-        table { width: 100%; border-collapse: collapse; }
-        th {
-            background: #f7fafc;
-            padding: 12px;
-            text-align: left;
-            font-weight: 600;
-            color: #2d3748;
-            font-size: 13px;
-            border-bottom: 2px solid #e2e8f0;
-        }
-        td {
-            padding: 12px;
-            border-bottom: 1px solid #e2e8f0;
-            font-size: 14px;
-        }
-        .modal {
-            display: none;
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: rgba(0,0,0,0.5);
-            z-index: 1000;
-            align-items: center;
-            justify-content: center;
-        }
-        .modal-content {
-            background: white;
-            padding: 30px;
-            border-radius: 10px;
-            max-width: 600px;
-            width: 90%;
-            max-height: 80vh;
-            overflow-y: auto;
-        }
-        .pagination-container {
-            margin: 20px 0;
-            display: flex;
-            gap: 10px;
-            justify-content: center;
-            align-items: center;
-        }
-    </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Dashboard — Real Estate Intelligence</title>
+<script src="https://js.stripe.com/v3/"></script>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: 'Segoe UI', system-ui, sans-serif; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); min-height: 100vh; color: #fff; }
+
+/* TOPBAR */
+.topbar { background: rgba(255,255,255,0.15); backdrop-filter: blur(20px); border-bottom: 1px solid rgba(255,255,255,0.2); padding: 14px 28px; display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; position: sticky; top: 0; z-index: 100; }
+.brand { display: flex; align-items: center; gap: 10px; }
+.brand-name { font-size: 18px; font-weight: 800; }
+.brand-sub { font-size: 12px; opacity: 0.7; }
+.topbar-right { display: flex; align-items: center; gap: 10px; }
+.user-pill { background: rgba(255,255,255,0.15); border: 1px solid rgba(255,255,255,0.25); border-radius: 20px; padding: 6px 14px; font-size: 13px; }
+.btn-logout { background: rgba(255,255,255,0.15); border: 1px solid rgba(255,255,255,0.3); color: #fff; padding: 8px 16px; border-radius: 20px; cursor: pointer; font-size: 13px; font-weight: 600; transition: all 0.2s; }
+.btn-logout:hover { background: rgba(239,68,68,0.3); }
+
+/* REWARDS STRIP */
+.rewards-strip { background: rgba(0,0,0,0.15); padding: 10px 28px; display: flex; align-items: center; gap: 20px; flex-wrap: wrap; }
+.rstrip-item { display: flex; align-items: center; gap: 8px; font-size: 13px; }
+.rstrip-label { opacity: 0.75; }
+.rstrip-val { font-weight: 800; }
+.rstrip-val.gold { color: #fcd34d; }
+.tier-badge { padding: 3px 10px; border-radius: 12px; font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.08em; }
+.tb-bronze { background: rgba(245,158,11,0.25); color: #fcd34d; border: 1px solid rgba(245,158,11,0.4); }
+.tb-silver { background: rgba(148,163,184,0.25); color: #cbd5e1; border: 1px solid rgba(148,163,184,0.4); }
+.tb-gold { background: rgba(252,211,77,0.25); color: #fcd34d; border: 1px solid rgba(252,211,77,0.4); }
+.tb-platinum { background: rgba(167,139,250,0.25); color: #c4b5fd; border: 1px solid rgba(167,139,250,0.4); }
+.progress-wrap { flex: 1; min-width: 140px; max-width: 220px; }
+.progress-bar { height: 5px; background: rgba(255,255,255,0.2); border-radius: 10px; margin-top: 4px; }
+.progress-fill { height: 100%; background: linear-gradient(90deg,#fcd34d,#f59e0b); border-radius: 10px; transition: width 0.5s; }
+.btn-claim { background: linear-gradient(135deg,#fcd34d,#f59e0b); color: #1a1a2e; border: none; border-radius: 16px; padding: 7px 16px; font-size: 12px; font-weight: 800; cursor: pointer; transition: all 0.2s; white-space: nowrap; }
+.btn-claim:hover:not(:disabled) { transform: translateY(-1px); box-shadow: 0 4px 12px rgba(245,158,11,0.4); }
+.btn-claim:disabled { opacity: 0.4; cursor: not-allowed; }
+
+/* STATS */
+.stats-row { display: grid; grid-template-columns: repeat(4,1fr); gap: 14px; padding: 20px 28px; max-width: 1200px; margin: 0 auto; }
+.stat-card { background: rgba(255,255,255,0.15); backdrop-filter: blur(10px); border: 1px solid rgba(255,255,255,0.25); border-radius: 14px; padding: 18px; text-align: center; }
+.stat-n { font-size: 28px; font-weight: 800; margin-bottom: 4px; }
+.stat-l { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em; opacity: 0.75; }
+
+/* TABS */
+.tabs-wrap { padding: 0 28px; max-width: 1200px; margin: 0 auto; }
+.tabs { display: flex; gap: 4px; background: rgba(255,255,255,0.1); border-radius: 14px; padding: 4px; width: fit-content; }
+.tab { padding: 10px 22px; border-radius: 10px; font-size: 13px; font-weight: 700; cursor: pointer; transition: all 0.2s; opacity: 0.7; white-space: nowrap; }
+.tab:hover { opacity: 1; }
+.tab.active { background: #fff; color: #764ba2; opacity: 1; }
+
+/* CONTENT */
+.content { padding: 20px 28px 48px; max-width: 1200px; margin: 0 auto; }
+.panel { display: none; }
+.panel.active { display: block; }
+
+/* SEARCH */
+.search-bar { display: flex; gap: 10px; margin-bottom: 16px; flex-wrap: wrap; }
+.search-input { flex: 1; min-width: 200px; background: rgba(255,255,255,0.15); border: 1px solid rgba(255,255,255,0.3); border-radius: 10px; padding: 10px 16px; font-size: 14px; color: #fff; outline: none; }
+.search-input::placeholder { color: rgba(255,255,255,0.5); }
+.search-input:focus { background: rgba(255,255,255,0.22); border-color: rgba(255,255,255,0.6); }
+.filter-select { background: rgba(255,255,255,0.15); border: 1px solid rgba(255,255,255,0.3); border-radius: 10px; padding: 10px 16px; font-size: 13px; color: #fff; outline: none; cursor: pointer; }
+.filter-select option { background: #764ba2; color: #fff; }
+
+/* PROPERTY GRID */
+.props-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 16px; }
+.prop-card { background: rgba(255,255,255,0.97); color: #1a1a2e; border-radius: 14px; padding: 20px; box-shadow: 0 4px 20px rgba(0,0,0,0.1); transition: transform 0.2s, box-shadow 0.2s; }
+.prop-card:hover { transform: translateY(-2px); box-shadow: 0 8px 30px rgba(0,0,0,0.18); }
+.prop-stage { display: inline-block; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em; padding: 3px 10px; border-radius: 20px; margin-bottom: 10px; }
+.s-early { background: #dcfce7; color: #15803d; }
+.s-mid { background: #fef3c7; color: #92400e; }
+.s-late { background: #fee2e2; color: #991b1b; }
+.s-critical { background: #fae8ff; color: #7e22ce; }
+.prop-addr { font-size: 15px; font-weight: 700; margin-bottom: 6px; color: #1e293b; }
+.prop-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 12px; }
+.prop-chip { font-size: 11px; color: #64748b; background: #f1f5f9; padding: 3px 8px; border-radius: 6px; }
+.prop-due { font-size: 18px; font-weight: 800; color: #ef4444; margin-bottom: 14px; }
+.btn-req { width: 100%; padding: 10px; background: linear-gradient(135deg, #667eea, #764ba2); color: #fff; border: none; border-radius: 10px; font-size: 13px; font-weight: 700; cursor: pointer; transition: all 0.2s; }
+.btn-req:hover { transform: translateY(-1px); box-shadow: 0 4px 14px rgba(102,126,234,0.5); }
+
+/* REQUESTS TABLE */
+.req-table-wrap { background: rgba(255,255,255,0.97); color: #1a1a2e; border-radius: 14px; overflow: hidden; box-shadow: 0 4px 20px rgba(0,0,0,0.1); margin-top: 16px; overflow-x: auto; }
+.req-table { width: 100%; border-collapse: collapse; }
+.req-table th { background: #f8fafc; padding: 12px 16px; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em; color: #64748b; text-align: left; border-bottom: 1px solid #e2e8f0; white-space: nowrap; }
+.req-table td { padding: 13px 16px; font-size: 13px; border-bottom: 1px solid #f1f5f9; vertical-align: middle; }
+.req-table tr:last-child td { border-bottom: none; }
+.req-table tr:hover td { background: #fafafa; }
+.s-pill { font-size: 11px; font-weight: 700; text-transform: uppercase; padding: 3px 10px; border-radius: 20px; white-space: nowrap; }
+.sp-pending { background: #fef3c7; color: #92400e; }
+.sp-claimed { background: #dbeafe; color: #1e40af; }
+.sp-in_progress { background: #e0f2fe; color: #0369a1; }
+.sp-submitted { background: #ede9fe; color: #6d28d9; }
+.sp-approved { background: #dcfce7; color: #166534; }
+.sp-rejected { background: #fee2e2; color: #991b1b; }
+.proof-thumb { width: 36px; height: 36px; object-fit: cover; border-radius: 6px; cursor: pointer; border: 1px solid #e2e8f0; }
+
+/* MODAL */
+.overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.65); backdrop-filter: blur(4px); z-index: 1000; align-items: center; justify-content: center; padding: 20px; }
+.overlay.open { display: flex; }
+.modal { background: #fff; color: #1a1a2e; border-radius: 20px; width: 100%; max-width: 500px; max-height: 92vh; overflow-y: auto; box-shadow: 0 20px 60px rgba(0,0,0,0.3); }
+.modal-hdr { padding: 24px 24px 0; display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; }
+.modal-title { font-size: 20px; font-weight: 800; color: #1e293b; }
+.modal-sub { font-size: 13px; color: #64748b; margin-top: 3px; }
+.modal-x { background: #f1f5f9; border: none; width: 32px; height: 32px; border-radius: 50%; cursor: pointer; font-size: 16px; color: #64748b; transition: all 0.2s; flex-shrink: 0; }
+.modal-x:hover { background: #fee2e2; color: #ef4444; }
+.modal-body { padding: 20px 24px 24px; }
+
+/* SERVICE SELECT */
+.field-label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em; color: #64748b; margin-bottom: 8px; display: block; }
+.svc-select { width: 100%; border: 2px solid #e2e8f0; border-radius: 10px; padding: 12px 14px; font-size: 14px; font-family: inherit; color: #1e293b; background: #fff; outline: none; cursor: pointer; transition: border-color 0.2s; margin-bottom: 16px; appearance: none; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%2364748b' d='M6 8L1 3h10z'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 14px center; }
+.svc-select:focus { border-color: #764ba2; }
+
+/* SERVICE INFO BOX */
+.svc-info { background: #f5f0ff; border: 1px solid #d8b4fe; border-radius: 10px; padding: 14px; margin-bottom: 16px; display: none; }
+.svc-info-name { font-size: 15px; font-weight: 700; color: #5b21b6; margin-bottom: 4px; }
+.svc-info-desc { font-size: 13px; color: #7c3aed; }
+.svc-info-price { font-size: 22px; font-weight: 800; color: #5b21b6; margin-top: 8px; }
+
+/* TIP */
+.tip-row { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 10px; }
+.tip-btn { padding: 8px 14px; border: 2px solid #e2e8f0; border-radius: 10px; background: #fff; color: #475569; font-size: 13px; font-weight: 700; cursor: pointer; transition: all 0.2s; }
+.tip-btn:hover { border-color: #764ba2; color: #764ba2; }
+.tip-btn.sel { border-color: #764ba2; background: #f5f0ff; color: #764ba2; }
+.tip-input { width: 100%; border: 2px solid #e2e8f0; border-radius: 10px; padding: 10px 14px; font-size: 14px; font-family: inherit; color: #1e293b; outline: none; transition: border-color 0.2s; margin-top: 8px; display: none; }
+.tip-input:focus { border-color: #764ba2; }
+
+/* ORDER SUMMARY */
+.order-box { background: #f8fafc; border-radius: 12px; padding: 14px; margin: 16px 0; }
+.order-row { display: flex; justify-content: space-between; font-size: 14px; padding: 4px 0; color: #475569; }
+.order-total { display: flex; justify-content: space-between; font-size: 16px; font-weight: 800; color: #1e293b; padding: 10px 0 0; border-top: 1px solid #e2e8f0; margin-top: 6px; }
+
+/* STRIPE */
+#card-el { border: 2px solid #e2e8f0; border-radius: 10px; padding: 14px; margin-bottom: 8px; }
+#card-err { color: #ef4444; font-size: 13px; min-height: 18px; margin-bottom: 10px; }
+
+/* MODAL BUTTONS */
+.btn-full { width: 100%; padding: 13px; background: linear-gradient(135deg,#667eea,#764ba2); color: #fff; border: none; border-radius: 12px; font-size: 15px; font-weight: 800; cursor: pointer; transition: all 0.2s; margin-bottom: 8px; }
+.btn-full:hover:not(:disabled) { transform: translateY(-1px); box-shadow: 0 6px 20px rgba(118,75,162,0.4); }
+.btn-full:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+.btn-back { width: 100%; padding: 11px; background: #f1f5f9; color: #475569; border: 1px solid #e2e8f0; border-radius: 12px; font-size: 14px; font-weight: 700; cursor: pointer; transition: all 0.2s; }
+.btn-back:hover { background: #e2e8f0; }
+
+/* SUCCESS */
+.success-wrap { text-align: center; padding: 40px 24px; }
+.success-icon { font-size: 56px; margin-bottom: 14px; }
+.success-title { font-size: 22px; font-weight: 800; color: #1e293b; margin-bottom: 8px; }
+.success-desc { font-size: 14px; color: #64748b; margin-bottom: 20px; }
+.points-box { background: linear-gradient(135deg,#fef3c7,#fde68a); border-radius: 12px; padding: 16px; margin-bottom: 20px; }
+.points-num { font-size: 32px; font-weight: 800; color: #92400e; }
+.points-lbl { font-size: 12px; font-weight: 700; color: #92400e; text-transform: uppercase; letter-spacing: 0.1em; }
+
+/* REWARDS PANEL */
+.rewards-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 16px; margin-top: 16px; }
+.rcard { background: rgba(255,255,255,0.97); color: #1a1a2e; border-radius: 14px; padding: 22px; box-shadow: 0 4px 20px rgba(0,0,0,0.1); }
+.rcard-title { font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em; color: #64748b; margin-bottom: 14px; }
+.pts-big { font-size: 48px; font-weight: 800; color: #764ba2; text-align: center; line-height: 1; }
+.pts-sub { font-size: 13px; color: #64748b; text-align: center; margin-top: 4px; }
+.tier-rows { display: flex; flex-direction: column; gap: 10px; }
+.tier-row { display: flex; align-items: center; gap: 10px; }
+.tier-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+.tier-nm { font-size: 13px; font-weight: 700; flex: 1; }
+.tier-rq { font-size: 12px; color: #94a3b8; }
+.tier-ck { color: #22c55e; }
+.badges-wrap { display: flex; flex-wrap: wrap; gap: 8px; }
+.badge { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px; padding: 10px 12px; text-align: center; flex: 1; min-width: 75px; }
+.badge-ico { font-size: 22px; margin-bottom: 3px; }
+.badge-nm { font-size: 10px; font-weight: 700; color: #475569; }
+.badge.locked { opacity: 0.3; filter: grayscale(1); }
+.how-row { display: flex; align-items: flex-start; gap: 10px; margin-bottom: 10px; font-size: 13px; color: #475569; line-height: 1.5; }
+
+/* STATES */
+.loading-s { display: flex; align-items: center; justify-content: center; gap: 10px; padding: 60px; color: rgba(255,255,255,0.75); font-size: 14px; }
+.spinner { width: 20px; height: 20px; border: 2px solid rgba(255,255,255,0.3); border-top-color: #fff; border-radius: 50%; animation: spin 0.8s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+.empty-s { text-align: center; padding: 60px 20px; background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.15); border-radius: 14px; margin-top: 16px; }
+.empty-ico { font-size: 44px; margin-bottom: 10px; opacity: 0.6; }
+.empty-ttl { font-size: 18px; font-weight: 700; margin-bottom: 6px; }
+.empty-txt { font-size: 14px; opacity: 0.75; }
+
+/* TOAST */
+#toasts { position: fixed; bottom: 24px; right: 24px; display: flex; flex-direction: column; gap: 8px; z-index: 9999; pointer-events: none; }
+.toast { background: #fff; color: #1e293b; border-radius: 12px; padding: 13px 18px; font-size: 14px; font-weight: 600; box-shadow: 0 8px 32px rgba(0,0,0,0.2); display: flex; align-items: center; gap: 10px; animation: tIn 0.3s ease; pointer-events: all; min-width: 260px; border-left: 4px solid #667eea; }
+.toast.success { border-left-color: #22c55e; }
+.toast.error { border-left-color: #ef4444; }
+@keyframes tIn { from{transform:translateX(100px);opacity:0}to{transform:translateX(0);opacity:1} }
+
+@media(max-width:640px) {
+  .stats-row { grid-template-columns: repeat(2,1fr); padding: 16px; }
+  .content, .tabs-wrap { padding-left: 16px; padding-right: 16px; }
+  .topbar { padding: 12px 16px; }
+  .props-grid { grid-template-columns: 1fr; }
+}
+</style>
 </head>
 <body>
-    <div class="container">
-        <div class="header">
-            <div>
-                <h1>🏘️ Property Intelligence</h1>
-                <div style="color: #718096; font-size: 14px;">Find distressed properties</div>
-            </div>
-            <button class="btn btn-danger" onclick="logout()">Logout</button>
-        </div>
 
-        <!-- Category Tabs -->
-        <div class="tabs">
-            <div class="tab active" onclick="switchCategory('tax')">💰 Tax Delinquent</div>
-            <div class="tab" onclick="switchCategory('pre_foreclosure')">🏚️ Pre-Foreclosure</div>
-            <div class="tab" onclick="switchCategory('fire_damage')">🔥 Fire Damages</div>
-            <div class="tab" onclick="switchCategory('probate')">⚖️ Probate</div>
-            <div class="tab" onclick="switchCategory('code_violation')">⚠️ Code Violations</div>
-            <div class="tab" onclick="switchCategory('surplus_funds')">💵 Surplus Funds</div>
-            <div class="tab" onclick="switchCategory('my_requests')">📋 My Requests</div>
-        </div>
+<!-- TOPBAR -->
+<div class="topbar">
+  <div class="brand">
+    <span style="font-size:24px">🏠</span>
+    <div><div class="brand-name">Real Estate Intelligence</div><div class="brand-sub">User Dashboard</div></div>
+  </div>
+  <div class="topbar-right">
+    <div class="user-pill">👤 <span id="user-email">—</span></div>
+    <button class="btn-logout" onclick="doLogout()">Log Out</button>
+  </div>
+</div>
 
-        <!-- Rewards Widget -->
-        <div class="card" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white;">
-            <h3 style="margin-bottom: 15px;">🎁 Your Rewards Status</h3>
-            
-            <div style="background: rgba(255,255,255,0.15); padding: 15px; border-radius: 8px; margin-bottom: 10px;">
-                <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
-                    <strong id="spendingTierName">🥉 Bronze Tier</strong>
-                    <span id="spendingProgress">$0 / $100</span>
-                </div>
-                <div style="background: rgba(255,255,255,0.3); height: 10px; border-radius: 5px; overflow: hidden;">
-                    <div id="spendingBar" style="background: white; height: 100%; width: 0%; transition: width 0.3s;"></div>
-                </div>
-                <div style="margin-top: 12px; display: flex; justify-content: space-between; align-items: center;">
-                    <div>
-                        Base: <strong id="baseReward">$5</strong> → 
-                        Boosted: <strong id="boostedReward" style="font-size: 20px; color: #48bb78;">$5.00</strong>
-                    </div>
-                    <span id="timeBadge" style="font-size: 18px;">🔍 1.0x</span>
-                </div>
-                <button id="claimRewardBtn" class="btn btn-success" style="display: none; width: 100%; margin-top: 10px;" onclick="claimReward()">
-                    💰 Claim Reward
-                </button>
-            </div>
-            
-            <div style="background: rgba(255,255,255,0.15); padding: 15px; border-radius: 8px;">
-                <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
-                    <strong id="timeBonusName">🔍 Explorer</strong>
-                    <span id="timeProgress">0 / 180 min</span>
-                </div>
-                <div style="background: rgba(255,255,255,0.3); height: 10px; border-radius: 5px; overflow: hidden;">
-                    <div id="timeBar" style="background: #48bb78; height: 100%; width: 0%; transition: width 0.3s;"></div>
-                </div>
-                <div style="margin-top: 8px; font-size: 14px; opacity: 0.9;">
-                    All rewards boosted by <strong id="timeMultiplier">1.0x</strong>
-                </div>
-            </div>
-        </div>
+<!-- REWARDS STRIP -->
+<div class="rewards-strip">
+  <div class="rstrip-item"><span class="rstrip-label">Tier:</span> <span id="tier-badge" class="tier-badge tb-bronze">Bronze</span></div>
+  <div class="rstrip-item"><span class="rstrip-label">Points:</span> <span class="rstrip-val gold" id="pts-display">0</span></div>
+  <div class="rstrip-item"><span class="rstrip-label">Reward:</span> <span class="rstrip-val" id="reward-display">$—</span></div>
+  <div class="progress-wrap">
+    <div style="font-size:11px;opacity:0.8" id="prog-label">Loading…</div>
+    <div class="progress-bar"><div class="progress-fill" id="prog-fill" style="width:0%"></div></div>
+  </div>
+  <button class="btn-claim" id="claim-btn" onclick="claimReward()" disabled>🎁 Claim Reward</button>
+</div>
 
-        <!-- Properties Tab -->
-        <div id="taxTab">
-            <div class="card">
-                <h2 style="margin-bottom: 20px;">Available Properties</h2>
-                
-                <div style="margin-bottom: 15px;">
-                    <input type="text" id="propertySearchInput" placeholder="🔍 Search by address, parcel, zip, or owner..." 
-                           style="width: 100%; padding: 12px; border-radius: 6px; border: 1px solid #e2e8f0; font-size: 14px;"
-                           onkeyup="handleSearch()">
-                </div>
-                
-                <div style="margin-bottom: 20px; display: flex; gap: 10px;">
-                    <select id="stageFilter" style="padding: 8px; border-radius: 6px; border: 1px solid #e2e8f0;" onchange="handleFilterChange()">
-                        <option value="">All Stages</option>
-                        <option value="sweet_spot">🎯 Sweet Spot</option>
-                        <option value="danger_zone">🚨 Danger Zone</option>
-                        <option value="pre_lien">⚠️ Pre-Lien</option>
-                        <option value="unpaid_new">🆕 Unpaid New</option>
-                    </select>
-                </div>
+<!-- STATS -->
+<div class="stats-row">
+  <div class="stat-card"><div class="stat-n" id="stat-props">—</div><div class="stat-l">Properties</div></div>
+  <div class="stat-card"><div class="stat-n" id="stat-reqs">—</div><div class="stat-l">My Requests</div></div>
+  <div class="stat-card"><div class="stat-n" id="stat-done">—</div><div class="stat-l">Completed</div></div>
+  <div class="stat-card"><div class="stat-n" id="stat-spent">$—</div><div class="stat-l">Total Spent</div></div>
+</div>
 
-                <div id="paginationTop" class="pagination-container"></div>
-                <div id="propertiesTable"></div>
-                <div id="paginationBottom" class="pagination-container"></div>
-            </div>
-        </div>
+<!-- TABS -->
+<div class="tabs-wrap">
+  <div class="tabs">
+    <div class="tab active" onclick="switchTab('properties')" id="tab-properties">🏘 Properties</div>
+    <div class="tab" onclick="switchTab('requests')" id="tab-requests">📋 My Requests</div>
+    <div class="tab" onclick="switchTab('rewards')" id="tab-rewards">🏆 Rewards</div>
+  </div>
+</div>
 
-        <!-- Service Requests Tab -->
-        <div id="requestsTab" style="display: none;">
-            <div class="card">
-                <h2>My Service Requests</h2>
-                <div id="requestsList"></div>
-            </div>
-        </div>
+<!-- CONTENT -->
+<div class="content">
+  <div class="panel active" id="panel-properties">
+    <div class="search-bar">
+      <input type="text" class="search-input" id="search-q" placeholder="🔍 Search address, owner, parcel…" oninput="filterProps()">
+      <select class="filter-select" id="county-sel" onchange="loadProps()">
+        <option value="">All Counties</option>
+        <option value="duval">Duval</option>
+        <option value="miami-dade">Miami-Dade</option>
+        <option value="broward">Broward</option>
+        <option value="palm-beach">Palm Beach</option>
+      </select>
     </div>
+    <div id="props-wrap"><div class="loading-s"><div class="spinner"></div> Loading properties…</div></div>
+  </div>
 
-    <!-- Service Modal -->
-    <div id="serviceModal" class="modal">
-        <div class="modal-content">
-            <h2 style="margin-bottom: 20px;">Request Service</h2>
-            <p style="margin-bottom: 20px;"><strong>Property:</strong> <span id="modalParcel"></span></p>
-            <div id="serviceOptions"></div>
-            <div style="margin-top: 20px; display: flex; gap: 10px;">
-                <button class="btn btn-primary" onclick="openPaymentModal()">Continue to Payment</button>
-                <button class="btn btn-secondary" onclick="closeServiceModal()">Cancel</button>
-            </div>
-        </div>
+  <div class="panel" id="panel-requests">
+    <div id="reqs-wrap"><div class="loading-s"><div class="spinner"></div> Loading your requests…</div></div>
+  </div>
+
+  <div class="panel" id="panel-rewards">
+    <div class="rewards-grid" id="rewards-wrap"><div class="loading-s"><div class="spinner"></div> Loading rewards…</div></div>
+  </div>
+</div>
+
+<!-- SERVICE MODAL -->
+<div class="overlay" id="svc-modal">
+  <div class="modal">
+    <div class="modal-hdr">
+      <div><div class="modal-title">Request a Service</div><div class="modal-sub" id="modal-prop-name">—</div></div>
+      <button class="modal-x" onclick="closeModal()">✕</button>
     </div>
+    <div class="modal-body">
 
-    <!-- Payment Modal -->
-    <div id="paymentModal" class="modal">
-        <div class="modal-content">
-            <h2 style="margin-bottom: 20px;">💳 Payment</h2>
-            <p style="color: #718096; margin-bottom: 20px;">
-                <strong>Service:</strong> <span id="paymentService"></span><br>
-                <strong>Service Amount:</strong> $<span id="paymentAmount"></span>
-            </p>
+      <!-- STEP 1 -->
+      <div id="step1">
+        <label class="field-label">Select Service</label>
+        <select class="svc-select" id="svc-dropdown" onchange="onServiceChange()">
+          <option value="">— Choose a service —</option>
+        </select>
 
-            <form id="payment-form">
-                <div style="background: #f7fafc; padding: 15px; border-radius: 6px; margin-bottom: 20px;">
-                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
-                        <strong>💝 Tip Your VA (Optional)</strong>
-                        <div style="font-size: 12px; color: #718096;">100% goes to the VA</div>
-                    </div>
-                    <div style="display: flex; gap: 10px; margin-bottom: 10px;">
-                        <button type="button" class="btn btn-secondary" style="flex: 1;" onclick="setTip(1)">$1</button>
-                        <button type="button" class="btn btn-secondary" style="flex: 1;" onclick="setTip(3)">$3</button>
-                        <button type="button" class="btn btn-secondary" style="flex: 1;" onclick="setTip(5)">$5</button>
-                        <button type="button" class="btn btn-secondary" style="flex: 1;" onclick="setTip(10)">$10</button>
-                    </div>
-                    <input type="number" id="tipAmount" placeholder="Or enter custom amount" 
-                           step="0.50" min="0" max="1000" 
-                           style="width: 100%; padding: 8px; border: 1px solid #e2e8f0; border-radius: 6px;"
-                           oninput="updateTotal()">
-                </div>
-
-                <div style="background: #e6f7ff; padding: 15px; border-radius: 6px; margin-bottom: 20px;">
-                    <div style="display: flex; justify-content: space-between; align-items: center;">
-                        <strong style="font-size: 18px;">Total:</strong>
-                        <strong style="font-size: 24px; color: #2d3748;">$<span id="totalAmount">0.00</span></strong>
-                    </div>
-                </div>
-
-                <div id="card-element"></div>
-                <div id="card-errors"></div>
-
-                <div style="background: #fff3cd; border: 1px solid #ffc107; padding: 12px; border-radius: 6px; margin: 15px 0;">
-                    <div style="display: flex; align-items: center; gap: 8px;">
-                        <span style="font-size: 18px;">⚠️</span>
-                        <div style="font-size: 13px; color: #856404;">
-                            <strong>No Refunds Policy:</strong> All payments are final and non-refundable.
-                        </div>
-                    </div>
-                </div>
-
-                <div style="display: flex; gap: 10px; margin-top: 20px;">
-                    <button type="submit" class="btn btn-success" id="submitPayment">Pay Now</button>
-                    <button type="button" class="btn btn-secondary" onclick="closePaymentModal()">Back</button>
-                </div>
-            </form>
+        <!-- SERVICE INFO -->
+        <div class="svc-info" id="svc-info">
+          <div class="svc-info-name" id="svc-info-name">—</div>
+          <div class="svc-info-desc" id="svc-info-desc">—</div>
+          <div class="svc-info-price" id="svc-info-price">$—</div>
         </div>
+
+        <!-- TIP -->
+        <label class="field-label">Add a Tip for Your VA (optional)</label>
+        <div class="tip-row">
+          <button class="tip-btn sel" onclick="setTip(event,0)">No Tip</button>
+          <button class="tip-btn" onclick="setTip(event,1)">$1</button>
+          <button class="tip-btn" onclick="setTip(event,2)">$2</button>
+          <button class="tip-btn" onclick="setTip(event,5)">$5</button>
+          <button class="tip-btn" onclick="setTip(event,'custom')">Custom</button>
+        </div>
+        <input type="number" class="tip-input" id="tip-custom" placeholder="Enter tip amount ($)" min="0" step="0.01" oninput="onCustomTip()">
+
+        <!-- ORDER SUMMARY -->
+        <div class="order-box" id="order-box" style="display:none">
+          <div class="order-row"><span>Service</span><span id="sum-svc">—</span></div>
+          <div class="order-row"><span>VA Tip</span><span id="sum-tip">$0.00</span></div>
+          <div class="order-total"><span>Total</span><span id="sum-total">—</span></div>
+        </div>
+
+        <button class="btn-full" id="btn-continue" onclick="goToPayment()" disabled>Continue to Payment →</button>
+      </div>
+
+      <!-- STEP 2 -->
+      <div id="step2" style="display:none">
+        <div class="order-box">
+          <div class="order-row"><span>Service</span><span id="pay-svc">—</span></div>
+          <div class="order-row"><span>VA Tip</span><span id="pay-tip">$0.00</span></div>
+          <div class="order-total"><span>Total Charged</span><span id="pay-total">—</span></div>
+        </div>
+        <label class="field-label">Card Details</label>
+        <div id="card-el"></div>
+        <div id="card-err"></div>
+        <button class="btn-full" id="btn-pay" onclick="doPayment()">🔒 Pay Now</button>
+        <button class="btn-back" onclick="backToStep1()">← Back</button>
+      </div>
+
     </div>
+  </div>
+</div>
 
-    <script>
-        let currentCategory = 'tax';
-        let currentPage = 1;
-        let currentSearch = '';
-        let currentStage = '';
-        let selectedService = null;
-        let selectedProperty = null;
-        let servicePricing = [];
-        let stripe, elements, cardElement;
-        let searchTimeout = null;
-        let rewardsStatus = null;
-        let lastTimeSave = Date.now();
+<!-- SUCCESS MODAL -->
+<div class="overlay" id="success-modal">
+  <div class="modal">
+    <div class="success-wrap">
+      <div class="success-icon">🎉</div>
+      <div class="success-title">Service Requested!</div>
+      <div class="success-desc">Your VA will be notified and will start work shortly. You'll be notified when it's complete.</div>
+      <div class="points-box">
+        <div class="points-num" id="success-pts">+0</div>
+        <div class="points-lbl">Points Earned</div>
+      </div>
+      <button class="btn-full" onclick="closeSuccess()">View My Requests →</button>
+    </div>
+  </div>
+</div>
 
-        window.addEventListener('DOMContentLoaded', async () => {
-            loadProperties();
-            loadServiceRequests();
-            await loadServicePricing();
-            await initStripe();
-            loadRewardsStatus();
-            setInterval(saveTimeToServer, 60000);
-        });
+<div id="toasts"></div>
 
-        async function initStripe() {
-            const response = await fetch('/api/stripe/config');
-            const {publishableKey} = await response.json();
-            stripe = Stripe(publishableKey);
-            elements = stripe.elements();
-            cardElement = elements.create('card');
-            cardElement.mount('#card-element');
-            cardElement.on('change', (e) => {
-                document.getElementById('card-errors').textContent = e.error ? e.error.message : '';
-            });
-        }
+<script>
+// ─── STATE ───
+let currentUser = null;
+let allProps = [];
+let services = [];
+let selService = null;
+let tipAmt = 0;
+let currentProp = null;
+let stripe = null;
+let cardEl = null;
+let clientSecret = null;
 
-        function switchCategory(category) {
-            currentCategory = category;
-            currentPage = 1;
-            currentSearch = '';
-            currentStage = '';
-            document.getElementById('propertySearchInput').value = '';
-            document.getElementById('stageFilter').value = '';
-            
-            document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
-            event.target.classList.add('active');
-            
-            const isPropertyCategory = ['tax', 'pre_foreclosure', 'fire_damage', 'probate', 'code_violation', 'surplus_funds'].includes(category);
-            
-            document.getElementById('taxTab').style.display = isPropertyCategory ? 'block' : 'none';
-            document.getElementById('requestsTab').style.display = category === 'my_requests' ? 'block' : 'none';
-            
-            if (isPropertyCategory) {
-                loadProperties();
-            } else if (category === 'my_requests') {
-                loadServiceRequests();
-            }
-        }
+// ─── INIT ───
+window.addEventListener('DOMContentLoaded', async () => {
+  try {
+    const r = await fetch('/api/user/profile', { credentials: 'include' });
+    if (r.ok) {
+      const d = await r.json();
+      if (d.ok && d.email) { currentUser = d; boot(); return; }
+    }
+  } catch(e) {}
+  window.location.href = '/login';
+});
 
-        function handleSearch() {
-            clearTimeout(searchTimeout);
-            searchTimeout = setTimeout(() => {
-                currentPage = 1;
-                currentSearch = document.getElementById('propertySearchInput').value.trim();
-                loadProperties();
-            }, 500);
-        }
+async function boot() {
+  document.getElementById('user-email').textContent = currentUser.email;
+  await Promise.all([loadProps(), loadRewards(), loadReqs()]);
+  initStripe();
+}
 
-        function handleFilterChange() {
-            currentPage = 1;
-            currentStage = document.getElementById('stageFilter').value;
-            loadProperties();
-        }
+async function doLogout() {
+  try { await fetch('/api/logout', { method: 'POST', credentials: 'include' }); } catch(e) {}
+  window.location.href = '/login';
+}
 
-        async function loadProperties() {
-            const params = new URLSearchParams({ 
-                page: currentPage, 
-                page_size: 50, 
-                category: currentCategory 
-            });
-            
-            if (currentStage) params.append('stage', currentStage);
-            if (currentSearch) params.append('search', currentSearch);
+// ─── STRIPE ───
+async function initStripe() {
+  try {
+    const r = await fetch('/api/stripe/config', { credentials: 'include' });
+    const d = await r.json();
+    if (d.publishableKey) stripe = Stripe(d.publishableKey);
+  } catch(e) {}
+}
 
-            try {
-                const response = await fetch(`/api/properties?${params}`);
-                const data = await response.json();
+// ─── TABS ───
+function switchTab(name) {
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+  document.getElementById('tab-'+name).classList.add('active');
+  document.getElementById('panel-'+name).classList.add('active');
+  if (name === 'requests') loadReqs();
+  if (name === 'rewards') loadRewardsPanel();
+}
 
-                if (data.ok && data.rows.length > 0) {
-                    renderProperties(data.rows);
-                    renderPagination(data.total);
-                } else {
-                    document.getElementById('propertiesTable').innerHTML = '<p style="color: #718096; padding: 20px;">No properties found.</p>';
-                    document.getElementById('paginationTop').innerHTML = '';
-                    document.getElementById('paginationBottom').innerHTML = '';
-                }
-            } catch (error) {
-                console.error('Error loading properties:', error);
-            }
-        }
+// ─── PROPERTIES ───
+async function loadProps() {
+  const c = document.getElementById('props-wrap');
+  c.innerHTML = '<div class="loading-s"><div class="spinner"></div> Loading properties…</div>';
+  const county = document.getElementById('county-sel').value;
+  const url = county ? `/api/properties/${county}?limit=60` : '/api/properties?limit=60';
+  try {
+    const r = await fetch(url, { credentials: 'include' });
+    const d = await r.json();
+    allProps = Array.isArray(d) ? d : (d.properties || d.data || []);
+    document.getElementById('stat-props').textContent = allProps.length;
+    renderProps(allProps);
+  } catch(e) {
+    c.innerHTML = `<div class="empty-s"><div class="empty-ico">⚠️</div><div class="empty-ttl">Failed to Load</div><div class="empty-txt">${e.message}</div></div>`;
+  }
+}
 
-        function renderProperties(properties) {
-            const container = document.getElementById('propertiesTable');
-            container.innerHTML = `
-                <table>
-                    <thead>
-                        <tr>
-                            <th>Parcel</th>
-                            <th>Stage</th>
-                            <th>Address</th>
-                            <th>Owner</th>
-                            <th>Amount Due</th>
-                            <th>Actions</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        ${properties.map(prop => `
-                            <tr>
-                                <td><strong>${prop.parcel}</strong></td>
-                                <td><span style="padding: 4px 8px; border-radius: 4px; font-size: 12px; background: ${getStageColor(prop.stage)}; color: white;">${formatStage(prop.stage)}</span></td>
-                                <td>${prop.address || '-'}</td>
-                                <td>${prop.owner || '-'}</td>
-                                <td><strong>$${parseFloat(prop.current_total_due || 0).toLocaleString()}</strong></td>
-                                <td>
-                                    <button class="btn btn-primary btn-sm" onclick="openServiceModal(${prop.id}, '${prop.parcel}', '${(prop.address || '').replace(/'/g, "\\'")}')">
-                                        Request Service
-                                    </button>
-                                </td>
-                            </tr>
-                        `).join('')}
-                    </tbody>
-                </table>
-            `;
-        }
+function filterProps() {
+  const q = document.getElementById('search-q').value.toLowerCase();
+  renderProps(q ? allProps.filter(p =>
+    (p.address||'').toLowerCase().includes(q) ||
+    (p.owner||p.owner_name||'').toLowerCase().includes(q) ||
+    (p.parcel||'').toLowerCase().includes(q)
+  ) : allProps);
+}
 
-        function renderPagination(total) {
-            const totalPages = Math.ceil(total / 50);
-            
-            if (totalPages <= 1) {
-                const html = total > 0 ? `<span style="padding: 10px; color: #718096;">${total} properties</span>` : '';
-                document.getElementById('paginationTop').innerHTML = html;
-                document.getElementById('paginationBottom').innerHTML = html;
-                return;
-            }
-            
-            let html = '';
-            
-            if (currentPage > 1) {
-                html += `<button class="btn btn-secondary" onclick="changePage(1)">« First</button>`;
-                html += `<button class="btn btn-secondary" onclick="changePage(${currentPage - 1})">‹ Previous</button>`;
-            }
-            
-            html += `<span style="padding: 10px; font-weight: 600;">Page ${currentPage} of ${totalPages} (${total.toLocaleString()} properties)</span>`;
-            
-            if (currentPage < totalPages) {
-                html += `<button class="btn btn-secondary" onclick="changePage(${currentPage + 1})">Next ›</button>`;
-                html += `<button class="btn btn-secondary" onclick="changePage(${totalPages})">Last »</button>`;
-            }
-            
-            document.getElementById('paginationTop').innerHTML = html;
-            document.getElementById('paginationBottom').innerHTML = html;
-        }
+function renderProps(props) {
+  const c = document.getElementById('props-wrap');
+  if (!props.length) {
+    c.innerHTML = `<div class="empty-s"><div class="empty-ico">🏘</div><div class="empty-ttl">No Properties Found</div><div class="empty-txt">Try a different search or county.</div></div>`;
+    return;
+  }
+  const stageClass = {early:'s-early',mid:'s-mid',late:'s-late',critical:'s-critical'};
+  const stageLabel = {early:'Early 6-12mo',mid:'Mid 12-18mo',late:'Late 18-24mo',critical:'Critical 24mo+'};
+  c.innerHTML = '<div class="props-grid">'+props.map(p => {
+    const mo = parseInt(p.months_delinquent || p.tax_years || 0);
+    const st = mo<=12?'early':mo<=18?'mid':mo<=24?'late':'critical';
+    const due = parseFloat(p.current_total_due || p.total_due || 0);
+    const propData = encodeURIComponent(JSON.stringify({id:p.id,address:p.address||p.property_address,owner:p.owner||p.owner_name,parcel:p.parcel,county:p.county}));
+    return `
+      <div class="prop-card">
+        <div class="prop-stage ${stageClass[st]}">${stageLabel[st]}</div>
+        <div class="prop-addr">${p.address||p.property_address||'Address unavailable'}</div>
+        <div class="prop-chips">
+          ${p.parcel?`<span class="prop-chip">📋 ${p.parcel}</span>`:''}
+          ${(p.owner||p.owner_name)?`<span class="prop-chip">👤 ${p.owner||p.owner_name}</span>`:''}
+          ${p.county?`<span class="prop-chip">📍 ${p.county}</span>`:''}
+        </div>
+        ${due>0?`<div class="prop-due">$${due.toLocaleString('en-US',{minimumFractionDigits:2})} delinquent</div>`:''}
+        <button class="btn-req" onclick="openModal('${propData}')">⚡ Request VA Service</button>
+      </div>`;
+  }).join('')+'</div>';
+}
 
-        function changePage(page) {
-            currentPage = page;
-            loadProperties();
-            window.scrollTo({ top: 0, behavior: 'smooth' });
-        }
+// ─── SERVICE MODAL ───
+async function openModal(propEncoded) {
+  currentProp = JSON.parse(decodeURIComponent(propEncoded));
+  selService = null; tipAmt = 0;
 
-        function getStageColor(stage) {
-            const colors = {
-                'sweet_spot': '#48bb78',
-                'danger_zone': '#f56565',
-                'pre_lien': '#ecc94b',
-                'unpaid_new': '#9f7aea'
-            };
-            return colors[stage] || '#718096';
-        }
+  // Reset
+  document.getElementById('step1').style.display = 'block';
+  document.getElementById('step2').style.display = 'none';
+  document.getElementById('modal-prop-name').textContent = currentProp.address || 'Property';
+  document.getElementById('svc-info').style.display = 'none';
+  document.getElementById('order-box').style.display = 'none';
+  document.getElementById('btn-continue').disabled = true;
+  document.querySelectorAll('.tip-btn').forEach(b => b.classList.remove('sel'));
+  document.querySelector('.tip-btn').classList.add('sel');
+  document.getElementById('tip-custom').style.display = 'none';
+  document.getElementById('tip-custom').value = '';
+  document.getElementById('svc-modal').classList.add('open');
 
-        function formatStage(stage) {
-            const stages = {
-                'sweet_spot': 'Sweet Spot',
-                'danger_zone': 'Danger Zone',
-                'pre_lien': 'Pre-Lien',
-                'unpaid_new': 'Unpaid New'
-            };
-            return stages[stage] || stage;
-        }
+  // Load services into dropdown
+  if (!services.length) {
+    try {
+      const r = await fetch('/api/pricing/active', { credentials: 'include' });
+      const d = await r.json();
+      services = d.pricing || [];
+    } catch(e) {
+      services = [
+        { service_type:'skiptrace', service_name:'Skip Trace', service_description:'Find owner contact info', price_charged:15 },
+        { service_type:'cold_call_block', service_name:'Cold Call Block', service_description:'50 calls to motivated sellers', price_charged:45 },
+        { service_type:'postcard', service_name:'Postcard Campaign', service_description:'Direct mail to owner', price_charged:12 },
+        { service_type:'door_knock', service_name:'Door Knock', service_description:'In-person property visit', price_charged:35 }
+      ];
+    }
+  }
 
-        async function loadServicePricing() {
-            const response = await fetch('/api/pricing/active');
-            const data = await response.json();
-            servicePricing = data.services || [];
-        }
+  const dd = document.getElementById('svc-dropdown');
+  dd.innerHTML = '<option value="">— Choose a service —</option>' +
+    services.map(s => `<option value="${s.service_type}" data-price="${s.price_charged}" data-name="${s.service_name}" data-desc="${s.service_description||''}">${s.service_name} — $${parseFloat(s.price_charged).toFixed(2)}</option>`).join('');
+  dd.value = '';
+}
 
-        function openServiceModal(propertyId, parcel, address) {
-            selectedProperty = {id: propertyId, parcel, address};
-            document.getElementById('modalParcel').textContent = parcel;
-            
-            const html = servicePricing.map(svc => `
-                <div style="border: 1px solid #e2e8f0; padding: 15px; margin: 10px 0; border-radius: 6px; cursor: pointer;"
-                     onclick="selectService('${svc.service_type}', '${svc.service_name}', ${svc.price_charged})">
-                    <strong>${svc.service_name}</strong><br>
-                    <span style="color: #718096; font-size: 13px;">${svc.service_description}</span><br>
-                    <strong style="color: #667eea; font-size: 18px;">$${parseFloat(svc.price_charged).toFixed(2)}</strong>
-                </div>
-            `).join('');
-            
-            document.getElementById('serviceOptions').innerHTML = html;
-            document.getElementById('serviceModal').style.display = 'flex';
-        }
+function onServiceChange() {
+  const dd = document.getElementById('svc-dropdown');
+  const opt = dd.options[dd.selectedIndex];
+  if (!dd.value) {
+    selService = null;
+    document.getElementById('svc-info').style.display = 'none';
+    document.getElementById('order-box').style.display = 'none';
+    document.getElementById('btn-continue').disabled = true;
+    return;
+  }
+  selService = {
+    type: dd.value,
+    name: opt.dataset.name,
+    price: parseFloat(opt.dataset.price),
+    desc: opt.dataset.desc
+  };
+  document.getElementById('svc-info-name').textContent = selService.name;
+  document.getElementById('svc-info-desc').textContent = selService.desc;
+  document.getElementById('svc-info-price').textContent = `$${selService.price.toFixed(2)}`;
+  document.getElementById('svc-info').style.display = 'block';
+  updateSummary();
+  document.getElementById('order-box').style.display = 'block';
+  document.getElementById('btn-continue').disabled = false;
+}
 
-        function selectService(type, name, price) {
-            selectedService = {type, name, price};
-            document.querySelectorAll('#serviceOptions > div').forEach(el => {
-                el.style.border = '1px solid #e2e8f0';
-            });
-            event.currentTarget.style.border = '2px solid #667eea';
-        }
+function setTip(e, val) {
+  document.querySelectorAll('.tip-btn').forEach(b => b.classList.remove('sel'));
+  e.target.classList.add('sel');
+  const ci = document.getElementById('tip-custom');
+  if (val === 'custom') { ci.style.display = 'block'; ci.focus(); tipAmt = parseFloat(ci.value||0); }
+  else { ci.style.display = 'none'; tipAmt = parseFloat(val); }
+  updateSummary();
+}
 
-        function closeServiceModal() {
-            document.getElementById('serviceModal').style.display = 'none';
-        }
+function onCustomTip() {
+  tipAmt = parseFloat(document.getElementById('tip-custom').value || 0);
+  updateSummary();
+}
 
-        function openPaymentModal() {
-            if (!selectedService) {
-                alert('Please select a service');
-                return;
-            }
-            
-            document.getElementById('paymentService').textContent = selectedService.name;
-            document.getElementById('paymentAmount').textContent = selectedService.price.toFixed(2);
-            document.getElementById('totalAmount').textContent = selectedService.price.toFixed(2);
-            
-            closeServiceModal();
-            document.getElementById('paymentModal').style.display = 'flex';
-        }
+function updateSummary() {
+  if (!selService) return;
+  const total = selService.price + (tipAmt || 0);
+  document.getElementById('sum-svc').textContent = `$${selService.price.toFixed(2)}`;
+  document.getElementById('sum-tip').textContent = `$${(tipAmt||0).toFixed(2)}`;
+  document.getElementById('sum-total').textContent = `$${total.toFixed(2)}`;
+}
 
-        function closePaymentModal() {
-            document.getElementById('paymentModal').style.display = 'none';
-            document.getElementById('tipAmount').value = '';
-        }
+async function goToPayment() {
+  if (!selService) return;
+  if (!stripe) { toast('Payment system loading, please try again.','error'); initStripe(); return; }
+  const btn = document.getElementById('btn-continue');
+  btn.disabled = true; btn.textContent = 'Setting up payment…';
+  try {
+    const r = await fetch('/api/stripe/create-payment-intent', {
+      method: 'POST', credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        service_type: selService.type,
+        parcel: currentProp.parcel || '',
+        property_id: currentProp.id || '',
+        tip_amount: tipAmt || 0
+      })
+    });
+    const d = await r.json();
+    if (!r.ok || !d.clientSecret) throw new Error(d.error || 'Failed to create payment');
+    clientSecret = d.clientSecret;
+    const total = selService.price + (tipAmt||0);
+    document.getElementById('pay-svc').textContent = `${selService.name} — $${selService.price.toFixed(2)}`;
+    document.getElementById('pay-tip').textContent = `$${(tipAmt||0).toFixed(2)}`;
+    document.getElementById('pay-total').textContent = `$${total.toFixed(2)}`;
+    document.getElementById('step1').style.display = 'none';
+    document.getElementById('step2').style.display = 'block';
+    // Mount Stripe card
+    if (!cardEl) {
+      const els = stripe.elements();
+      cardEl = els.create('card', { style: { base: { fontSize:'15px', color:'#1e293b', fontFamily:'Segoe UI,sans-serif', '::placeholder':{color:'#94a3b8'} } } });
+      cardEl.mount('#card-el');
+      cardEl.on('change', e => { document.getElementById('card-err').textContent = e.error ? e.error.message : ''; });
+    }
+  } catch(e) {
+    toast(e.message, 'error');
+  } finally {
+    btn.disabled = false; btn.textContent = 'Continue to Payment →';
+  }
+}
 
-        function setTip(amount) {
-            document.getElementById('tipAmount').value = amount;
-            updateTotal();
-        }
+async function doPayment() {
+  if (!stripe || !cardEl || !clientSecret) return;
+  const btn = document.getElementById('btn-pay');
+  btn.disabled = true; btn.textContent = '🔒 Processing…';
+  try {
+    const { error, paymentIntent } = await stripe.confirmCardPayment(clientSecret, { payment_method: { card: cardEl } });
+    if (error) {
+      document.getElementById('card-err').textContent = error.message;
+      btn.disabled = false; btn.textContent = '🔒 Pay Now';
+      return;
+    }
+    if (paymentIntent.status === 'succeeded') {
+      closeModal();
+      const pts = Math.floor((selService.price + (tipAmt||0)) * 10);
+      document.getElementById('success-pts').textContent = '+' + pts;
+      document.getElementById('success-modal').classList.add('open');
+      cardEl = null; clientSecret = null;
+      loadRewards();
+    }
+  } catch(e) {
+    toast('Payment error: ' + e.message, 'error');
+    btn.disabled = false; btn.textContent = '🔒 Pay Now';
+  }
+}
 
-        function updateTotal() {
-            const tip = parseFloat(document.getElementById('tipAmount').value) || 0;
-            const total = selectedService.price + tip;
-            document.getElementById('totalAmount').textContent = total.toFixed(2);
-        }
+function backToStep1() {
+  document.getElementById('step1').style.display = 'block';
+  document.getElementById('step2').style.display = 'none';
+  document.getElementById('btn-continue').disabled = false;
+}
+function closeModal() { document.getElementById('svc-modal').classList.remove('open'); }
+function closeSuccess() { document.getElementById('success-modal').classList.remove('open'); switchTab('requests'); }
 
-        document.getElementById('payment-form').addEventListener('submit', async (e) => {
-            e.preventDefault();
-            const tip = parseFloat(document.getElementById('tipAmount').value) || 0;
-            
-            try {
-                const response = await fetch('/api/stripe/create-payment-intent', {
-                    method: 'POST',
-                    headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({
-                        service_type: selectedService.type,
-                        parcel: selectedProperty.parcel,
-                        property_id: selectedProperty.id,
-                        tip_amount: tip
-                    })
-                });
-                
-                const {clientSecret} = await response.json();
-                const result = await stripe.confirmCardPayment(clientSecret, {
-                    payment_method: {card: cardElement}
-                });
-                
-                if (result.error) {
-                    alert('Payment failed: ' + result.error.message);
-                } else {
-                    alert('✅ Payment successful! Your service request has been submitted.');
-                    closePaymentModal();
-                    loadServiceRequests();
-                    loadRewardsStatus();
-                }
-            } catch (error) {
-                alert('Payment error');
-            }
-        });
+document.getElementById('svc-modal').addEventListener('click', e => { if (e.target===e.currentTarget) closeModal(); });
+document.getElementById('success-modal').addEventListener('click', e => { if (e.target===e.currentTarget) closeSuccess(); });
 
-        async function loadServiceRequests() {
-            const response = await fetch('/api/user/service-requests');
-            const data = await response.json();
-            
-            const container = document.getElementById('requestsList');
-            if (!data.requests || data.requests.length === 0) {
-                container.innerHTML = '<p style="color: #718096; padding: 20px;">No service requests yet</p>';
-                return;
-            }
-            
-            container.innerHTML = `
-                <table>
-                    <thead>
-                        <tr>
-                            <th>Parcel</th>
-                            <th>Service</th>
-                            <th>Status</th>
-                            <th>Amount</th>
-                            <th>Created</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        ${data.requests.map(req => `
-                            <tr>
-                                <td><strong>${req.parcel}</strong></td>
-                                <td>${req.service_type}</td>
-                                <td><span style="padding: 4px 8px; border-radius: 4px; font-size: 12px; background: ${getStatusColor(req.status)}; color: white;">${req.status}</span></td>
-                                <td>$${parseFloat(req.amount_charged || 0).toFixed(2)}</td>
-                                <td>${new Date(req.created_at).toLocaleDateString()}</td>
-                            </tr>
-                        `).join('')}
-                    </tbody>
-                </table>
-            `;
-        }
+// ─── REQUESTS ───
+async function loadReqs() {
+  const c = document.getElementById('reqs-wrap');
+  c.innerHTML = '<div class="loading-s"><div class="spinner"></div> Loading your requests…</div>';
+  try {
+    const r = await fetch('/api/user/service-requests', { credentials: 'include' });
+    const d = await r.json();
+    const reqs = Array.isArray(d) ? d : (d.requests || d.service_requests || []);
+    document.getElementById('stat-reqs').textContent = reqs.length;
+    const done = reqs.filter(r => r.status==='approved').length;
+    document.getElementById('stat-done').textContent = done;
+    const spent = reqs.filter(r=>r.payment_status==='paid'||r.status==='approved').reduce((s,r)=>s+parseFloat(r.amount_charged||0),0);
+    document.getElementById('stat-spent').textContent = '$'+spent.toFixed(2);
+    if (!reqs.length) {
+      c.innerHTML = `<div class="empty-s"><div class="empty-ico">📋</div><div class="empty-ttl">No Requests Yet</div><div class="empty-txt">Request a VA service from any property.</div></div>`;
+      return;
+    }
+    c.innerHTML = `<div class="req-table-wrap"><table class="req-table"><thead><tr>
+      <th>Service</th><th>Property</th><th>Status</th><th>VA</th><th>Amount</th><th>Proof</th><th>Date</th>
+    </tr></thead><tbody>
+    ${reqs.map(req => {
+      const sc = `sp-${req.status||'pending'}`;
+      const proof = req.proof_url
+        ? (/\.(jpg|jpeg|png|gif|webp)$/i.test(req.proof_url)
+            ? `<img src="${req.proof_url}" class="proof-thumb" onclick="window.open('${req.proof_url}','_blank')" title="View proof">`
+            : `<a href="${req.proof_url}" target="_blank" style="font-size:12px;color:#667eea;font-weight:600">📎 View</a>`)
+        : '<span style="color:#94a3b8;font-size:12px">—</span>';
+      return `<tr>
+        <td><strong>${(req.service_type||'').replace(/_/g,' ')}</strong></td>
+        <td style="font-size:12px;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${req.property_address||req.parcel||'—'}</td>
+        <td><span class="s-pill ${sc}">${(req.status||'pending').replace(/_/g,' ')}</span></td>
+        <td style="font-size:12px;color:#64748b">${req.claimed_by_va_email||'Unassigned'}</td>
+        <td style="font-weight:700;color:#15803d">$${parseFloat(req.amount_charged||0).toFixed(2)}</td>
+        <td>${proof}</td>
+        <td style="font-size:12px;color:#94a3b8">${req.submitted_at?new Date(req.submitted_at).toLocaleDateString():'—'}</td>
+      </tr>`;
+    }).join('')}
+    </tbody></table></div>`;
+  } catch(e) {
+    c.innerHTML = `<div class="empty-s"><div class="empty-ico">⚠️</div><div class="empty-ttl">Failed to Load</div><div class="empty-txt">${e.message}</div></div>`;
+  }
+}
 
-        function getStatusColor(status) {
-            const colors = {
-                'pending': '#718096',
-                'claimed': '#667eea',
-                'submitted': '#f59e0b',
-                'approved': '#48bb78',
-                'rejected': '#f56565'
-            };
-            return colors[status] || '#718096';
-        }
+// ─── REWARDS ───
+async function loadRewards() {
+  try {
+    const r = await fetch('/api/user/rewards-status', { credentials: 'include' });
+    if (!r.ok) return;
+    const d = await r.json();
+    if (!d.ok) return;
+    const pts = d.lifetime_points || 0;
+    const tier = (d.spending_tier || 'bronze').toLowerCase();
+    const amt = parseFloat(d.boosted_reward_amount || d.base_reward_amount || 5);
+    const canClaim = d.can_claim_reward;
+    const until = parseFloat(d.amount_until_reward || 0);
+    const spent = parseFloat(d.total_spent || 0);
+    const req = spent + until;
+    const pct = req > 0 ? Math.min(100, (spent/req)*100) : 0;
+    document.getElementById('pts-display').textContent = pts.toLocaleString();
+    const tb = document.getElementById('tier-badge');
+    tb.textContent = tier.charAt(0).toUpperCase()+tier.slice(1);
+    tb.className = `tier-badge tb-${tier}`;
+    document.getElementById('reward-display').textContent = '$'+amt.toFixed(2);
+    document.getElementById('prog-fill').style.width = pct+'%';
+    document.getElementById('prog-label').textContent = canClaim ? '🎁 Reward ready!' : `$${until.toFixed(2)} until next reward`;
+    document.getElementById('claim-btn').disabled = !canClaim;
+  } catch(e) {}
+}
 
-        async function loadRewardsStatus() {
-            try {
-                const response = await fetch('/api/user/rewards-status');
-                const data = await response.json();
-                if (data.ok) {
-                    rewardsStatus = data;
-                    updateRewardsUI();
-                }
-            } catch (error) {
-                console.error('Error loading rewards:', error);
-            }
-        }
+async function claimReward() {
+  const btn = document.getElementById('claim-btn');
+  btn.disabled = true; btn.textContent = 'Claiming…';
+  try {
+    const r = await fetch('/api/user/claim-reward', { method:'POST', credentials:'include' });
+    const d = await r.json();
+    if (r.ok && d.ok) { toast(`🎉 ${d.message||'Reward claimed!'}`, 'success'); loadRewards(); }
+    else { toast(d.error||'Failed to claim', 'error'); btn.disabled=false; btn.textContent='🎁 Claim Reward'; }
+  } catch(e) { toast('Connection error','error'); btn.disabled=false; btn.textContent='🎁 Claim Reward'; }
+}
 
-        function updateRewardsUI() {
-            if (!rewardsStatus) return;
-            
-            const tierIcons = ['🥉', '🥈', '🥇', '💎'];
-            const tierIcon = tierIcons[rewardsStatus.spending_tier] || '🥉';
-            document.getElementById('spendingTierName').textContent = tierIcon + ' ' + rewardsStatus.spending_tier_name;
-            document.getElementById('spendingProgress').textContent = `$${rewardsStatus.current_tier_spent.toFixed(0)} / $${rewardsStatus.spending_required.toFixed(0)}`;
-            
-            const spendingPercent = Math.min((rewardsStatus.current_tier_spent / rewardsStatus.spending_required) * 100, 100);
-            document.getElementById('spendingBar').style.width = spendingPercent + '%';
-            
-            document.getElementById('baseReward').textContent = '$' + rewardsStatus.base_reward_amount.toFixed(0);
-            document.getElementById('boostedReward').textContent = '$' + rewardsStatus.boosted_reward_amount.toFixed(2);
-            document.getElementById('timeBadge').textContent = rewardsStatus.time_badge + ' ' + rewardsStatus.time_multiplier.toFixed(1) + 'x';
-            
-            if (rewardsStatus.can_claim_reward) {
-                document.getElementById('claimRewardBtn').style.display = 'block';
-            } else {
-                document.getElementById('claimRewardBtn').style.display = 'none';
-            }
-            
-            document.getElementById('timeBonusName').textContent = rewardsStatus.time_badge + ' ' + rewardsStatus.time_bonus_name;
-            document.getElementById('timeProgress').textContent = `${rewardsStatus.total_minutes} / ${rewardsStatus.next_time_minutes} min`;
-            
-            const timePercent = Math.min((rewardsStatus.total_minutes / rewardsStatus.next_time_minutes) * 100, 100);
-            document.getElementById('timeBar').style.width = timePercent + '%';
-            
-            document.getElementById('timeMultiplier').textContent = rewardsStatus.time_multiplier.toFixed(1) + 'x';
-        }
+async function loadRewardsPanel() {
+  const c = document.getElementById('rewards-wrap');
+  try {
+    const r = await fetch('/api/user/rewards-status', { credentials:'include' });
+    const d = await r.json();
+    if (!r.ok || !d.ok) throw new Error(d.error||'Failed');
+    const pts = d.lifetime_points || 0;
+    const tier = (d.spending_tier||'bronze').toLowerCase();
+    const tiers = [
+      {nm:'Bronze',col:'#f59e0b',min:0,rew:'$5'},
+      {nm:'Silver',col:'#94a3b8',min:50,rew:'$10'},
+      {nm:'Gold',col:'#fcd34d',min:150,rew:'$20'},
+      {nm:'Platinum',col:'#a78bfa',min:300,rew:'$40'}
+    ];
+    const ti = tiers.findIndex(t=>t.nm.toLowerCase()===tier);
+    const badges = [
+      {ico:'🏠',nm:'First Request',locked:(d.total_requests||0)<1},
+      {ico:'🔥',nm:'5 Requests',locked:(d.total_requests||0)<5},
+      {ico:'💰',nm:'Big Spender',locked:(d.total_spent||0)<100},
+      {ico:'⚡',nm:'Power User',locked:(d.total_requests||0)<10},
+      {ico:'🌟',nm:'VIP',locked:tier!=='gold'&&tier!=='platinum'},
+      {ico:'👑',nm:'Platinum',locked:tier!=='platinum'}
+    ];
+    c.innerHTML = `
+      <div class="rcard">
+        <div class="rcard-title">🏆 Your Points</div>
+        <div class="pts-big">${pts.toLocaleString()}</div>
+        <div class="pts-sub">Lifetime points earned</div>
+        <div style="text-align:center;margin-top:12px"><span class="tier-badge tb-${tier}" style="display:inline-block">${tier.charAt(0).toUpperCase()+tier.slice(1)} Tier</span></div>
+      </div>
+      <div class="rcard">
+        <div class="rcard-title">📊 Tier Progress</div>
+        <div class="tier-rows">
+          ${tiers.map((t,i)=>`
+            <div class="tier-row">
+              <div class="tier-dot" style="background:${t.col};${i>ti?'opacity:0.3':''}"></div>
+              <div class="tier-nm" style="${i===ti?'color:#764ba2':'color:#1e293b'}">${t.nm}</div>
+              <div class="tier-rq">Spend $${t.min} → ${t.rew}</div>
+              ${i<=ti?'<div class="tier-ck">✓</div>':''}
+            </div>`).join('')}
+        </div>
+      </div>
+      <div class="rcard">
+        <div class="rcard-title">🎖 Badges</div>
+        <div class="badges-wrap">
+          ${badges.map(b=>`<div class="badge ${b.locked?'locked':''}"><div class="badge-ico">${b.ico}</div><div class="badge-nm">${b.nm}</div></div>`).join('')}
+        </div>
+      </div>
+      <div class="rcard">
+        <div class="rcard-title">💡 How It Works</div>
+        <div class="how-row"><span>🛒</span><span><strong>10 points</strong> per $1 spent on services</span></div>
+        <div class="how-row"><span>🎁</span><span><strong>Cash rewards</strong> when you hit spending tier goals</span></div>
+        <div class="how-row"><span>⏱</span><span><strong>Time multiplier</strong> — stay active for bigger rewards</span></div>
+        <div class="how-row"><span>🚀</span><span><strong>Unlock higher tiers</strong> for larger reward amounts</span></div>
+        <div class="how-row"><span>💸</span><span><strong>Tip your VA</strong> to help motivate quality work</span></div>
+      </div>`;
+  } catch(e) {
+    c.innerHTML = `<div class="empty-s"><div class="empty-ico">⚠️</div><div class="empty-ttl">Failed to Load</div><div class="empty-txt">${e.message}</div></div>`;
+  }
+}
 
-        async function saveTimeToServer() {
-            const now = Date.now();
-            const secondsElapsed = Math.floor((now - lastTimeSave) / 1000);
-            if (secondsElapsed < 30) return;
-            
-            try {
-                await fetch('/api/user/update-time', {
-                    method: 'POST',
-                    headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({ time_seconds: secondsElapsed })
-                });
-                lastTimeSave = now;
-                loadRewardsStatus();
-            } catch (error) {
-                console.error('Error saving time:', error);
-            }
-        }
-
-        async function claimReward() {
-            if (!rewardsStatus) return;
-            if (!confirm(`Claim your ${rewardsStatus.spending_tier_name} reward of $${rewardsStatus.boosted_reward_amount.toFixed(2)}?`)) return;
-            
-            try {
-                const response = await fetch('/api/user/claim-reward', {
-                    method: 'POST',
-                    headers: {'Content-Type': 'application/json'}
-                });
-                const data = await response.json();
-                
-                if (data.ok) {
-                    alert(`🎉 Congratulations!\n\nClaimed: $${data.reward_amount}\n\nBase ${data.tier_name}: $${data.base_reward}\nTime Bonus: ${data.time_multiplier}x\n\nYou've been upgraded to the next tier!`);
-                    loadRewardsStatus();
-                } else {
-                    alert('Error: ' + data.error);
-                }
-            } catch (error) {
-                alert('Failed to claim reward. Please try again.');
-            }
-        }
-
-        function logout() {
-            if (confirm('Log out?')) {
-                window.location.href = '/logout';
-            }
-        }
-    </script>
+// ─── TOAST ───
+function toast(msg, type='info') {
+  const t = document.createElement('div');
+  t.className = `toast ${type}`; t.textContent = msg;
+  document.getElementById('toasts').appendChild(t);
+  setTimeout(() => t.remove(), 4000);
+}
+</script>
 </body>
 </html>
