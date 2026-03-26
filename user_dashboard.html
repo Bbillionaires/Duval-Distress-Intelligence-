@@ -404,7 +404,7 @@ async function loadProps() {
   try {
     const r = await fetch(url, { credentials: 'include' });
     const d = await r.json();
-    allProps = Array.isArray(d) ? d : (d.properties || d.data || []);
+    allProps = Array.isArray(d) ? d : (d.rows || d.properties || d.data || []);
     document.getElementById('stat-props').textContent = allProps.length;
     renderProps(allProps);
   } catch(e) {

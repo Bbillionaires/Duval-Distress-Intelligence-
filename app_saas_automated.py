@@ -351,11 +351,30 @@ def api_login():
 def api_logout():
     tok = request.cookies.get(COOKIE_NAME, "")
     if tok:
-        with db_conn() as conn:
-            with conn.cursor() as cur:
-                cur.execute("DELETE FROM sessions WHERE token=%s", (tok,))
-    
+        try:
+            with db_conn() as conn:
+                with conn.cursor() as cur:
+                    cur.execute("DELETE FROM sessions WHERE token=%s", (tok,))
+        except Exception:
+            pass
     resp = make_response(jsonify({"ok": True}))
+    resp.set_cookie(COOKIE_NAME, "", expires=0)
+    return resp
+
+
+@app.get("/logout")
+@app.get("/api/logout")
+def logout_redirect():
+    """GET logout — clears cookie and redirects to login"""
+    tok = request.cookies.get(COOKIE_NAME, "")
+    if tok:
+        try:
+            with db_conn() as conn:
+                with conn.cursor() as cur:
+                    cur.execute("DELETE FROM sessions WHERE token=%s", (tok,))
+        except Exception:
+            pass
+    resp = make_response(redirect("/login"))
     resp.set_cookie(COOKIE_NAME, "", expires=0)
     return resp
 
@@ -2306,12 +2325,6 @@ def api_va_submit_job(job_id):
                         started = started.replace(tzinfo=timezone.utc)
                     total_seconds = int((datetime.now(timezone.utc) - started).total_seconds())
 
-                # Ensure proof_url column exists (safe to run every time)
-                cur.execute("""
-                    ALTER TABLE service_requests
-                    ADD COLUMN IF NOT EXISTS proof_url TEXT
-                """)
-
                 # Handle proof file upload
                 proof_url = None
                 if proof_file and proof_file.filename:
@@ -2323,25 +2336,38 @@ def api_va_submit_job(job_id):
                     proof_file.save(str(save_path))
                     proof_url = f"/static/uploads/{filename}"
 
-                # Update job — always include proof_url column now that it exists
-                cur.execute("""
-                    UPDATE service_requests
-                    SET status = 'submitted',
-                        notes = %s,
-                        phone = %s,
-                        total_time_seconds = %s,
-                        proof_url = %s,
-                        submitted_at = NOW(),
-                        updated_at = NOW()
-                    WHERE id = %s
-                """, (notes or None, phone or None, total_seconds, proof_url, job_id))
+                # Try update with proof_url, fall back without it if column missing
+                try:
+                    cur.execute("""
+                        UPDATE service_requests
+                        SET status = 'submitted',
+                            notes = %s,
+                            phone = %s,
+                            total_time_seconds = %s,
+                            proof_url = %s,
+                            submitted_at = NOW(),
+                            updated_at = NOW()
+                        WHERE id = %s
+                    """, (notes or None, phone or None, total_seconds, proof_url, job_id))
+                except Exception:
+                    conn.rollback()
+                    cur.execute("""
+                        UPDATE service_requests
+                        SET status = 'submitted',
+                            notes = %s,
+                            phone = %s,
+                            total_time_seconds = %s,
+                            submitted_at = NOW(),
+                            updated_at = NOW()
+                        WHERE id = %s
+                    """, (notes or None, phone or None, total_seconds, job_id))
 
                 conn.commit()
                 return jsonify({"ok": True, "message": "Work submitted for review"})
 
     except Exception as e:
         print(f"❌ Submit job error: {e}")
-        return jsonify({"ok": False, "error": f"Failed to submit results: {str(e)}"}), 500
+        return jsonify({"ok": False, "error": f"Failed to submit: {str(e)}"}), 500
 
 
 @app.post("/api/va/jobs/<int:job_id>/cancel")
