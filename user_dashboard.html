@@ -345,6 +345,7 @@ body { font-family: 'Segoe UI', system-ui, sans-serif; background: linear-gradie
 // ─── STATE ───
 let currentUser = null;
 let allProps = [];
+let propsMap = {};
 let totalProps = 0;
 let currentPage = 1;
 let services = [];
@@ -408,6 +409,9 @@ async function loadProps(page = 1) {
     const r = await fetch(url, { credentials: 'include' });
     const d = await r.json();
     allProps = Array.isArray(d) ? d : (d.rows || d.properties || d.data || []);
+    // Build lookup map by index since some properties may have no id
+    propsMap = {};
+    allProps.forEach((p, i) => { propsMap[p.id || i] = p; });
     totalProps = d.total || allProps.length;
     document.getElementById('stat-props').textContent = totalProps.toLocaleString();
     renderProps(allProps);
@@ -459,29 +463,31 @@ function renderProps(props) {
   }
   const stageClass = {early:'s-early',mid:'s-mid',late:'s-late',critical:'s-critical'};
   const stageLabel = {early:'Early 6-12mo',mid:'Mid 12-18mo',late:'Late 18-24mo',critical:'Critical 24mo+'};
-  c.innerHTML = '<div class="props-grid">'+props.map(p => {
+  c.innerHTML = '<div class="props-grid">'+props.map((p, i) => {
     const mo = parseInt(p.months_delinquent || p.tax_years || 0);
     const st = mo<=12?'early':mo<=18?'mid':mo<=24?'late':'critical';
     const due = parseFloat(p.current_total_due || p.total_due || 0);
-    const propData = encodeURIComponent(JSON.stringify({id:p.id,address:p.address||p.property_address,owner:p.owner||p.owner_name,parcel:p.parcel,county:p.county}));
+    const propKey = p.id || i;
+    propsMap[propKey] = p;
     return `
       <div class="prop-card">
         <div class="prop-stage ${stageClass[st]}">${stageLabel[st]}</div>
-        <div class="prop-addr">${p.address||p.property_address||'Address unavailable'}</div>
+        <div class="prop-addr">${(p.address||p.property_address||'Address unavailable').replace(/</g,'&lt;').replace(/>/g,'&gt;')}</div>
         <div class="prop-chips">
           ${p.parcel?`<span class="prop-chip">📋 ${p.parcel}</span>`:''}
-          ${(p.owner||p.owner_name)?`<span class="prop-chip">👤 ${p.owner||p.owner_name}</span>`:''}
+          ${(p.owner||p.owner_name)?`<span class="prop-chip">👤 ${(p.owner||p.owner_name).replace(/</g,'&lt;')}</span>`:''}
           ${p.county?`<span class="prop-chip">📍 ${p.county}</span>`:''}
         </div>
         ${due>0?`<div class="prop-due">$${due.toLocaleString('en-US',{minimumFractionDigits:2})} delinquent</div>`:''}
-        <button class="btn-req" onclick="openModal('${propData}')">⚡ Request VA Service</button>
+        <button class="btn-req" onclick="openModal(${JSON.stringify(propKey)})">⚡ Request VA Service</button>
       </div>`;
   }).join('')+'</div>';
 }
 
 // ─── SERVICE MODAL ───
-async function openModal(propEncoded) {
-  currentProp = JSON.parse(decodeURIComponent(propEncoded));
+async function openModal(propKey) {
+  currentProp = propsMap[propKey];
+  if (!currentProp) { toast('Property data not found — try refreshing', 'error'); return; }
   selService = null; tipAmt = 0;
 
   // Reset
