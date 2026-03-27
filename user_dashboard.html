@@ -345,6 +345,8 @@ body { font-family: 'Segoe UI', system-ui, sans-serif; background: linear-gradie
 // ─── STATE ───
 let currentUser = null;
 let allProps = [];
+let totalProps = 0;
+let currentPage = 1;
 let services = [];
 let selService = null;
 let tipAmt = 0;
@@ -396,23 +398,51 @@ function switchTab(name) {
 }
 
 // ─── PROPERTIES ───
-async function loadProps() {
+async function loadProps(page = 1) {
+  currentPage = page;
   const c = document.getElementById('props-wrap');
   c.innerHTML = '<div class="loading-s"><div class="spinner"></div> Loading properties…</div>';
   const county = document.getElementById('county-sel').value;
-  const url = county ? `/api/properties/${county}?page_size=10000` : '/api/properties?page_size=10000';
+  const url = county ? `/api/properties/${county}?page_size=100&page=${currentPage}` : `/api/properties?page_size=100&page=${currentPage}`;
   try {
     const r = await fetch(url, { credentials: 'include' });
     const d = await r.json();
     allProps = Array.isArray(d) ? d : (d.rows || d.properties || d.data || []);
-    document.getElementById('stat-props').textContent = (d.total || allProps.length).toLocaleString();
+    totalProps = d.total || allProps.length;
+    document.getElementById('stat-props').textContent = totalProps.toLocaleString();
     renderProps(allProps);
+    renderPagination(totalProps, currentPage, 100);
   } catch(e) {
     c.innerHTML = `<div class="empty-s"><div class="empty-ico">⚠️</div><div class="empty-ttl">Failed to Load</div><div class="empty-txt">${e.message}</div></div>`;
   }
 }
 
-function filterProps() {
+function renderPagination(total, page, pageSize) {
+  const totalPages = Math.ceil(total / pageSize);
+  if (totalPages <= 1) { 
+    const existing = document.getElementById('pagination');
+    if (existing) existing.remove();
+    return; 
+  }
+  const start = (page-1)*pageSize+1;
+  const end = Math.min(page*pageSize, total);
+  let existing = document.getElementById('pagination');
+  if (!existing) {
+    existing = document.createElement('div');
+    existing.id = 'pagination';
+    document.getElementById('props-wrap').insertAdjacentElement('afterend', existing);
+  }
+  existing.style.cssText = 'display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;padding:16px 0;';
+  const prevDisabled = page <= 1;
+  const nextDisabled = page >= totalPages;
+  existing.innerHTML = `
+    <div style="font-size:13px;opacity:0.8">Showing ${start.toLocaleString()}–${end.toLocaleString()} of ${total.toLocaleString()} properties</div>
+    <div style="display:flex;gap:8px;align-items:center">
+      <button onclick="loadProps(${page-1})" ${prevDisabled?'disabled':''} style="padding:8px 16px;border-radius:10px;border:1px solid rgba(255,255,255,0.3);background:rgba(255,255,255,${prevDisabled?'0.05':'0.15'});color:#fff;cursor:${prevDisabled?'not-allowed':'pointer'};font-size:13px;font-weight:700;opacity:${prevDisabled?'0.4':'1'}">← Prev</button>
+      <span style="font-size:13px;font-weight:700">Page ${page} / ${totalPages}</span>
+      <button onclick="loadProps(${page+1})" ${nextDisabled?'disabled':''} style="padding:8px 16px;border-radius:10px;border:1px solid rgba(255,255,255,0.3);background:rgba(255,255,255,${nextDisabled?'0.05':'0.15'});color:#fff;cursor:${nextDisabled?'not-allowed':'pointer'};font-size:13px;font-weight:700;opacity:${nextDisabled?'0.4':'1'}">Next →</button>
+    </div>`;
+}
   const q = document.getElementById('search-q').value.toLowerCase();
   renderProps(q ? allProps.filter(p =>
     (p.address||'').toLowerCase().includes(q) ||
