@@ -400,12 +400,12 @@ async function loadProps() {
   const c = document.getElementById('props-wrap');
   c.innerHTML = '<div class="loading-s"><div class="spinner"></div> Loading properties…</div>';
   const county = document.getElementById('county-sel').value;
-  const url = county ? `/api/properties/${county}?limit=60` : '/api/properties?limit=60';
+  const url = county ? `/api/properties/${county}?page_size=10000` : '/api/properties?page_size=10000';
   try {
     const r = await fetch(url, { credentials: 'include' });
     const d = await r.json();
     allProps = Array.isArray(d) ? d : (d.rows || d.properties || d.data || []);
-    document.getElementById('stat-props').textContent = allProps.length;
+    document.getElementById('stat-props').textContent = (d.total || allProps.length).toLocaleString();
     renderProps(allProps);
   } catch(e) {
     c.innerHTML = `<div class="empty-s"><div class="empty-ico">⚠️</div><div class="empty-ttl">Failed to Load</div><div class="empty-txt">${e.message}</div></div>`;
