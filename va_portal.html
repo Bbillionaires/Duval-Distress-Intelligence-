@@ -431,10 +431,25 @@ async function submitJob(id) {
   try {
     const notes=document.getElementById('notes-'+id)?.value||'';
     const f=files[id];
-    let body,headers={};
-    if(f){body=new FormData();body.append('notes',notes);body.append('proof',f);}
-    else{body=JSON.stringify({notes});headers['Content-Type']='application/json';}
-    const r=await fetch(`/api/va/jobs/${id}/submit`,{method:'POST',credentials:'include',headers,body});
+
+    // Step 1: Upload file to proper endpoint so admin can see it
+    if(f){
+      const fd=new FormData();
+      fd.append('file',f);
+      const uploadRes=await fetch(`/api/va/jobs/${id}/upload`,{method:'POST',credentials:'include',body:fd});
+      // Don't block submission if upload fails — just warn
+      if(!uploadRes.ok){
+        const ud=await uploadRes.json().catch(()=>({}));
+        toast((ud.error||'File upload failed')+' — submitting without file','error');
+      }
+    }
+
+    // Step 2: Submit the job (notes only via JSON)
+    const r=await fetch(`/api/va/jobs/${id}/submit`,{
+      method:'POST',credentials:'include',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({notes})
+    });
     const d=await r.json();
     if(r.ok&&(d.ok||d.success)){
       if(timers[id]){clearInterval(timers[id].interval);delete timers[id];}
