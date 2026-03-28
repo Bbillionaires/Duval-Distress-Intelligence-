@@ -2833,6 +2833,179 @@ def jv_get_earnings():
         return jsonify({"ok": False, "error": str(e)}), 500
 
 
+
+# ── JV VERIFICATION & CONSENT ──────────────────────────────
+
+@app.get("/api/jv/verification-status")
+def jv_verification_status():
+    """Check user's JV verification status"""
+    u = require_login()
+    if not u:
+        return jsonify({"ok": False, "error": "Not authorized"}), 401
+    try:
+        with db_conn() as conn:
+            with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+                cur.execute("""
+                    SELECT * FROM jv_verifications WHERE user_email = %s
+                """, (u['email'],))
+                v = cur.fetchone()
+                if not v:
+                    return jsonify({"ok": True, "status": "none", "verification": None})
+                return jsonify({"ok": True, "status": v['status'], "verification": dict(v)})
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e)}), 500
+
+
+@app.post("/api/jv/consent")
+def jv_submit_consent():
+    """Submit signed consent form + ID upload"""
+    u = require_login()
+    if not u:
+        return jsonify({"ok": False, "error": "Not authorized"}), 401
+
+    content_type = request.content_type or ''
+    if 'multipart' in content_type:
+        full_name = request.form.get('full_name', '').strip()
+        signature = request.form.get('signature', '').strip()
+        id_file = request.files.get('id_document')
+    else:
+        data = request.get_json(silent=True) or {}
+        full_name = data.get('full_name', '').strip()
+        signature = data.get('signature', '').strip()
+        id_file = None
+
+    if not full_name or not signature:
+        return jsonify({"ok": False, "error": "Full name and signature required"}), 400
+
+    id_url = None
+    if id_file and id_file.filename:
+        import uuid
+        filename = f"jv_id_{uuid.uuid4().hex}_{id_file.filename}"
+        upload_dir = BASE_DIR / "static" / "uploads" / "jv_ids"
+        upload_dir.mkdir(parents=True, exist_ok=True)
+        id_file.save(str(upload_dir / filename))
+        id_url = f"/static/uploads/jv_ids/{filename}"
+
+    try:
+        with db_conn() as conn:
+            with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+                cur.execute("""
+                    INSERT INTO jv_verifications (
+                        user_email, full_name, signature, id_document_url, status, submitted_at
+                    ) VALUES (%s, %s, %s, %s, 'pending', NOW())
+                    ON CONFLICT (user_email) DO UPDATE SET
+                        full_name = EXCLUDED.full_name,
+                        signature = EXCLUDED.signature,
+                        id_document_url = COALESCE(EXCLUDED.id_document_url, jv_verifications.id_document_url),
+                        status = 'pending',
+                        submitted_at = NOW()
+                    RETURNING id
+                """, (u['email'], full_name, signature, id_url))
+                conn.commit()
+        return jsonify({"ok": True, "message": "Verification submitted — pending admin review"})
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e)}), 500
+
+
+@app.post("/api/jv/listings/submit")
+def jv_submit_listing():
+    """JV partner submits a property listing for admin approval"""
+    u = require_login()
+    if not u:
+        return jsonify({"ok": False, "error": "Not authorized"}), 401
+
+    # Check verified
+    try:
+        with db_conn() as conn:
+            with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+                cur.execute("SELECT status FROM jv_verifications WHERE user_email = %s", (u['email'],))
+                v = cur.fetchone()
+                if not v or v['status'] != 'approved':
+                    return jsonify({"ok": False, "error": "JV verification required"}), 403
+
+                data = request.get_json(silent=True) or {}
+                listing_type = data.get('listing_type')  # standard_jv, non_exclusive, subject_to, seller_finance, note, equity
+                address = data.get('address', '').strip()
+                asking_split = data.get('asking_split')  # % partner wants
+
+                if not listing_type or not address:
+                    return jsonify({"ok": False, "error": "Listing type and address required"}), 400
+
+                # Set expiry for non-exclusive listings
+                expiry_sql = "NOW() + INTERVAL '30 days'" if listing_type == 'non_exclusive' else 'NULL'
+
+                cur.execute(f"""
+                    INSERT INTO jv_partner_listings (
+                        submitted_by, listing_type, address, asking_split,
+                        purchase_price, arv, description, loan_balance,
+                        monthly_payment, note_amount, equity_percentage,
+                        status, expires_at, submitted_at
+                    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, 'pending_review', {expiry_sql}, NOW())
+                    RETURNING id
+                """, (
+                    u['email'], listing_type, address, asking_split,
+                    data.get('purchase_price'), data.get('arv'), data.get('description'),
+                    data.get('loan_balance'), data.get('monthly_payment'),
+                    data.get('note_amount'), data.get('equity_percentage')
+                ))
+                listing_id = cur.fetchone()['id']
+                conn.commit()
+                return jsonify({"ok": True, "listing_id": listing_id, "message": "Listing submitted for admin review"})
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e)}), 500
+
+
+@app.get("/api/jv/my-listings")
+def jv_my_listings():
+    """JV partner views their submitted listings"""
+    u = require_login()
+    if not u:
+        return jsonify({"ok": False, "error": "Not authorized"}), 401
+    try:
+        with db_conn() as conn:
+            with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+                cur.execute("""
+                    SELECT * FROM jv_partner_listings
+                    WHERE submitted_by = %s
+                    ORDER BY submitted_at DESC
+                """, (u['email'],))
+                listings = cur.fetchall()
+        return jsonify({"ok": True, "listings": [dict(l) for l in listings]})
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e)}), 500
+
+
+@app.get("/api/jv/marketplace")
+def jv_marketplace():
+    """Browse all approved JV listings"""
+    u = require_login()
+    if not u:
+        return jsonify({"ok": False, "error": "Not authorized"}), 401
+    try:
+        with db_conn() as conn:
+            with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+                cur.execute("""
+                    SELECT * FROM jv_partner_listings
+                    WHERE status = 'approved'
+                    AND (expires_at IS NULL OR expires_at > NOW())
+                    ORDER BY submitted_at DESC
+                """)
+                listings = cur.fetchall()
+        return jsonify({"ok": True, "listings": [dict(l) for l in listings]})
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e)}), 500
+
+
+@app.get("/jv")
+@app.get("/jv/")
+def jv_dashboard_page():
+    """Serve JV partner dashboard"""
+    u = require_login()
+    if not u:
+        return redirect("/login")
+    return send_from_directory(BASE_DIR, "jv_dashboard.html")
+
+
 # END BUYER ENDPOINTS
 
 @app.get("/api/marketplace/listings")

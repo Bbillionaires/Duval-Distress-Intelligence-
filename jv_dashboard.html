@@ -1,0 +1,768 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>JV Partner Portal — Real Estate Intelligence</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: 'Segoe UI', system-ui, sans-serif; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); min-height: 100vh; color: #fff; }
+
+/* TOPBAR */
+.topbar { background: rgba(255,255,255,0.15); backdrop-filter: blur(20px); border-bottom: 1px solid rgba(255,255,255,0.2); padding: 14px 28px; display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; position: sticky; top: 0; z-index: 100; }
+.brand { display: flex; align-items: center; gap: 10px; }
+.brand-name { font-size: 18px; font-weight: 800; }
+.brand-sub { font-size: 12px; opacity: 0.7; }
+.topbar-right { display: flex; align-items: center; gap: 10px; }
+.user-pill { background: rgba(255,255,255,0.15); border: 1px solid rgba(255,255,255,0.25); border-radius: 20px; padding: 6px 14px; font-size: 13px; }
+.btn-logout { background: rgba(255,255,255,0.15); border: 1px solid rgba(255,255,255,0.3); color: #fff; padding: 8px 16px; border-radius: 20px; cursor: pointer; font-size: 13px; font-weight: 600; transition: all 0.2s; }
+.btn-logout:hover { background: rgba(239,68,68,0.3); }
+.btn-dash { background: rgba(255,255,255,0.15); border: 1px solid rgba(255,255,255,0.3); color: #fff; padding: 8px 16px; border-radius: 20px; cursor: pointer; font-size: 13px; font-weight: 600; text-decoration: none; transition: all 0.2s; }
+.btn-dash:hover { background: rgba(255,255,255,0.25); }
+
+/* TABS */
+.tabs-wrap { padding: 20px 28px 0; max-width: 1200px; margin: 0 auto; }
+.tabs { display: flex; gap: 4px; background: rgba(255,255,255,0.1); border-radius: 14px; padding: 4px; width: fit-content; flex-wrap: wrap; }
+.tab { padding: 10px 20px; border-radius: 10px; font-size: 13px; font-weight: 700; cursor: pointer; transition: all 0.2s; opacity: 0.7; white-space: nowrap; }
+.tab:hover { opacity: 1; }
+.tab.active { background: #fff; color: #764ba2; opacity: 1; }
+
+/* CONTENT */
+.content { padding: 20px 28px 48px; max-width: 1200px; margin: 0 auto; }
+.panel { display: none; }
+.panel.active { display: block; }
+
+/* CARDS */
+.card { background: rgba(255,255,255,0.97); color: #1a1a2e; border-radius: 16px; padding: 28px; box-shadow: 0 4px 24px rgba(0,0,0,0.12); margin-bottom: 16px; }
+.card-title { font-size: 18px; font-weight: 800; color: #1e293b; margin-bottom: 6px; }
+.card-sub { font-size: 13px; color: #64748b; margin-bottom: 20px; }
+
+/* VERIFICATION SCREEN */
+.verify-hero { text-align: center; padding: 48px 24px; }
+.verify-icon { font-size: 64px; margin-bottom: 16px; }
+.verify-title { font-size: 26px; font-weight: 800; margin-bottom: 8px; }
+.verify-desc { font-size: 14px; opacity: 0.85; max-width: 520px; margin: 0 auto 28px; line-height: 1.7; }
+.status-badge { display: inline-block; padding: 6px 18px; border-radius: 20px; font-size: 13px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; }
+.status-pending { background: rgba(251,191,36,0.2); border: 1px solid rgba(251,191,36,0.5); color: #fbbf24; }
+.status-approved { background: rgba(34,197,94,0.2); border: 1px solid rgba(34,197,94,0.5); color: #22c55e; }
+.status-rejected { background: rgba(239,68,68,0.2); border: 1px solid rgba(239,68,68,0.5); color: #ef4444; }
+
+/* CONSENT FORM */
+.consent-box { background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.2); border-radius: 12px; padding: 20px; margin-bottom: 20px; font-size: 13px; line-height: 1.8; max-height: 280px; overflow-y: auto; }
+.consent-box h3 { font-size: 14px; font-weight: 800; margin-bottom: 10px; color: #fcd34d; }
+.consent-box p { margin-bottom: 10px; opacity: 0.9; }
+
+/* FORM ELEMENTS */
+.form-group { margin-bottom: 16px; }
+.form-label { display: block; font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em; opacity: 0.8; margin-bottom: 6px; }
+.form-input { width: 100%; background: rgba(255,255,255,0.15); border: 1px solid rgba(255,255,255,0.3); border-radius: 10px; padding: 12px 16px; font-size: 14px; color: #fff; outline: none; transition: all 0.2s; font-family: inherit; }
+.form-input::placeholder { color: rgba(255,255,255,0.45); }
+.form-input:focus { background: rgba(255,255,255,0.22); border-color: rgba(255,255,255,0.6); }
+.form-textarea { min-height: 80px; resize: vertical; }
+.form-select { appearance: none; cursor: pointer; }
+.upload-zone { border: 2px dashed rgba(255,255,255,0.35); border-radius: 10px; padding: 20px; text-align: center; cursor: pointer; transition: all 0.2s; }
+.upload-zone:hover { border-color: rgba(255,255,255,0.7); background: rgba(255,255,255,0.08); }
+.upload-zone input { display: none; }
+.upload-zone-text { font-size: 13px; opacity: 0.8; }
+.file-attached { font-size: 12px; color: #86efac; margin-top: 6px; }
+
+/* BUTTONS */
+.btn { padding: 12px 24px; border-radius: 12px; font-size: 14px; font-weight: 700; cursor: pointer; border: none; transition: all 0.2s; font-family: inherit; }
+.btn-primary { background: #fff; color: #764ba2; }
+.btn-primary:hover { background: #f0e8ff; transform: translateY(-1px); box-shadow: 0 4px 16px rgba(0,0,0,0.2); }
+.btn-primary:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+.btn-outline { background: rgba(255,255,255,0.15); border: 1px solid rgba(255,255,255,0.3); color: #fff; }
+.btn-outline:hover { background: rgba(255,255,255,0.25); }
+.btn-sm { padding: 7px 14px; font-size: 12px; border-radius: 8px; }
+.btn-success { background: linear-gradient(135deg, #22c55e, #16a34a); color: #fff; }
+.btn-danger { background: linear-gradient(135deg, #ef4444, #dc2626); color: #fff; }
+
+/* LISTING CARDS */
+.listings-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 16px; margin-top: 16px; }
+.listing-card { background: rgba(255,255,255,0.97); color: #1a1a2e; border-radius: 14px; padding: 20px; box-shadow: 0 4px 20px rgba(0,0,0,0.1); transition: transform 0.2s, box-shadow 0.2s; }
+.listing-card:hover { transform: translateY(-2px); box-shadow: 0 8px 32px rgba(0,0,0,0.18); }
+.listing-type { display: inline-block; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em; padding: 4px 10px; border-radius: 20px; margin-bottom: 10px; }
+.lt-standard_jv { background: #dbeafe; color: #1e40af; }
+.lt-non_exclusive { background: #fef3c7; color: #92400e; }
+.lt-subject_to { background: #dcfce7; color: #166534; }
+.lt-seller_finance { background: #f3e8ff; color: #7e22ce; }
+.lt-note { background: #ffedd5; color: #c2410c; }
+.lt-equity { background: #fae8ff; color: #9333ea; }
+.listing-address { font-size: 15px; font-weight: 700; color: #1e293b; margin-bottom: 8px; }
+.listing-meta { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 14px; }
+.meta-item .meta-label { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em; color: #94a3b8; }
+.meta-item .meta-value { font-size: 14px; font-weight: 700; color: #1e293b; }
+.listing-status { font-size: 11px; font-weight: 700; text-transform: uppercase; padding: 3px 10px; border-radius: 20px; }
+.ls-pending_review { background: #fef3c7; color: #92400e; }
+.ls-approved { background: #dcfce7; color: #166534; }
+.ls-rejected { background: #fee2e2; color: #991b1b; }
+.ls-expired { background: #f1f5f9; color: #64748b; }
+.expiry-warn { font-size: 11px; color: #ef4444; font-weight: 600; margin-top: 4px; }
+
+/* STATS ROW */
+.stats-row { display: grid; grid-template-columns: repeat(4,1fr); gap: 14px; margin-bottom: 20px; }
+.stat-card { background: rgba(255,255,255,0.15); backdrop-filter: blur(10px); border: 1px solid rgba(255,255,255,0.25); border-radius: 14px; padding: 18px; text-align: center; }
+.stat-n { font-size: 28px; font-weight: 800; margin-bottom: 4px; }
+.stat-l { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em; opacity: 0.75; }
+
+/* PIPELINE */
+.pipeline { display: flex; gap: 12px; overflow-x: auto; padding-bottom: 8px; margin-top: 16px; }
+.pipeline-col { min-width: 220px; background: rgba(255,255,255,0.1); border-radius: 12px; padding: 14px; }
+.pipeline-col-title { font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.1em; opacity: 0.8; margin-bottom: 12px; display: flex; align-items: center; justify-content: space-between; }
+.pipeline-count { background: rgba(255,255,255,0.2); border-radius: 10px; padding: 1px 8px; font-size: 11px; }
+.pipeline-card { background: rgba(255,255,255,0.97); color: #1a1a2e; border-radius: 10px; padding: 12px; margin-bottom: 8px; font-size: 13px; cursor: default; }
+.pipeline-card-addr { font-weight: 700; margin-bottom: 4px; font-size: 12px; }
+.pipeline-card-split { font-size: 12px; color: #764ba2; font-weight: 700; }
+
+/* EMPTY/LOADING */
+.empty-s { text-align: center; padding: 48px 20px; background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.15); border-radius: 14px; margin-top: 16px; }
+.empty-ico { font-size: 44px; margin-bottom: 10px; opacity: 0.6; }
+.empty-ttl { font-size: 18px; font-weight: 700; margin-bottom: 6px; }
+.empty-txt { font-size: 14px; opacity: 0.75; }
+.loading-s { display: flex; align-items: center; justify-content: center; gap: 10px; padding: 48px; color: rgba(255,255,255,0.75); font-size: 14px; }
+.spinner { width: 20px; height: 20px; border: 2px solid rgba(255,255,255,0.3); border-top-color: #fff; border-radius: 50%; animation: spin 0.8s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* MODAL */
+.overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.65); backdrop-filter: blur(4px); z-index: 1000; align-items: center; justify-content: center; padding: 20px; }
+.overlay.open { display: flex; }
+.modal { background: rgba(30,20,60,0.97); color: #fff; border: 1px solid rgba(255,255,255,0.2); border-radius: 20px; width: 100%; max-width: 560px; max-height: 92vh; overflow-y: auto; box-shadow: 0 20px 60px rgba(0,0,0,0.5); }
+.modal-hdr { padding: 24px 24px 0; display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; }
+.modal-title { font-size: 20px; font-weight: 800; }
+.modal-x { background: rgba(255,255,255,0.1); border: none; width: 32px; height: 32px; border-radius: 50%; cursor: pointer; font-size: 16px; color: #fff; flex-shrink: 0; }
+.modal-x:hover { background: rgba(239,68,68,0.3); }
+.modal-body { padding: 20px 24px 28px; }
+
+/* DISCLAIMER BOX */
+.disclaimer { background: rgba(239,68,68,0.15); border: 1px solid rgba(239,68,68,0.4); border-radius: 10px; padding: 14px; font-size: 12px; line-height: 1.7; margin-bottom: 16px; }
+.disclaimer strong { color: #fca5a5; }
+
+/* TOAST */
+#toasts { position: fixed; bottom: 24px; right: 24px; display: flex; flex-direction: column; gap: 8px; z-index: 9999; pointer-events: none; }
+.toast { background: #fff; color: #1e293b; border-radius: 12px; padding: 13px 18px; font-size: 14px; font-weight: 600; box-shadow: 0 8px 32px rgba(0,0,0,0.2); display: flex; align-items: center; gap: 10px; animation: tIn 0.3s ease; pointer-events: all; min-width: 260px; border-left: 4px solid #667eea; }
+.toast.success { border-left-color: #22c55e; }
+.toast.error { border-left-color: #ef4444; }
+@keyframes tIn { from{transform:translateX(100px);opacity:0}to{transform:translateX(0);opacity:1} }
+
+@media(max-width:640px) {
+  .stats-row { grid-template-columns: repeat(2,1fr); }
+  .content, .tabs-wrap { padding-left: 16px; padding-right: 16px; }
+  .topbar { padding: 12px 16px; }
+  .listings-grid { grid-template-columns: 1fr; }
+}
+</style>
+</head>
+<body>
+
+<!-- TOPBAR -->
+<div class="topbar">
+  <div class="brand">
+    <span style="font-size:24px">🤝</span>
+    <div><div class="brand-name">Real Estate Intelligence</div><div class="brand-sub">JV Partner Portal</div></div>
+  </div>
+  <div class="topbar-right">
+    <a href="/dashboard" class="btn-dash">← My Dashboard</a>
+    <div class="user-pill">👤 <span id="user-email">—</span></div>
+    <button class="btn-logout" onclick="doLogout()">Log Out</button>
+  </div>
+</div>
+
+<!-- VERIFICATION PENDING SCREEN -->
+<div id="verify-screen" style="display:none">
+  <div class="content" style="max-width:640px">
+    <div class="verify-hero">
+      <div class="verify-icon" id="verify-icon">📋</div>
+      <div class="verify-title" id="verify-title">Become a JV Partner</div>
+      <div class="verify-desc" id="verify-desc">To access the JV marketplace, you must sign our partnership agreement and upload a valid government-issued ID. Admin will review and approve your application.</div>
+      <div id="verify-status-badge" style="margin-bottom:24px"></div>
+    </div>
+
+    <!-- CONSENT FORM -->
+    <div id="consent-form-section">
+      <div class="consent-box">
+        <h3>JV Partnership Agreement & Consent</h3>
+        <p>By signing below, you ("Partner") agree to grant <strong>Real Estate Intelligence LLC</strong> ("Platform") an equitable interest in all properties listed through this portal for the duration of the listing period.</p>
+        <p>Partner acknowledges and agrees that: (1) All documentation submitted through this platform may be recorded by the Platform entity; (2) Partner indemnifies and holds harmless the Platform, its officers, agents, and assigns from any and all claims, liabilities, damages, or expenses arising from Partner's activities on this platform; (3) Non-Exclusive listings carry a mandatory 30-day expiration with a first-to-fully-fund policy, and all transactions must close exclusively through Platform's designated title and/or escrow company; (4) Partner will not circumvent the Platform or its processes to complete any deal sourced through this portal outside of the Platform's oversight.</p>
+        <p>This agreement is legally binding upon electronic signature and submission of identity verification.</p>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">Full Legal Name (as it appears on your ID)</label>
+        <input type="text" class="form-input" id="consent-name" placeholder="John Michael Smith">
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">Electronic Signature (type your full name to sign)</label>
+        <input type="text" class="form-input" id="consent-sig" placeholder="Type your full name as your signature">
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">Government-Issued Photo ID</label>
+        <div class="upload-zone" onclick="document.getElementById('id-upload').click()"
+          ondragover="event.preventDefault();this.style.borderColor='rgba(255,255,255,0.7)'"
+          ondragleave="this.style.borderColor='rgba(255,255,255,0.35)'"
+          ondrop="handleIdDrop(event)">
+          <input type="file" id="id-upload" accept="image/*,.pdf" onchange="handleIdSelect(event)">
+          <div style="font-size:28px;margin-bottom:8px">🪪</div>
+          <div class="upload-zone-text">Click to upload or drag & drop<br><span style="font-size:11px">Driver's License, Passport, or State ID • JPG, PNG, PDF</span></div>
+          <div class="file-attached" id="id-file-name" style="display:none"></div>
+        </div>
+      </div>
+
+      <button class="btn btn-primary" id="consent-btn" onclick="submitConsent()" style="width:100%;padding:14px;font-size:15px">
+        ✍️ Sign & Submit for Verification
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- MAIN APP -->
+<div id="app-screen" style="display:none">
+
+  <div class="tabs-wrap">
+    <div class="tabs">
+      <div class="tab active" onclick="switchTab('marketplace')" id="tab-marketplace">🏘 Marketplace</div>
+      <div class="tab" onclick="switchTab('submit')" id="tab-submit">➕ Submit Listing</div>
+      <div class="tab" onclick="switchTab('my-listings')" id="tab-my-listings">📋 My Listings</div>
+      <div class="tab" onclick="switchTab('pipeline')" id="tab-pipeline">📊 Deal Pipeline</div>
+      <div class="tab" onclick="switchTab('earnings')" id="tab-earnings">💰 Earnings</div>
+    </div>
+  </div>
+
+  <div class="content">
+
+    <!-- MARKETPLACE -->
+    <div class="panel active" id="panel-marketplace">
+      <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;margin-bottom:16px">
+        <div>
+          <div style="font-size:20px;font-weight:800">JV Marketplace</div>
+          <div style="font-size:13px;opacity:0.75">Browse approved deals — contact admin to co-invest</div>
+        </div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          <select class="form-input" id="type-filter" onchange="filterMarketplace()" style="width:auto;padding:8px 14px;font-size:13px">
+            <option value="">All Types</option>
+            <option value="standard_jv">Standard JV</option>
+            <option value="non_exclusive">Non-Exclusive</option>
+            <option value="subject_to">Subject-To</option>
+            <option value="seller_finance">Seller Finance</option>
+            <option value="note">Note</option>
+            <option value="equity">Equity</option>
+          </select>
+        </div>
+      </div>
+      <div id="marketplace-wrap"><div class="loading-s"><div class="spinner"></div> Loading listings…</div></div>
+    </div>
+
+    <!-- SUBMIT LISTING -->
+    <div class="panel" id="panel-submit">
+      <div class="card">
+        <div class="card-title">Submit a Property Listing</div>
+        <div class="card-sub">All listings require admin approval before appearing in the marketplace.</div>
+
+        <div class="form-group">
+          <label class="form-label">Listing Type</label>
+          <select class="form-input form-select" id="submit-type" onchange="onTypeChange()">
+            <option value="">— Select listing type —</option>
+            <option value="standard_jv">Standard JV — Co-invest, split on close</option>
+            <option value="non_exclusive">Non-Exclusive — 30-day, first to fully fund</option>
+            <option value="subject_to">Subject-To — Buyer takes over existing payments</option>
+            <option value="seller_finance">Seller Finance — Seller carries the note</option>
+            <option value="note">Note Listing — Selling the income stream (payments)</option>
+            <option value="equity">Equity Opportunity — Partial equity stake</option>
+          </select>
+        </div>
+
+        <!-- TYPE DESCRIPTIONS -->
+        <div id="type-desc" style="display:none;background:rgba(102,126,234,0.1);border:1px solid rgba(102,126,234,0.3);border-radius:10px;padding:12px;font-size:13px;line-height:1.7;margin-bottom:16px;color:#c4b5fd"></div>
+
+        <!-- NON-EXCLUSIVE DISCLAIMER -->
+        <div class="disclaimer" id="ne-disclaimer" style="display:none">
+          <strong>⚠️ Non-Exclusive Listing Notice:</strong> This listing will expire in <strong>30 days</strong> automatically. The first party to fully fund the deal wins. All transactions MUST close exclusively through Platform's designated title and/or escrow company. By submitting, you agree to these terms.
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Property Address</label>
+          <input type="text" class="form-input" id="submit-address" placeholder="Start typing address…" autocomplete="off" oninput="addressAutocomplete(this.value)">
+          <div id="address-suggestions" style="position:relative"></div>
+        </div>
+
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+          <div class="form-group">
+            <label class="form-label">Asking Price</label>
+            <input type="number" class="form-input" id="submit-price" placeholder="$0">
+          </div>
+          <div class="form-group">
+            <label class="form-label">ARV (After Repair Value)</label>
+            <input type="number" class="form-input" id="submit-arv" placeholder="$0">
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Your Asking Split %</label>
+          <input type="number" class="form-input" id="submit-split" placeholder="e.g. 40 (you get 40%, platform gets 60%)" min="1" max="99">
+        </div>
+
+        <!-- SUBJECT-TO FIELDS -->
+        <div id="subto-fields" style="display:none">
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+            <div class="form-group">
+              <label class="form-label">Existing Loan Balance</label>
+              <input type="number" class="form-input" id="submit-loan" placeholder="$0">
+            </div>
+            <div class="form-group">
+              <label class="form-label">Monthly Payment</label>
+              <input type="number" class="form-input" id="submit-monthly" placeholder="$0">
+            </div>
+          </div>
+        </div>
+
+        <!-- NOTE FIELDS -->
+        <div id="note-fields" style="display:none">
+          <div class="form-group">
+            <label class="form-label">Note Amount (total value of payments being sold)</label>
+            <input type="number" class="form-input" id="submit-note" placeholder="$0">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Monthly Payment Amount</label>
+            <input type="number" class="form-input" id="submit-note-monthly" placeholder="$0">
+          </div>
+        </div>
+
+        <!-- EQUITY FIELDS -->
+        <div id="equity-fields" style="display:none">
+          <div class="form-group">
+            <label class="form-label">Equity Percentage Offered to Investor</label>
+            <input type="number" class="form-input" id="submit-equity-pct" placeholder="e.g. 25" min="1" max="99">
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Deal Description / Notes</label>
+          <textarea class="form-input form-textarea" id="submit-desc" placeholder="Describe the opportunity, condition, motivation, exit strategy…"></textarea>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Upload Supporting Docs (optional)</label>
+          <div class="upload-zone" onclick="document.getElementById('docs-upload').click()">
+            <input type="file" id="docs-upload" multiple accept="image/*,.pdf,.doc,.docx" onchange="handleDocsSelect(event)">
+            <div style="font-size:24px;margin-bottom:6px">📎</div>
+            <div class="upload-zone-text">Photos, title docs, inspection reports<br><span style="font-size:11px">Multiple files accepted</span></div>
+            <div class="file-attached" id="docs-file-names" style="display:none"></div>
+          </div>
+        </div>
+
+        <button class="btn btn-primary" id="submit-btn" onclick="submitListing()" style="width:100%;padding:14px;font-size:15px">
+          📤 Submit for Admin Review
+        </button>
+      </div>
+    </div>
+
+    <!-- MY LISTINGS -->
+    <div class="panel" id="panel-my-listings">
+      <div id="my-listings-wrap"><div class="loading-s"><div class="spinner"></div> Loading your listings…</div></div>
+    </div>
+
+    <!-- PIPELINE -->
+    <div class="panel" id="panel-pipeline">
+      <div style="font-size:20px;font-weight:800;margin-bottom:6px">Deal Pipeline</div>
+      <div style="font-size:13px;opacity:0.75;margin-bottom:20px">Track your active deals from listing to close</div>
+      <div class="pipeline" id="pipeline-wrap">
+        <div class="loading-s"><div class="spinner"></div> Loading pipeline…</div>
+      </div>
+    </div>
+
+    <!-- EARNINGS -->
+    <div class="panel" id="panel-earnings">
+      <div id="earnings-wrap"><div class="loading-s"><div class="spinner"></div> Loading earnings…</div></div>
+    </div>
+
+  </div>
+</div>
+
+<div id="toasts"></div>
+
+<script>
+// ─── STATE ───
+let currentUser = null;
+let verificationStatus = 'none';
+let allMarketplace = [];
+let idFile = null;
+let docFiles = [];
+
+// ─── INIT ───
+window.addEventListener('DOMContentLoaded', async () => {
+  try {
+    const r = await fetch('/api/user/profile', { credentials: 'include' });
+    if (r.ok) { const d = await r.json(); if (d.ok && d.email) { currentUser = d; init(); return; } }
+  } catch(e) {}
+  window.location.href = '/login';
+});
+
+async function init() {
+  document.getElementById('user-email').textContent = currentUser.email;
+  await checkVerification();
+}
+
+async function doLogout() {
+  try { await fetch('/api/logout', { method: 'POST', credentials: 'include' }); } catch(e) {}
+  window.location.href = '/login';
+}
+
+// ─── VERIFICATION ───
+async function checkVerification() {
+  try {
+    const r = await fetch('/api/jv/verification-status', { credentials: 'include' });
+    const d = await r.json();
+    verificationStatus = d.status || 'none';
+
+    if (verificationStatus === 'approved') {
+      document.getElementById('app-screen').style.display = 'block';
+      loadMarketplace(); loadMyListings(); loadEarnings();
+    } else {
+      document.getElementById('verify-screen').style.display = 'block';
+      updateVerifyUI(verificationStatus, d.verification);
+    }
+  } catch(e) {
+    document.getElementById('verify-screen').style.display = 'block';
+  }
+}
+
+function updateVerifyUI(status, v) {
+  const icon = document.getElementById('verify-icon');
+  const title = document.getElementById('verify-title');
+  const desc = document.getElementById('verify-desc');
+  const badge = document.getElementById('verify-status-badge');
+  const form = document.getElementById('consent-form-section');
+
+  if (status === 'pending') {
+    icon.textContent = '⏳';
+    title.textContent = 'Verification Pending';
+    desc.textContent = 'Your application has been submitted and is awaiting admin review. You\'ll gain access once approved.';
+    badge.innerHTML = '<span class="status-badge status-pending">⏳ Pending Review</span>';
+    form.style.display = 'none';
+  } else if (status === 'rejected') {
+    icon.textContent = '❌';
+    title.textContent = 'Verification Rejected';
+    desc.textContent = 'Your application was not approved. Please re-submit with a clearer ID photo.';
+    badge.innerHTML = '<span class="status-badge status-rejected">❌ Rejected — Resubmit Below</span>';
+  } else {
+    icon.textContent = '📋';
+    title.textContent = 'Become a JV Partner';
+    desc.textContent = 'Sign our partnership agreement and upload a valid government-issued ID to access the JV marketplace.';
+  }
+}
+
+// ─── ID UPLOAD ───
+function handleIdSelect(e) { if (e.target.files[0]) attachId(e.target.files[0]); }
+function handleIdDrop(e) { e.preventDefault(); if (e.dataTransfer.files[0]) attachId(e.dataTransfer.files[0]); }
+function attachId(f) {
+  idFile = f;
+  const el = document.getElementById('id-file-name');
+  el.textContent = `✅ ${f.name}`;
+  el.style.display = 'block';
+}
+
+async function submitConsent() {
+  const name = document.getElementById('consent-name').value.trim();
+  const sig = document.getElementById('consent-sig').value.trim();
+  if (!name || !sig) { toast('Please enter your full name and signature', 'error'); return; }
+  if (name.toLowerCase() !== sig.toLowerCase()) { toast('Signature must match your full name exactly', 'error'); return; }
+
+  const btn = document.getElementById('consent-btn');
+  btn.disabled = true; btn.textContent = 'Submitting…';
+
+  try {
+    let body, headers = {};
+    if (idFile) {
+      body = new FormData();
+      body.append('full_name', name);
+      body.append('signature', sig);
+      body.append('id_document', idFile);
+    } else {
+      body = JSON.stringify({ full_name: name, signature: sig });
+      headers['Content-Type'] = 'application/json';
+    }
+    const r = await fetch('/api/jv/consent', { method: 'POST', credentials: 'include', headers, body });
+    const d = await r.json();
+    if (r.ok && d.ok) {
+      toast('✅ Application submitted! Pending admin review.', 'success');
+      verificationStatus = 'pending';
+      updateVerifyUI('pending', null);
+    } else { toast(d.error || 'Submission failed', 'error'); btn.disabled = false; btn.textContent = '✍️ Sign & Submit for Verification'; }
+  } catch(e) { toast('Connection error', 'error'); btn.disabled = false; btn.textContent = '✍️ Sign & Submit for Verification'; }
+}
+
+// ─── TABS ───
+function switchTab(name) {
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+  document.getElementById('tab-' + name).classList.add('active');
+  document.getElementById('panel-' + name).classList.add('active');
+  if (name === 'my-listings') loadMyListings();
+  if (name === 'pipeline') loadPipeline();
+  if (name === 'earnings') loadEarnings();
+}
+
+// ─── MARKETPLACE ───
+async function loadMarketplace() {
+  const c = document.getElementById('marketplace-wrap');
+  c.innerHTML = '<div class="loading-s"><div class="spinner"></div> Loading marketplace…</div>';
+  try {
+    const r = await fetch('/api/jv/marketplace', { credentials: 'include' });
+    const d = await r.json();
+    allMarketplace = d.listings || [];
+    renderMarketplace(allMarketplace);
+  } catch(e) { c.innerHTML = `<div class="empty-s"><div class="empty-ico">⚠️</div><div class="empty-ttl">Failed to Load</div></div>`; }
+}
+
+function filterMarketplace() {
+  const type = document.getElementById('type-filter').value;
+  renderMarketplace(type ? allMarketplace.filter(l => l.listing_type === type) : allMarketplace);
+}
+
+function renderMarketplace(listings) {
+  const c = document.getElementById('marketplace-wrap');
+  if (!listings.length) {
+    c.innerHTML = `<div class="empty-s"><div class="empty-ico">🏘</div><div class="empty-ttl">No Listings Yet</div><div class="empty-txt">Check back soon — new deals are added regularly.</div></div>`;
+    return;
+  }
+  const typeLabels = { standard_jv:'Standard JV', non_exclusive:'Non-Exclusive', subject_to:'Subject-To', seller_finance:'Seller Finance', note:'Note', equity:'Equity' };
+  c.innerHTML = '<div class="listings-grid">' + listings.map(l => {
+    const expiry = l.expires_at ? new Date(l.expires_at) : null;
+    const daysLeft = expiry ? Math.ceil((expiry - Date.now()) / 86400000) : null;
+    return `
+      <div class="listing-card">
+        <div class="listing-type lt-${l.listing_type}">${typeLabels[l.listing_type]||l.listing_type}</div>
+        ${l.listing_type === 'non_exclusive' && daysLeft !== null ? `<div class="expiry-warn">⏰ ${daysLeft} days left</div>` : ''}
+        <div class="listing-address">${l.address}</div>
+        <div class="listing-meta">
+          <div class="meta-item"><div class="meta-label">Asking Price</div><div class="meta-value">${l.purchase_price ? '$'+parseFloat(l.purchase_price).toLocaleString() : '—'}</div></div>
+          <div class="meta-item"><div class="meta-label">ARV</div><div class="meta-value">${l.arv ? '$'+parseFloat(l.arv).toLocaleString() : '—'}</div></div>
+          <div class="meta-item"><div class="meta-label">Split Offered</div><div class="meta-value">${l.approved_split||l.asking_split ? (l.approved_split||l.asking_split)+'%' : '—'}</div></div>
+          <div class="meta-item"><div class="meta-label">Listed By</div><div class="meta-value" style="font-size:11px">${l.submitted_by}</div></div>
+        </div>
+        ${l.description ? `<div style="font-size:12px;color:#64748b;margin-bottom:12px">${l.description.substring(0,120)}${l.description.length>120?'…':''}</div>` : ''}
+        ${l.listing_type === 'non_exclusive' ? `<div style="font-size:11px;color:#92400e;background:#fef3c7;padding:8px;border-radius:6px;margin-bottom:10px">First to fully fund wins. Platform title/escrow only.</div>` : ''}
+        <button class="btn btn-outline btn-sm" onclick="expressInterest(${l.id})">💬 Express Interest</button>
+      </div>`;
+  }).join('') + '</div>';
+}
+
+function expressInterest(id) {
+  toast('Interest noted — admin will contact you shortly', 'success');
+}
+
+// ─── LISTING TYPE LOGIC ───
+const typeDescs = {
+  standard_jv: 'You and the platform co-invest in the deal. Set your asking split percentage — admin will approve or counter.',
+  non_exclusive: 'Property is available to any buyer. Listing expires in 30 days. First party to fully fund wins. ALL transactions must close through our designated title/escrow company only.',
+  subject_to: 'Buyer takes over the seller\'s existing mortgage payments without formally assuming the loan. Enter the current loan balance and monthly payment.',
+  seller_finance: 'The property seller agrees to carry the financing — they act as the bank. Different from a Note listing (which sells existing payments).',
+  note: 'A seller who has already financed a property is selling the income stream — the right to receive mortgage payments. Enter the total note value and monthly payment amount.',
+  equity: 'Offer investors a partial ownership stake in the property in exchange for capital.'
+};
+
+function onTypeChange() {
+  const type = document.getElementById('submit-type').value;
+  const desc = document.getElementById('type-desc');
+  const ne = document.getElementById('ne-disclaimer');
+  const subto = document.getElementById('subto-fields');
+  const note = document.getElementById('note-fields');
+  const equity = document.getElementById('equity-fields');
+
+  desc.style.display = type ? 'block' : 'none';
+  desc.textContent = typeDescs[type] || '';
+  ne.style.display = type === 'non_exclusive' ? 'block' : 'none';
+  subto.style.display = type === 'subject_to' ? 'block' : 'none';
+  note.style.display = type === 'note' ? 'block' : 'none';
+  equity.style.display = type === 'equity' ? 'block' : 'none';
+}
+
+// ─── ADDRESS AUTOCOMPLETE (Google Maps Places) ───
+let addressSelected = false;
+function addressAutocomplete(val) {
+  addressSelected = false;
+  const box = document.getElementById('address-suggestions');
+  if (val.length < 4) { box.innerHTML = ''; return; }
+  // Use Google Maps Places API if available, otherwise show free-text notice
+  if (window.google && window.google.maps) {
+    const svc = new google.maps.places.AutocompleteService();
+    svc.getPlacePredictions({ input: val, types: ['address'], componentRestrictions: { country: 'us' } }, (preds, status) => {
+      if (!preds) { box.innerHTML = ''; return; }
+      box.innerHTML = `<div style="position:absolute;width:100%;background:#1e1340;border:1px solid rgba(255,255,255,0.2);border-radius:8px;z-index:100;top:4px">` +
+        preds.slice(0,5).map(p => `<div onclick="selectAddress('${p.description.replace(/'/g,"\\'")}')" style="padding:10px 14px;font-size:13px;cursor:pointer;border-bottom:1px solid rgba(255,255,255,0.1)" onmouseover="this.style.background='rgba(255,255,255,0.1)'" onmouseout="this.style.background=''">${p.description}</div>`).join('') + '</div>';
+    });
+  } else {
+    box.innerHTML = '';
+  }
+}
+
+function selectAddress(addr) {
+  document.getElementById('submit-address').value = addr;
+  document.getElementById('address-suggestions').innerHTML = '';
+  addressSelected = true;
+}
+
+// ─── DOC UPLOAD ───
+function handleDocsSelect(e) {
+  docFiles = Array.from(e.target.files);
+  const el = document.getElementById('docs-file-names');
+  el.textContent = `✅ ${docFiles.length} file(s): ${docFiles.map(f=>f.name).join(', ')}`;
+  el.style.display = 'block';
+}
+
+// ─── SUBMIT LISTING ───
+async function submitListing() {
+  const type = document.getElementById('submit-type').value;
+  const address = document.getElementById('submit-address').value.trim();
+  const split = document.getElementById('submit-split').value;
+
+  if (!type) { toast('Please select a listing type', 'error'); return; }
+  if (!address) { toast('Please enter a property address', 'error'); return; }
+  if (!split) { toast('Please enter your asking split %', 'error'); return; }
+
+  const btn = document.getElementById('submit-btn');
+  btn.disabled = true; btn.textContent = 'Submitting…';
+
+  const payload = {
+    listing_type: type,
+    address,
+    asking_split: parseFloat(split),
+    purchase_price: parseFloat(document.getElementById('submit-price').value) || null,
+    arv: parseFloat(document.getElementById('submit-arv').value) || null,
+    description: document.getElementById('submit-desc').value,
+    loan_balance: parseFloat(document.getElementById('submit-loan')?.value) || null,
+    monthly_payment: parseFloat(document.getElementById('submit-monthly')?.value) || null,
+    note_amount: parseFloat(document.getElementById('submit-note')?.value) || null,
+    equity_percentage: parseFloat(document.getElementById('submit-equity-pct')?.value) || null,
+  };
+
+  try {
+    const r = await fetch('/api/jv/listings/submit', {
+      method: 'POST', credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+    const d = await r.json();
+    if (r.ok && d.ok) {
+      toast('✅ Listing submitted for admin review!', 'success');
+      // Reset form
+      document.getElementById('submit-type').value = '';
+      document.getElementById('submit-address').value = '';
+      document.getElementById('submit-split').value = '';
+      document.getElementById('submit-price').value = '';
+      document.getElementById('submit-arv').value = '';
+      document.getElementById('submit-desc').value = '';
+      onTypeChange();
+      switchTab('my-listings');
+    } else { toast(d.error || 'Submission failed', 'error'); }
+  } catch(e) { toast('Connection error', 'error'); }
+  finally { btn.disabled = false; btn.textContent = '📤 Submit for Admin Review'; }
+}
+
+// ─── MY LISTINGS ───
+async function loadMyListings() {
+  const c = document.getElementById('my-listings-wrap');
+  c.innerHTML = '<div class="loading-s"><div class="spinner"></div> Loading your listings…</div>';
+  try {
+    const r = await fetch('/api/jv/my-listings', { credentials: 'include' });
+    const d = await r.json();
+    const listings = d.listings || [];
+    if (!listings.length) {
+      c.innerHTML = `<div class="empty-s"><div class="empty-ico">📋</div><div class="empty-ttl">No Listings Yet</div><div class="empty-txt">Submit a listing to get started.</div></div>`;
+      return;
+    }
+    const typeLabels = { standard_jv:'Standard JV', non_exclusive:'Non-Exclusive', subject_to:'Subject-To', seller_finance:'Seller Finance', note:'Note', equity:'Equity' };
+    c.innerHTML = '<div class="listings-grid">' + listings.map(l => `
+      <div class="listing-card">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+          <div class="listing-type lt-${l.listing_type}">${typeLabels[l.listing_type]||l.listing_type}</div>
+          <span class="listing-status ls-${l.status}">${l.status.replace(/_/g,' ')}</span>
+        </div>
+        <div class="listing-address">${l.address}</div>
+        <div class="listing-meta">
+          <div class="meta-item"><div class="meta-label">Asking Split</div><div class="meta-value">${l.asking_split||'—'}%</div></div>
+          <div class="meta-item"><div class="meta-label">Approved Split</div><div class="meta-value">${l.approved_split||'Pending'}${l.approved_split?'%':''}</div></div>
+          <div class="meta-item"><div class="meta-label">Submitted</div><div class="meta-value" style="font-size:11px">${new Date(l.submitted_at).toLocaleDateString()}</div></div>
+          ${l.expires_at ? `<div class="meta-item"><div class="meta-label">Expires</div><div class="meta-value" style="font-size:11px;color:#ef4444">${new Date(l.expires_at).toLocaleDateString()}</div></div>` : ''}
+        </div>
+        ${l.admin_notes ? `<div style="background:#fef3c7;border-radius:8px;padding:8px 12px;font-size:12px;color:#92400e;margin-top:4px">📋 Admin: ${l.admin_notes}</div>` : ''}
+      </div>`).join('') + '</div>';
+  } catch(e) { c.innerHTML = `<div class="empty-s"><div class="empty-ico">⚠️</div><div class="empty-ttl">Failed to Load</div></div>`; }
+}
+
+// ─── PIPELINE ───
+async function loadPipeline() {
+  const c = document.getElementById('pipeline-wrap');
+  try {
+    const r = await fetch('/api/jv/my-listings', { credentials: 'include' });
+    const d = await r.json();
+    const listings = d.listings || [];
+    const stages = {
+      'pending_review': { label: '🔍 Under Review', items: [] },
+      'approved': { label: '✅ Active', items: [] },
+      'closed': { label: '🏆 Closed', items: [] },
+      'rejected': { label: '❌ Rejected', items: [] },
+      'expired': { label: '⏰ Expired', items: [] },
+    };
+    listings.forEach(l => {
+      const stage = stages[l.status] || stages['pending_review'];
+      stage.items.push(l);
+    });
+    if (!listings.length) {
+      c.innerHTML = `<div class="empty-s"><div class="empty-ico">📊</div><div class="empty-ttl">No Deals Yet</div><div class="empty-txt">Submit a listing to see your pipeline.</div></div>`;
+      return;
+    }
+    c.innerHTML = Object.entries(stages).map(([key, stage]) => `
+      <div class="pipeline-col">
+        <div class="pipeline-col-title">${stage.label} <span class="pipeline-count">${stage.items.length}</span></div>
+        ${stage.items.length ? stage.items.map(l => `
+          <div class="pipeline-card">
+            <div class="pipeline-card-addr">${l.address.substring(0,40)}${l.address.length>40?'…':''}</div>
+            <div class="pipeline-card-split">${l.approved_split||l.asking_split||'—'}% split • ${l.listing_type.replace(/_/g,' ')}</div>
+          </div>`).join('') : `<div style="font-size:12px;opacity:0.5;text-align:center;padding:12px">Empty</div>`}
+      </div>`).join('');
+  } catch(e) { c.innerHTML = `<div style="opacity:0.7">Failed to load pipeline</div>`; }
+}
+
+// ─── EARNINGS ───
+async function loadEarnings() {
+  const c = document.getElementById('earnings-wrap');
+  try {
+    const r = await fetch('/api/jv/earnings', { credentials: 'include' });
+    const d = await r.json();
+    const e = d.earnings || {};
+    c.innerHTML = `
+      <div class="stats-row">
+        <div class="stat-card"><div class="stat-n">${e.total_claims||0}</div><div class="stat-l">Total Claims</div></div>
+        <div class="stat-card"><div class="stat-n">${e.active_claims||0}</div><div class="stat-l">Active Deals</div></div>
+        <div class="stat-card"><div class="stat-n">${e.closed_deals||0}</div><div class="stat-l">Closed Deals</div></div>
+        <div class="stat-card"><div class="stat-n" style="color:#fcd34d">$${parseFloat(e.total_paid||0).toLocaleString()}</div><div class="stat-l">Total Earned</div></div>
+      </div>
+      ${parseFloat(e.pending_payment||0) > 0 ? `
+      <div style="background:rgba(252,211,77,0.15);border:1px solid rgba(252,211,77,0.4);border-radius:12px;padding:16px 20px;margin-bottom:16px;display:flex;align-items:center;justify-content:space-between">
+        <div><div style="font-size:14px;font-weight:700;color:#fcd34d">💰 Pending Payment</div><div style="font-size:12px;opacity:0.8">Deals closed, payment processing</div></div>
+        <div style="font-size:24px;font-weight:800;color:#fcd34d">$${parseFloat(e.pending_payment).toLocaleString()}</div>
+      </div>` : ''}
+      <div class="empty-s" style="margin-top:0">
+        <div class="empty-ico">📈</div>
+        <div class="empty-ttl">Earnings History</div>
+        <div class="empty-txt">Closed deal payouts will appear here.</div>
+      </div>`;
+  } catch(e) { c.innerHTML = `<div class="empty-s"><div class="empty-ico">⚠️</div><div class="empty-ttl">Failed to Load</div></div>`; }
+}
+
+// ─── TOAST ───
+function toast(msg, type='info') {
+  const t = document.createElement('div');
+  t.className = `toast ${type}`; t.textContent = msg;
+  document.getElementById('toasts').appendChild(t);
+  setTimeout(() => t.remove(), 4500);
+}
+</script>
+
+<!-- Google Maps Places API - replace YOUR_KEY with your API key -->
+<!-- <script src="https://maps.googleapis.com/maps/api/js?key=YOUR_KEY&libraries=places"></script> -->
+
+</body>
+</html>
