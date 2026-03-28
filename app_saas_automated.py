@@ -3436,12 +3436,12 @@ def upload_job_file(job_id):
                 cur.execute("""
                     INSERT INTO service_request_files (
                         service_request_id,
-                        filename,
+                        file_name,
                         original_filename,
                         file_size,
-                        file_type,
+                        mime_type,
                         file_url,
-                        uploaded_by_va_email
+                        uploaded_by
                     ) VALUES (%s, %s, %s, %s, %s, %s, %s)
                     RETURNING id
                 """, (
@@ -3479,7 +3479,7 @@ def get_job_files(job_id):
         with db_conn() as conn:
             with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
                 cur.execute("""
-                    SELECT id, original_filename, file_size, file_type, 
+                    SELECT id, original_filename, file_size, mime_type, 
                            file_url, uploaded_at
                     FROM service_request_files
                     WHERE service_request_id = %s
