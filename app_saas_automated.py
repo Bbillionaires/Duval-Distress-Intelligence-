@@ -3468,7 +3468,7 @@ def upload_job_file(job_id):
         print(f"❌ File upload error: {e}")
         import traceback
         traceback.print_exc()
-        return jsonify({"ok": False, "error": "Failed to upload file"}), 500
+        return jsonify({"ok": False, "error": f"Upload failed: {str(e)}"}), 500
 
 
 @app.get("/api/va/jobs/<int:job_id>/files")
