@@ -3423,14 +3423,14 @@ def upload_job_file(job_id):
                 file_ext = os.path.splitext(original_filename)[1]
                 unique_filename = f"{uuid.uuid4().hex}{file_ext}"
                 
-                # Save to /mnt/user-data/outputs/uploads (temporary - should use S3/Supabase Storage in production)
-                upload_dir = "/mnt/user-data/outputs/uploads"
-                os.makedirs(upload_dir, exist_ok=True)
-                file_path = os.path.join(upload_dir, unique_filename)
-                file.save(file_path)
+                # Save file to static/uploads directory
+                upload_dir = BASE_DIR / "static" / "uploads"
+                upload_dir.mkdir(parents=True, exist_ok=True)
+                file_path = upload_dir / unique_filename
+                file.save(str(file_path))
                 
                 # For now, just store filename. In production, upload to S3/Supabase Storage
-                file_url = f"/uploads/{unique_filename}"
+                file_url = f"/static/uploads/{unique_filename}"
                 
                 # Store file record
                 cur.execute("""
