@@ -1,0 +1,473 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Management Portal — Real Estate Intelligence</title>
+<style>
+* { box-sizing:border-box;margin:0;padding:0; }
+body { font-family:'Segoe UI',system-ui,sans-serif;background:linear-gradient(135deg,#1e1340 0%,#2d1b69 50%,#1e3a5f 100%);min-height:100vh;color:#fff; }
+
+.topbar { background:rgba(255,255,255,0.1);backdrop-filter:blur(20px);border-bottom:1px solid rgba(255,255,255,0.15);padding:14px 28px;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;position:sticky;top:0;z-index:100; }
+.brand { display:flex;align-items:center;gap:10px; }
+.brand-name { font-size:17px;font-weight:800; }
+.role-badge { background:rgba(251,191,36,0.2);border:1px solid rgba(251,191,36,0.4);color:#fcd34d;padding:4px 12px;border-radius:20px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.08em; }
+.btn-sm { background:rgba(255,255,255,0.12);border:1px solid rgba(255,255,255,0.25);color:#fff;padding:7px 14px;border-radius:10px;cursor:pointer;font-size:12px;font-weight:600;font-family:inherit;transition:all 0.2s; }
+.btn-sm:hover { background:rgba(255,255,255,0.22); }
+.btn-danger { background:rgba(239,68,68,0.2);border-color:rgba(239,68,68,0.4);color:#fca5a5; }
+.btn-danger:hover { background:rgba(239,68,68,0.35); }
+.btn-success { background:rgba(34,197,94,0.2);border-color:rgba(34,197,94,0.4);color:#86efac; }
+.btn-success:hover { background:rgba(34,197,94,0.35); }
+
+.tabs-wrap { padding:20px 28px 0;max-width:1300px;margin:0 auto; }
+.tabs { display:flex;gap:4px;background:rgba(255,255,255,0.08);border-radius:12px;padding:4px;width:fit-content;flex-wrap:wrap; }
+.tab { padding:9px 18px;border-radius:9px;font-size:13px;font-weight:700;cursor:pointer;transition:all 0.2s;opacity:0.65;white-space:nowrap; }
+.tab:hover { opacity:1; }
+.tab.active { background:#fff;color:#2d1b69;opacity:1; }
+.tab-badge { background:#ef4444;color:#fff;border-radius:10px;padding:1px 7px;font-size:10px;margin-left:5px; }
+
+.content { padding:20px 28px 48px;max-width:1300px;margin:0 auto; }
+.panel { display:none; }
+.panel.active { display:block; }
+
+/* STATS */
+.stats-row { display:grid;grid-template-columns:repeat(5,1fr);gap:14px;margin-bottom:24px; }
+.stat-card { background:rgba(255,255,255,0.1);backdrop-filter:blur(10px);border:1px solid rgba(255,255,255,0.18);border-radius:14px;padding:18px;text-align:center; }
+.stat-n { font-size:28px;font-weight:800;margin-bottom:4px; }
+.stat-l { font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.1em;opacity:0.7; }
+
+/* TABLE */
+.tbl-wrap { background:rgba(255,255,255,0.97);color:#1a1a2e;border-radius:14px;overflow:hidden;overflow-x:auto;margin-top:12px; }
+.tbl { width:100%;border-collapse:collapse; }
+.tbl th { background:#f8fafc;padding:12px 16px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:#64748b;text-align:left;border-bottom:1px solid #e2e8f0;white-space:nowrap; }
+.tbl td { padding:12px 16px;font-size:13px;border-bottom:1px solid #f1f5f9;vertical-align:middle; }
+.tbl tr:last-child td { border-bottom:none; }
+.tbl tr:hover td { background:#fafafa; }
+
+/* PILLS */
+.pill { display:inline-block;font-size:10px;font-weight:700;text-transform:uppercase;padding:3px 10px;border-radius:20px;letter-spacing:0.06em; }
+.p-flagged { background:#fee2e2;color:#991b1b; }
+.p-clean { background:#dcfce7;color:#166534; }
+.p-pending { background:#fef3c7;color:#92400e; }
+.p-completed { background:#dcfce7;color:#166534; }
+.p-disputed { background:#ffedd5;color:#c2410c; }
+.p-rejected { background:#fee2e2;color:#991b1b; }
+
+/* ACTIVITY LOG */
+.log-row { display:flex;gap:14px;padding:12px 0;border-bottom:1px solid rgba(255,255,255,0.08);align-items:flex-start; }
+.log-icon { width:34px;height:34px;border-radius:50%;background:rgba(255,255,255,0.1);display:flex;align-items:center;justify-content:center;font-size:15px;flex-shrink:0; }
+.log-actor { font-size:13px;font-weight:700; }
+.log-action { font-size:13px;opacity:0.85; }
+.log-time { font-size:11px;opacity:0.5;margin-top:2px; }
+.log-role { font-size:10px;font-weight:700;text-transform:uppercase;padding:2px 8px;border-radius:10px;display:inline-block;margin-left:6px; }
+.role-admin { background:rgba(239,68,68,0.2);color:#fca5a5; }
+.role-management { background:rgba(251,191,36,0.2);color:#fcd34d; }
+.role-va { background:rgba(102,126,234,0.2);color:#a5b4fc; }
+
+/* MODAL */
+.overlay { display:none;position:fixed;inset:0;background:rgba(0,0,0,0.7);backdrop-filter:blur(4px);z-index:1000;align-items:center;justify-content:center;padding:20px; }
+.overlay.open { display:flex; }
+.modal { background:rgba(15,10,40,0.98);color:#fff;border:1px solid rgba(255,255,255,0.18);border-radius:18px;width:100%;max-width:500px;padding:28px;box-shadow:0 20px 60px rgba(0,0,0,0.6); }
+.modal-title { font-size:18px;font-weight:800;margin-bottom:16px; }
+.m-input { width:100%;background:rgba(255,255,255,0.1);border:1px solid rgba(255,255,255,0.25);border-radius:10px;padding:11px 14px;font-size:13px;color:#fff;outline:none;font-family:inherit;margin-bottom:10px; }
+.m-input::placeholder { color:rgba(255,255,255,0.4); }
+.m-label { font-size:11px;font-weight:700;text-transform:uppercase;opacity:0.7;margin-bottom:4px;display:block; }
+.m-btn { width:100%;padding:12px;border-radius:12px;font-size:14px;font-weight:700;cursor:pointer;border:none;font-family:inherit;margin-top:8px;transition:all 0.2s; }
+.m-btn-primary { background:linear-gradient(135deg,#667eea,#764ba2);color:#fff; }
+.m-btn-primary:hover { opacity:0.9; }
+.m-btn-cancel { background:rgba(255,255,255,0.1);color:#fff;border:1px solid rgba(255,255,255,0.2); }
+
+/* EMPTY/LOADING */
+.empty-s { text-align:center;padding:48px;background:rgba(255,255,255,0.06);border-radius:14px;margin-top:12px; }
+.empty-ico { font-size:44px;margin-bottom:10px;opacity:0.5; }
+.empty-ttl { font-size:18px;font-weight:700;margin-bottom:6px; }
+.loading-s { display:flex;align-items:center;justify-content:center;gap:10px;padding:48px;opacity:0.7;font-size:14px; }
+.spinner { width:20px;height:20px;border:2px solid rgba(255,255,255,0.3);border-top-color:#fff;border-radius:50%;animation:spin 0.8s linear infinite; }
+@keyframes spin { to{transform:rotate(360deg)} }
+
+/* TOAST */
+#toasts { position:fixed;bottom:24px;right:24px;display:flex;flex-direction:column;gap:8px;z-index:9999;pointer-events:none; }
+.toast { background:#fff;color:#1e293b;border-radius:12px;padding:12px 18px;font-size:14px;font-weight:600;box-shadow:0 8px 32px rgba(0,0,0,0.2);display:flex;align-items:center;gap:10px;animation:tIn 0.3s ease;pointer-events:all;min-width:240px;border-left:4px solid #667eea; }
+.toast.success { border-left-color:#22c55e; }
+.toast.error { border-left-color:#ef4444; }
+@keyframes tIn { from{transform:translateX(100px);opacity:0}to{transform:translateX(0);opacity:1} }
+
+@media(max-width:768px) {
+  .stats-row { grid-template-columns:repeat(2,1fr); }
+  .content,.tabs-wrap { padding-left:16px;padding-right:16px; }
+}
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="brand">
+    <span style="font-size:22px">🛡️</span>
+    <div>
+      <div class="brand-name">Management Portal</div>
+      <div style="font-size:11px;opacity:0.6">Real Estate Intelligence</div>
+    </div>
+  </div>
+  <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+    <div class="role-badge" id="role-badge">Staff</div>
+    <div style="font-size:13px;opacity:0.8" id="mgmt-email">—</div>
+    <button class="btn-sm" onclick="doLogout()">Log Out</button>
+  </div>
+</div>
+
+<div class="tabs-wrap">
+  <div class="tabs">
+    <div class="tab active" onclick="switchTab('flagged')" id="tab-flagged">🚩 Flagged <span class="tab-badge" id="flagged-count" style="display:none">0</span></div>
+    <div class="tab" onclick="switchTab('activity')" id="tab-activity">📋 Activity Log</div>
+    <div class="tab" onclick="switchTab('all-requests')" id="tab-all-requests">📂 All Requests</div>
+    <div id="tab-staff-wrap" style="display:none">
+      <div class="tab" onclick="switchTab('staff')" id="tab-staff">👥 Staff Accounts</div>
+    </div>
+  </div>
+</div>
+
+<div class="content">
+
+  <!-- STATS -->
+  <div class="stats-row" id="stats-row" style="margin-top:20px">
+    <div class="stat-card"><div class="stat-n" id="s-total">—</div><div class="stat-l">Total Requests</div></div>
+    <div class="stat-card"><div class="stat-n" style="color:#ef4444" id="s-flagged">—</div><div class="stat-l">Flagged</div></div>
+    <div class="stat-card"><div class="stat-n" style="color:#f97316" id="s-disputed">—</div><div class="stat-l">Disputed</div></div>
+    <div class="stat-card"><div class="stat-n" style="color:#22c55e" id="s-completed">—</div><div class="stat-l">Completed</div></div>
+    <div class="stat-card"><div class="stat-n" style="color:#fcd34d" id="s-staff">—</div><div class="stat-l">Active Staff</div></div>
+  </div>
+
+  <!-- FLAGGED PANEL -->
+  <div class="panel active" id="panel-flagged">
+    <div style="font-size:16px;font-weight:800;margin-bottom:4px">🚩 Flagged & Disputed Submissions</div>
+    <div style="font-size:13px;opacity:0.7;margin-bottom:16px">Files flagged by scan or disputed by users. Review and override as needed.</div>
+    <div id="flagged-wrap"><div class="loading-s"><div class="spinner"></div> Loading…</div></div>
+  </div>
+
+  <!-- ACTIVITY LOG PANEL -->
+  <div class="panel" id="panel-activity">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;flex-wrap:wrap;gap:10px">
+      <div>
+        <div style="font-size:16px;font-weight:800">📋 Platform Activity Log</div>
+        <div style="font-size:13px;opacity:0.7">Every action on the platform with timestamp</div>
+      </div>
+      <select id="log-filter" onchange="loadActivityLog()" style="background:rgba(255,255,255,0.1);border:1px solid rgba(255,255,255,0.25);border-radius:10px;padding:8px 14px;color:#fff;font-size:13px;outline:none">
+        <option value="100">Last 100</option>
+        <option value="250">Last 250</option>
+        <option value="500">Last 500</option>
+      </select>
+    </div>
+    <div id="activity-wrap"><div class="loading-s"><div class="spinner"></div> Loading…</div></div>
+  </div>
+
+  <!-- ALL REQUESTS PANEL -->
+  <div class="panel" id="panel-all-requests">
+    <div style="font-size:16px;font-weight:800;margin-bottom:4px">📂 All Service Requests</div>
+    <div style="font-size:13px;opacity:0.7;margin-bottom:16px">Read-only view of all platform requests</div>
+    <div id="all-requests-wrap"><div class="loading-s"><div class="spinner"></div> Loading…</div></div>
+  </div>
+
+  <!-- STAFF PANEL (admin only) -->
+  <div class="panel" id="panel-staff">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;flex-wrap:wrap;gap:10px">
+      <div>
+        <div style="font-size:16px;font-weight:800">👥 Staff Accounts</div>
+        <div style="font-size:13px;opacity:0.7">Only master admin can create or deactivate accounts</div>
+      </div>
+      <button class="btn-sm btn-success" onclick="openCreateStaff()">➕ Create Staff Account</button>
+    </div>
+    <div id="staff-wrap"><div class="loading-s"><div class="spinner"></div> Loading…</div></div>
+  </div>
+
+</div>
+
+<!-- OVERRIDE MODAL -->
+<div class="overlay" id="override-modal">
+  <div class="modal">
+    <div class="modal-title">⚙️ Override Submission Status</div>
+    <div style="font-size:13px;opacity:0.7;margin-bottom:16px">Request ID: <strong id="override-id">—</strong></div>
+    <label class="m-label">Set Status</label>
+    <select class="m-input" id="override-status">
+      <option value="">— No change —</option>
+      <option value="completed">✅ Completed (approve)</option>
+      <option value="pending">🔄 Return to Queue</option>
+      <option value="rejected">❌ Rejected</option>
+    </select>
+    <label class="m-label">Set Scan Status</label>
+    <select class="m-input" id="override-scan">
+      <option value="">— No change —</option>
+      <option value="clean">✅ Mark Clean</option>
+      <option value="flagged">🚩 Keep Flagged</option>
+    </select>
+    <label class="m-label">Reason / Notes</label>
+    <input class="m-input" id="override-reason" placeholder="Reason for override…">
+    <button class="m-btn m-btn-primary" onclick="submitOverride()">💾 Save Override</button>
+    <button class="m-btn m-btn-cancel" onclick="closeOverride()">Cancel</button>
+  </div>
+</div>
+
+<!-- CREATE STAFF MODAL -->
+<div class="overlay" id="create-staff-modal">
+  <div class="modal">
+    <div class="modal-title">➕ Create Staff Account</div>
+    <label class="m-label">Full Name</label>
+    <input class="m-input" id="cs-name" placeholder="Jane Smith">
+    <label class="m-label">Email</label>
+    <input class="m-input" id="cs-email" placeholder="staff@company.com">
+    <label class="m-label">Password</label>
+    <input class="m-input" type="password" id="cs-pass" placeholder="Temporary password">
+    <button class="m-btn m-btn-primary" onclick="createStaff()">Create Account</button>
+    <button class="m-btn m-btn-cancel" onclick="closeCreateStaff()">Cancel</button>
+  </div>
+</div>
+
+<div id="toasts"></div>
+
+<script>
+let currentRole = 'management';
+let overrideReqId = null;
+
+window.addEventListener('DOMContentLoaded', async () => {
+  // Get current user
+  try {
+    const r = await fetch('/api/user/profile', { credentials:'include' });
+    const d = await r.json();
+    if (d.ok) {
+      document.getElementById('mgmt-email').textContent = d.email;
+      // Show staff tab only for admin
+      if (d.role === 'admin') {
+        currentRole = 'admin';
+        document.getElementById('role-badge').textContent = 'Admin';
+        document.getElementById('tab-staff-wrap').style.display = 'block';
+      }
+    } else { window.location.href = '/login'; return; }
+  } catch(e) { window.location.href = '/login'; return; }
+
+  loadStats();
+  loadFlagged();
+});
+
+async function doLogout() {
+  try { await fetch('/api/logout', { method:'POST', credentials:'include' }); } catch(e) {}
+  window.location.href = '/login';
+}
+
+function switchTab(name) {
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+  const t = document.getElementById(`tab-${name}`);
+  const p = document.getElementById(`panel-${name}`);
+  if (t) t.classList.add('active');
+  if (p) p.classList.add('active');
+  if (name === 'flagged') loadFlagged();
+  if (name === 'activity') loadActivityLog();
+  if (name === 'all-requests') loadAllRequests();
+  if (name === 'staff') loadStaff();
+}
+
+async function loadStats() {
+  try {
+    const r = await fetch('/api/management/stats', { credentials:'include' });
+    const d = await r.json();
+    if (d.ok) {
+      const s = d.stats;
+      document.getElementById('s-total').textContent = s.total_requests;
+      document.getElementById('s-flagged').textContent = s.flagged;
+      document.getElementById('s-disputed').textContent = s.disputed;
+      document.getElementById('s-completed').textContent = s.completed;
+      document.getElementById('s-staff').textContent = s.active_staff;
+      if (s.flagged > 0) {
+        const badge = document.getElementById('flagged-count');
+        badge.textContent = s.flagged;
+        badge.style.display = 'inline';
+      }
+    }
+  } catch(e) {}
+}
+
+// ── FLAGGED ──
+async function loadFlagged() {
+  const c = document.getElementById('flagged-wrap');
+  c.innerHTML = '<div class="loading-s"><div class="spinner"></div> Loading…</div>';
+  try {
+    const r = await fetch('/api/management/flagged', { credentials:'include' });
+    const d = await r.json();
+    const items = d.items || [];
+    if (!items.length) {
+      c.innerHTML = `<div class="empty-s"><div class="empty-ico">✅</div><div class="empty-ttl">No Flagged Items</div><div class="empty-txt">All submissions are clean.</div></div>`;
+      return;
+    }
+    c.innerHTML = `<div class="tbl-wrap"><table class="tbl"><thead><tr>
+      <th>ID</th><th>VA</th><th>Service</th><th>Property</th><th>Status</th><th>Scan</th><th>Flag Reason</th><th>Action</th>
+    </tr></thead><tbody>
+    ${items.map(i => `<tr>
+      <td style="font-weight:700">#${i.id}</td>
+      <td style="font-size:12px">${i.claimed_by_va_email||'—'}</td>
+      <td>${(i.service_type||'').replace(/_/g,' ')}</td>
+      <td style="font-size:12px;max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${i.property_address||i.parcel||'—'}</td>
+      <td><span class="pill p-${i.status||'pending'}">${i.status||'pending'}</span></td>
+      <td><span class="pill p-${i.scan_status||'pending'}">${i.scan_status||'—'}</span></td>
+      <td style="font-size:12px;color:#ef4444;max-width:180px">${i.scan_flagged_reason||'—'}</td>
+      <td><button class="btn-sm" onclick="openOverride(${i.id})">⚙️ Override</button></td>
+    </tr>`).join('')}
+    </tbody></table></div>`;
+  } catch(e) { c.innerHTML = `<div class="empty-s"><div class="empty-ico">⚠️</div><div class="empty-ttl">Failed to Load</div></div>`; }
+}
+
+// ── ACTIVITY LOG ──
+async function loadActivityLog() {
+  const c = document.getElementById('activity-wrap');
+  c.innerHTML = '<div class="loading-s"><div class="spinner"></div> Loading…</div>';
+  const limit = document.getElementById('log-filter').value;
+  try {
+    const r = await fetch(`/api/management/activity-log?limit=${limit}`, { credentials:'include' });
+    const d = await r.json();
+    const logs = d.logs || [];
+    if (!logs.length) { c.innerHTML = `<div class="empty-s"><div class="empty-ico">📋</div><div class="empty-ttl">No Activity Yet</div></div>`; return; }
+    const icons = { login:'🔐', file_upload:'📎', override_status:'⚙️', create_management_account:'👤', delete_management_account:'🗑️', view_flagged_queue:'👁️', note:'📝', default:'📌' };
+    c.innerHTML = logs.map(l => `
+      <div class="log-row">
+        <div class="log-icon">${icons[l.action]||icons.default}</div>
+        <div style="flex:1">
+          <div><span class="log-actor">${l.actor_email}</span><span class="log-role role-${l.actor_role}">${l.actor_role}</span></div>
+          <div class="log-action">${l.action.replace(/_/g,' ')}${l.target_type?` · ${l.target_type} #${l.target_id||''}`:''}</div>
+          ${l.details?`<div style="font-size:12px;opacity:0.55;margin-top:2px">${l.details}</div>`:''}
+          <div class="log-time">${new Date(l.created_at).toLocaleString()} · IP: ${l.ip_address||'—'}</div>
+        </div>
+      </div>`).join('');
+  } catch(e) { c.innerHTML = `<div class="empty-s"><div class="empty-ico">⚠️</div><div class="empty-ttl">Failed to Load</div></div>`; }
+}
+
+// ── ALL REQUESTS ──
+async function loadAllRequests() {
+  const c = document.getElementById('all-requests-wrap');
+  c.innerHTML = '<div class="loading-s"><div class="spinner"></div> Loading…</div>';
+  try {
+    const r = await fetch('/api/admin/service-requests?status=all', { credentials:'include' });
+    const d = await r.json();
+    let reqs = d.requests || [];
+    // If admin endpoint requires exact status, try submitted + completed
+    if (!reqs.length) {
+      const [r2, r3] = await Promise.all([
+        fetch('/api/admin/service-requests?status=submitted', { credentials:'include' }).then(x=>x.json()),
+        fetch('/api/admin/service-requests?status=completed', { credentials:'include' }).then(x=>x.json()),
+      ]);
+      reqs = [...(r2.requests||[]), ...(r3.requests||[])];
+    }
+    if (!reqs.length) { c.innerHTML = `<div class="empty-s"><div class="empty-ico">📂</div><div class="empty-ttl">No Requests</div></div>`; return; }
+    c.innerHTML = `<div class="tbl-wrap"><table class="tbl"><thead><tr>
+      <th>ID</th><th>User</th><th>VA</th><th>Service</th><th>Status</th><th>Scan</th><th>Payout</th><th>Date</th>
+    </tr></thead><tbody>
+    ${reqs.map(i=>`<tr>
+      <td style="font-weight:700">#${i.id}</td>
+      <td style="font-size:12px">${i.user_email||'—'}</td>
+      <td style="font-size:12px">${i.claimed_by_va_email||'Unassigned'}</td>
+      <td>${(i.service_type||'').replace(/_/g,' ')}</td>
+      <td><span class="pill p-${i.status||'pending'}">${i.status||'—'}</span></td>
+      <td><span class="pill p-${i.scan_status||'pending'}">${i.scan_status||'—'}</span></td>
+      <td style="font-weight:700;color:#15803d">$${parseFloat(i.va_payout||0).toFixed(2)}</td>
+      <td style="font-size:12px;color:#64748b">${i.submitted_at?new Date(i.submitted_at).toLocaleDateString():'—'}</td>
+    </tr>`).join('')}
+    </tbody></table></div>`;
+  } catch(e) { c.innerHTML = `<div class="empty-s"><div class="empty-ico">⚠️</div><div class="empty-ttl">Failed to Load</div></div>`; }
+}
+
+// ── STAFF ACCOUNTS ──
+async function loadStaff() {
+  const c = document.getElementById('staff-wrap');
+  c.innerHTML = '<div class="loading-s"><div class="spinner"></div> Loading…</div>';
+  try {
+    const r = await fetch('/api/admin/management/list', { credentials:'include' });
+    const d = await r.json();
+    const accounts = d.accounts || [];
+    if (!accounts.length) { c.innerHTML = `<div class="empty-s"><div class="empty-ico">👥</div><div class="empty-ttl">No Staff Accounts</div><div class="empty-txt">Create the first staff account above.</div></div>`; return; }
+    c.innerHTML = `<div class="tbl-wrap"><table class="tbl"><thead><tr>
+      <th>Name</th><th>Email</th><th>Status</th><th>Created By</th><th>Created</th><th>Action</th>
+    </tr></thead><tbody>
+    ${accounts.map(a=>`<tr>
+      <td style="font-weight:700">${a.name}</td>
+      <td style="font-size:13px">${a.email}</td>
+      <td><span class="pill ${a.active?'p-completed':'p-rejected'}">${a.active?'Active':'Inactive'}</span></td>
+      <td style="font-size:12px">${a.created_by}</td>
+      <td style="font-size:12px">${new Date(a.created_at).toLocaleDateString()}</td>
+      <td>${a.active?`<button class="btn-sm btn-danger" onclick="deactivateStaff('${a.email}')">Deactivate</button>`:'<span style="font-size:12px;opacity:0.5">Inactive</span>'}</td>
+    </tr>`).join('')}
+    </tbody></table></div>`;
+  } catch(e) { c.innerHTML = `<div class="empty-s"><div class="empty-ico">⚠️</div><div class="empty-ttl">Failed to Load</div></div>`; }
+}
+
+// ── OVERRIDE ──
+function openOverride(id) {
+  overrideReqId = id;
+  document.getElementById('override-id').textContent = id;
+  document.getElementById('override-status').value = '';
+  document.getElementById('override-scan').value = '';
+  document.getElementById('override-reason').value = '';
+  document.getElementById('override-modal').classList.add('open');
+}
+function closeOverride() { document.getElementById('override-modal').classList.remove('open'); }
+
+async function submitOverride() {
+  const status = document.getElementById('override-status').value;
+  const scan = document.getElementById('override-scan').value;
+  const reason = document.getElementById('override-reason').value;
+  if (!status && !scan) { toast('Select a status or scan status to override','error'); return; }
+  try {
+    const r = await fetch(`/api/management/service-requests/${overrideReqId}/override`, {
+      method:'POST', credentials:'include',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ status: status||undefined, scan_status: scan||undefined, reason })
+    });
+    const d = await r.json();
+    if (d.ok) {
+      toast('✅ Override saved','success');
+      closeOverride();
+      loadFlagged();
+      loadStats();
+    } else toast(d.error||'Failed','error');
+  } catch(e) { toast('Connection error','error'); }
+}
+
+// ── CREATE STAFF ──
+function openCreateStaff() { document.getElementById('create-staff-modal').classList.add('open'); }
+function closeCreateStaff() { document.getElementById('create-staff-modal').classList.remove('open'); }
+
+async function createStaff() {
+  const name = document.getElementById('cs-name').value.trim();
+  const email = document.getElementById('cs-email').value.trim();
+  const password = document.getElementById('cs-pass').value;
+  if (!name||!email||!password) { toast('All fields required','error'); return; }
+  try {
+    const r = await fetch('/api/admin/management/create', {
+      method:'POST', credentials:'include',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ name, email, password })
+    });
+    const d = await r.json();
+    if (d.ok) {
+      toast('✅ Staff account created','success');
+      closeCreateStaff();
+      loadStaff(); loadStats();
+    } else toast(d.error||'Failed','error');
+  } catch(e) { toast('Connection error','error'); }
+}
+
+async function deactivateStaff(email) {
+  if (!confirm(`Deactivate ${email}?`)) return;
+  try {
+    const r = await fetch(`/api/admin/management/${email}`, { method:'DELETE', credentials:'include' });
+    const d = await r.json();
+    if (d.ok) { toast('Account deactivated','success'); loadStaff(); loadStats(); }
+    else toast(d.error||'Failed','error');
+  } catch(e) { toast('Connection error','error'); }
+}
+
+function toast(msg, type='info') {
+  const t = document.createElement('div');
+  t.className = `toast ${type}`; t.textContent = msg;
+  document.getElementById('toasts').appendChild(t);
+  setTimeout(()=>t.remove(), 4500);
+}
+</script>
+</body>
+</html>

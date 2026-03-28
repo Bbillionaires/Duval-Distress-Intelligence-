@@ -2394,6 +2394,141 @@ def api_va_cancel_job(job_id):
 
 from datetime import datetime, date
 
+# ── SCAN UTILITIES ────────────────────────────────────────
+import re, hashlib, requests as http_requests
+
+CONTACT_PATTERNS = [
+    re.compile(r'\b[\w.+-]+@[\w-]+\.[a-zA-Z]{2,}\b'),                      # email
+    re.compile(r'\b(\+1[\s.-]?)?\(?\d{3}\)?[\s.-]?\d{3}[\s.-]?\d{4}\b'),   # phone
+    re.compile(r'(https?://|www\.)\S+', re.I),                               # URL
+    re.compile(r'@[A-Za-z0-9_.]{2,}'),                                       # @handle
+    re.compile(r'\b(instagram|snapchat|telegram|whatsapp|venmo|cashapp|zelle|paypal)\b', re.I),
+]
+
+def scan_filename(filename):
+    """Check filename for contact-exchange patterns"""
+    for p in CONTACT_PATTERNS:
+        if p.search(filename):
+            return False, f"Filename contains suspicious pattern: {p.pattern}"
+    return True, None
+
+def scan_file_content(file_path, mime_type=''):
+    """Extract text from file and scan for contact patterns"""
+    try:
+        # Only scan text-based files
+        if mime_type in ('application/pdf',) or str(file_path).endswith('.pdf'):
+            try:
+                import subprocess
+                result = subprocess.run(['strings', str(file_path)], capture_output=True, text=True, timeout=10)
+                text = result.stdout
+            except Exception:
+                return True, None  # Can't extract — pass through
+        elif 'text' in (mime_type or ''):
+            with open(file_path, 'r', errors='ignore') as f:
+                text = f.read(50000)
+        else:
+            return True, None  # Binary image — skip content scan
+
+        for p in CONTACT_PATTERNS:
+            match = p.search(text)
+            if match:
+                return False, f"File content contains contact information: {match.group()[:40]}"
+    except Exception:
+        pass
+    return True, None
+
+def scan_virustotal(file_path):
+    """Submit file hash to VirusTotal free API"""
+    vt_key = os.environ.get('VIRUSTOTAL_API_KEY', '')
+    if not vt_key:
+        return True, None  # No key configured — skip VT scan
+
+    try:
+        with open(file_path, 'rb') as f:
+            file_hash = hashlib.sha256(f.read()).hexdigest()
+
+        resp = http_requests.get(
+            f'https://www.virustotal.com/api/v3/files/{file_hash}',
+            headers={'x-apikey': vt_key},
+            timeout=10
+        )
+        if resp.status_code == 200:
+            stats = resp.json().get('data',{}).get('attributes',{}).get('last_analysis_stats',{})
+            malicious = stats.get('malicious', 0)
+            if malicious > 0:
+                return False, f"VirusTotal: {malicious} engine(s) flagged this file as malicious"
+        elif resp.status_code == 404:
+            # Hash not in VT database — submit for scanning
+            with open(file_path, 'rb') as f:
+                upload_resp = http_requests.post(
+                    'https://www.virustotal.com/api/v3/files',
+                    headers={'x-apikey': vt_key},
+                    files={'file': f},
+                    timeout=30
+                )
+            # Can't get result immediately — treat as pending pass
+            return True, None
+    except Exception as e:
+        print(f"⚠️ VirusTotal scan error: {e}")
+    return True, None
+
+def run_full_scan(file_path, filename, mime_type=''):
+    """Run all scans. Returns (passed, reason)"""
+    ok, reason = scan_filename(filename)
+    if not ok:
+        return False, reason
+    ok, reason = scan_file_content(file_path, mime_type)
+    if not ok:
+        return False, reason
+    ok, reason = scan_virustotal(file_path)
+    if not ok:
+        return False, reason
+    return True, None
+
+# ── ACTIVITY LOGGER ───────────────────────────────────────
+def log_activity(actor_email, actor_role, action, target_type=None, target_id=None, details=None):
+    try:
+        ip = request.remote_addr or request.headers.get('X-Forwarded-For','')
+        with db_conn() as conn:
+            with conn.cursor() as cur:
+                cur.execute("""
+                    INSERT INTO platform_activity_log
+                    (actor_email, actor_role, action, target_type, target_id, details, ip_address, created_at)
+                    VALUES (%s,%s,%s,%s,%s,%s,%s,NOW())
+                """, (actor_email, actor_role, action, target_type, str(target_id) if target_id else None, details, ip))
+                conn.commit()
+    except Exception as e:
+        print(f"⚠️ Activity log error: {e}")
+
+# ── MANAGEMENT AUTH ───────────────────────────────────────
+def require_management():
+    """Returns management user dict or None. Accepts admin OR management session."""
+    u = require_login(admin=True)
+    if u:
+        u['role'] = 'admin'
+        return u
+    # Check management session
+    token = request.cookies.get('session', '')
+    if not token:
+        return None
+    try:
+        with db_conn() as conn:
+            with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+                cur.execute("""
+                    SELECT s.user_email, m.name, m.active
+                    FROM sessions s
+                    JOIN management_users m ON m.email = s.user_email
+                    WHERE s.token = %s AND s.expires_at > NOW() AND m.active = TRUE
+                """, (token,))
+                row = cur.fetchone()
+                if row:
+                    return {'email': row['user_email'], 'name': row['name'], 'role': 'management'}
+    except Exception:
+        pass
+    return None
+
+
+
 # ADMIN ENDPOINTS - Listing Management
 
 @app.post("/api/admin/listings/create")
@@ -3400,6 +3535,414 @@ def claim_spending_reward():
 
 # ========== END REWARDS SYSTEM API ==========
 
+
+# ══════════════════════════════════════════════
+# CRM ENDPOINTS
+# ══════════════════════════════════════════════
+
+@app.get("/api/crm/leads")
+def crm_get_leads():
+    u = require_login()
+    if not u: return jsonify({"ok": False, "error": "Not authorized"}), 401
+    try:
+        with db_conn() as conn:
+            with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+                cur.execute("""
+                    SELECT l.*,
+                        COUNT(c.id) as contract_count,
+                        BOOL_OR(c.expiration_date IS NOT NULL AND c.expiration_date <= CURRENT_DATE + INTERVAL '7 days' AND c.status NOT IN ('signed','expired')) as contract_expiring_soon
+                    FROM crm_leads l
+                    LEFT JOIN crm_contracts c ON c.lead_id = l.id
+                    WHERE l.user_email = %s
+                    GROUP BY l.id
+                    ORDER BY l.updated_at DESC
+                """, (u['email'],))
+                leads = cur.fetchall()
+        return jsonify({"ok": True, "leads": [dict(l) for l in leads]})
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e)}), 500
+
+
+@app.post("/api/crm/leads")
+def crm_create_lead():
+    u = require_login()
+    if not u: return jsonify({"ok": False, "error": "Not authorized"}), 401
+    data = request.get_json(silent=True) or {}
+    try:
+        with db_conn() as conn:
+            with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+                cur.execute("""
+                    INSERT INTO crm_leads (
+                        user_email, owner_name, property_address, phone, email,
+                        mailing_address, deal_value, pipeline_stage, tags,
+                        va_assigned, partner_assigned, notes, source,
+                        attempts_text, attempts_email, attempts_cold_call, attempts_postcard,
+                        created_at, updated_at
+                    ) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,0,0,0,0,NOW(),NOW())
+                    RETURNING id
+                """, (
+                    u['email'], data.get('owner_name'), data.get('property_address'),
+                    data.get('phone'), data.get('email'), data.get('mailing_address'),
+                    data.get('deal_value'), data.get('pipeline_stage','attempted_contact'),
+                    data.get('tags',[]), data.get('va_assigned'), data.get('partner_assigned'),
+                    data.get('notes'), data.get('source','manual')
+                ))
+                lead_id = cur.fetchone()['id']
+                # Log creation activity
+                cur.execute("""INSERT INTO crm_activities (lead_id, user_email, activity_type, content, created_at)
+                    VALUES (%s,%s,'note','Lead created',NOW())""", (lead_id, u['email']))
+                conn.commit()
+        return jsonify({"ok": True, "lead_id": lead_id})
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e)}), 500
+
+
+@app.get("/api/crm/leads/<int:lead_id>")
+def crm_get_lead(lead_id):
+    u = require_login()
+    if not u: return jsonify({"ok": False, "error": "Not authorized"}), 401
+    try:
+        with db_conn() as conn:
+            with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+                cur.execute("SELECT * FROM crm_leads WHERE id = %s AND user_email = %s", (lead_id, u['email']))
+                lead = cur.fetchone()
+                if not lead: return jsonify({"ok": False, "error": "Not found"}), 404
+                cur.execute("SELECT * FROM crm_contracts WHERE lead_id = %s ORDER BY uploaded_at DESC", (lead_id,))
+                contracts = cur.fetchall()
+                cur.execute("SELECT * FROM crm_activities WHERE lead_id = %s ORDER BY created_at DESC LIMIT 50", (lead_id,))
+                activities = cur.fetchall()
+        return jsonify({"ok": True, "lead": dict(lead), "contracts": [dict(c) for c in contracts], "activities": [dict(a) for a in activities]})
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e)}), 500
+
+
+@app.put("/api/crm/leads/<int:lead_id>")
+def crm_update_lead(lead_id):
+    u = require_login()
+    if not u: return jsonify({"ok": False, "error": "Not authorized"}), 401
+    data = request.get_json(silent=True) or {}
+    try:
+        with db_conn() as conn:
+            with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+                # Check ownership
+                cur.execute("SELECT pipeline_stage FROM crm_leads WHERE id = %s AND user_email = %s", (lead_id, u['email']))
+                existing = cur.fetchone()
+                if not existing: return jsonify({"ok": False, "error": "Not found"}), 404
+                cur.execute("""
+                    UPDATE crm_leads SET
+                        owner_name=%s, phone=%s, email=%s, deal_value=%s,
+                        property_address=%s, mailing_address=%s,
+                        va_assigned=%s, partner_assigned=%s,
+                        pipeline_stage=%s, tags=%s, notes=%s, updated_at=NOW()
+                    WHERE id=%s AND user_email=%s
+                """, (
+                    data.get('owner_name'), data.get('phone'), data.get('email'),
+                    data.get('deal_value'), data.get('property_address'), data.get('mailing_address'),
+                    data.get('va_assigned'), data.get('partner_assigned'),
+                    data.get('pipeline_stage'), data.get('tags',[]),
+                    data.get('notes'), lead_id, u['email']
+                ))
+                # Log stage change if changed
+                new_stage = data.get('pipeline_stage')
+                if new_stage and new_stage != existing['pipeline_stage']:
+                    cur.execute("""INSERT INTO crm_activities (lead_id, user_email, activity_type, content, created_at)
+                        VALUES (%s,%s,'stage_change',%s,NOW())""",
+                        (lead_id, u['email'], f"Stage changed to {new_stage.replace('_',' ').title()}"))
+                conn.commit()
+        return jsonify({"ok": True})
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e)}), 500
+
+
+@app.put("/api/crm/leads/<int:lead_id>/attempts")
+def crm_update_attempts(lead_id):
+    u = require_login()
+    if not u: return jsonify({"ok": False, "error": "Not authorized"}), 401
+    data = request.get_json(silent=True) or {}
+    try:
+        with db_conn() as conn:
+            with conn.cursor() as cur:
+                cur.execute("""
+                    UPDATE crm_leads SET
+                        attempts_text=%s, attempts_email=%s,
+                        attempts_cold_call=%s, attempts_postcard=%s, updated_at=NOW()
+                    WHERE id=%s AND user_email=%s
+                """, (data.get('attempts_text',0), data.get('attempts_email',0),
+                      data.get('attempts_cold_call',0), data.get('attempts_postcard',0),
+                      lead_id, u['email']))
+                conn.commit()
+        return jsonify({"ok": True})
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e)}), 500
+
+
+@app.post("/api/crm/leads/<int:lead_id>/contracts")
+def crm_upload_contract(lead_id):
+    u = require_login()
+    if not u: return jsonify({"ok": False, "error": "Not authorized"}), 401
+    try:
+        with db_conn() as conn:
+            with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+                cur.execute("SELECT id FROM crm_leads WHERE id=%s AND user_email=%s", (lead_id, u['email']))
+                if not cur.fetchone(): return jsonify({"ok": False, "error": "Not found"}), 404
+                file_url = None
+                f = request.files.get('file')
+                if f and f.filename:
+                    import uuid
+                    from werkzeug.utils import secure_filename
+                    fname = f"{uuid.uuid4().hex}_{secure_filename(f.filename)}"
+                    upload_dir = BASE_DIR / "static" / "uploads" / "contracts"
+                    upload_dir.mkdir(parents=True, exist_ok=True)
+                    f.save(str(upload_dir / fname))
+                    file_url = f"/static/uploads/contracts/{fname}"
+                expiry = request.form.get('expiration_date') or None
+                cur.execute("""
+                    INSERT INTO crm_contracts (lead_id, user_email, contract_type, status, file_url, expiration_date, notes, uploaded_at)
+                    VALUES (%s,%s,%s,%s,%s,%s,%s,NOW()) RETURNING id
+                """, (lead_id, u['email'], request.form.get('contract_type'),
+                      request.form.get('status','not_sent'), file_url, expiry,
+                      request.form.get('notes')))
+                cur.execute("""INSERT INTO crm_activities (lead_id, user_email, activity_type, content, created_at)
+                    VALUES (%s,%s,'contract',%s,NOW())""",
+                    (lead_id, u['email'], f"Contract uploaded: {request.form.get('contract_type')}"))
+                conn.commit()
+        return jsonify({"ok": True})
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e)}), 500
+
+
+@app.post("/api/crm/leads/<int:lead_id>/activity")
+def crm_add_activity(lead_id):
+    u = require_login()
+    if not u: return jsonify({"ok": False, "error": "Not authorized"}), 401
+    data = request.get_json(silent=True) or {}
+    try:
+        with db_conn() as conn:
+            with conn.cursor() as cur:
+                cur.execute("""INSERT INTO crm_activities (lead_id, user_email, activity_type, content, created_at)
+                    VALUES (%s,%s,%s,%s,NOW())""",
+                    (lead_id, u['email'], data.get('activity_type','note'), data.get('content','')))
+                cur.execute("UPDATE crm_leads SET updated_at=NOW() WHERE id=%s AND user_email=%s", (lead_id, u['email']))
+                conn.commit()
+        return jsonify({"ok": True})
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e)}), 500
+
+
+@app.post("/api/crm/leads/import")
+def crm_import_leads():
+    u = require_login()
+    if not u: return jsonify({"ok": False, "error": "Not authorized"}), 401
+    data = request.get_json(silent=True) or {}
+    leads = data.get('leads', [])
+    if not leads: return jsonify({"ok": False, "error": "No leads provided"}), 400
+    try:
+        with db_conn() as conn:
+            with conn.cursor() as cur:
+                count = 0
+                for l in leads:
+                    cur.execute("""
+                        INSERT INTO crm_leads (user_email, owner_name, property_address, phone, email,
+                            deal_value, pipeline_stage, source, tags, created_at, updated_at)
+                        VALUES (%s,%s,%s,%s,%s,%s,%s,'csv','{}',NOW(),NOW())
+                    """, (u['email'], l.get('owner_name'), l.get('property_address'),
+                          l.get('phone'), l.get('email'), l.get('deal_value') or None,
+                          l.get('pipeline_stage','attempted_contact')))
+                    count += 1
+                conn.commit()
+        return jsonify({"ok": True, "count": count})
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e)}), 500
+
+
+
+# ══════════════════════════════════════════════
+# MANAGEMENT ACCOUNT ENDPOINTS
+# ══════════════════════════════════════════════
+
+@app.get("/management")
+@app.get("/management/")
+def management_dashboard_page():
+    u = require_management()
+    if not u: return redirect("/login")
+    return send_from_directory(BASE_DIR, "management_dashboard.html")
+
+@app.post("/api/admin/management/create")
+def admin_create_management():
+    """Master admin only — create management account"""
+    u = require_login(admin=True)
+    if not u: return jsonify({"ok": False, "error": "Admin only"}), 403
+    data = request.get_json(silent=True) or {}
+    email = data.get('email','').strip().lower()
+    name = data.get('name','').strip()
+    password = data.get('password','').strip()
+    if not email or not password or not name:
+        return jsonify({"ok": False, "error": "Email, name and password required"}), 400
+    from werkzeug.security import generate_password_hash
+    try:
+        with db_conn() as conn:
+            with conn.cursor() as cur:
+                cur.execute("""
+                    INSERT INTO management_users (email, name, password_hash, created_by, active, created_at)
+                    VALUES (%s,%s,%s,%s,TRUE,NOW())
+                """, (email, name, generate_password_hash(password), u['email']))
+                conn.commit()
+        log_activity(u['email'], 'admin', 'create_management_account', target_type='management_user', target_id=email)
+        return jsonify({"ok": True})
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e)}), 500
+
+@app.delete("/api/admin/management/<email>")
+def admin_delete_management(email):
+    """Master admin only — deactivate management account"""
+    u = require_login(admin=True)
+    if not u: return jsonify({"ok": False, "error": "Admin only"}), 403
+    try:
+        with db_conn() as conn:
+            with conn.cursor() as cur:
+                cur.execute("UPDATE management_users SET active=FALSE WHERE email=%s", (email,))
+                conn.commit()
+        log_activity(u['email'], 'admin', 'delete_management_account', target_type='management_user', target_id=email)
+        return jsonify({"ok": True})
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e)}), 500
+
+@app.get("/api/admin/management/list")
+def admin_list_management():
+    u = require_login(admin=True)
+    if not u: return jsonify({"ok": False, "error": "Admin only"}), 403
+    try:
+        with db_conn() as conn:
+            with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+                cur.execute("SELECT id, email, name, active, created_by, created_at FROM management_users ORDER BY created_at DESC")
+                return jsonify({"ok": True, "accounts": [dict(r) for r in cur.fetchall()]})
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e)}), 500
+
+@app.post("/api/management/login")
+def management_login():
+    data = request.get_json(silent=True) or {}
+    email = data.get('email','').strip().lower()
+    password = data.get('password','')
+    from werkzeug.security import check_password_hash
+    import secrets
+    try:
+        with db_conn() as conn:
+            with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+                cur.execute("SELECT * FROM management_users WHERE email=%s AND active=TRUE", (email,))
+                m = cur.fetchone()
+                if not m or not check_password_hash(m['password_hash'], password):
+                    return jsonify({"ok": False, "error": "Invalid credentials"}), 401
+                token = secrets.token_hex(32)
+                cur.execute("""
+                    INSERT INTO sessions (token, user_email, expires_at, created_at)
+                    VALUES (%s,%s,NOW()+INTERVAL '8 hours',NOW())
+                """, (token, email))
+                conn.commit()
+        log_activity(email, 'management', 'login', details=f"ip={request.remote_addr}")
+        resp = jsonify({"ok": True, "redirect": "/management"})
+        resp.set_cookie('session', token, httponly=True, samesite='Lax', max_age=28800)
+        return resp
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e)}), 500
+
+# ── MANAGEMENT API ENDPOINTS ──────────────────
+
+@app.get("/api/management/flagged")
+def management_get_flagged():
+    """Get all flagged/disputed submissions"""
+    u = require_management()
+    if not u: return jsonify({"ok": False, "error": "Not authorized"}), 401
+    try:
+        with db_conn() as conn:
+            with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+                cur.execute("""
+                    SELECT * FROM service_requests
+                    WHERE scan_status = 'flagged' OR status = 'disputed'
+                    ORDER BY submitted_at DESC
+                """)
+                items = cur.fetchall()
+        log_activity(u['email'], u['role'], 'view_flagged_queue')
+        return jsonify({"ok": True, "items": [dict(i) for i in items]})
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e)}), 500
+
+@app.post("/api/management/service-requests/<int:req_id>/override")
+def management_override_status(req_id):
+    """Admin or management can override scan/approval status"""
+    u = require_management()
+    if not u: return jsonify({"ok": False, "error": "Not authorized"}), 401
+    data = request.get_json(silent=True) or {}
+    new_status = data.get('status')          # completed / pending / rejected
+    new_scan   = data.get('scan_status')     # clean / flagged
+    reason     = data.get('reason', '')
+    if not new_status and not new_scan:
+        return jsonify({"ok": False, "error": "Provide status or scan_status"}), 400
+    try:
+        with db_conn() as conn:
+            with conn.cursor() as cur:
+                if new_status:
+                    cur.execute("""
+                        UPDATE service_requests
+                        SET status=%s, reviewed_by_admin=%s, reviewed_at=NOW(), updated_at=NOW()
+                        WHERE id=%s
+                    """, (new_status, u['email'], req_id))
+                if new_scan:
+                    cur.execute("""
+                        UPDATE service_requests
+                        SET scan_status=%s, scan_flagged_reason=%s, updated_at=NOW()
+                        WHERE id=%s
+                    """, (new_scan, reason or None, req_id))
+                conn.commit()
+        log_activity(u['email'], u['role'], 'override_status',
+            target_type='service_request', target_id=req_id,
+            details=f"status={new_status} scan={new_scan} reason={reason}")
+        return jsonify({"ok": True})
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e)}), 500
+
+@app.get("/api/management/activity-log")
+def management_activity_log():
+    u = require_management()
+    if not u: return jsonify({"ok": False, "error": "Not authorized"}), 401
+    limit = int(request.args.get('limit', 100))
+    try:
+        with db_conn() as conn:
+            with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+                cur.execute("""
+                    SELECT * FROM platform_activity_log
+                    ORDER BY created_at DESC LIMIT %s
+                """, (limit,))
+                logs = cur.fetchall()
+        return jsonify({"ok": True, "logs": [dict(l) for l in logs]})
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e)}), 500
+
+@app.get("/api/management/stats")
+def management_stats():
+    u = require_management()
+    if not u: return jsonify({"ok": False, "error": "Not authorized"}), 401
+    try:
+        with db_conn() as conn:
+            with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+                cur.execute("SELECT COUNT(*) as total FROM service_requests")
+                total = cur.fetchone()['total']
+                cur.execute("SELECT COUNT(*) as c FROM service_requests WHERE scan_status='flagged'")
+                flagged = cur.fetchone()['c']
+                cur.execute("SELECT COUNT(*) as c FROM service_requests WHERE status='disputed'")
+                disputed = cur.fetchone()['c']
+                cur.execute("SELECT COUNT(*) as c FROM service_requests WHERE status='completed'")
+                completed = cur.fetchone()['c']
+                cur.execute("SELECT COUNT(*) as c FROM management_users WHERE active=TRUE")
+                staff = cur.fetchone()['c']
+        return jsonify({"ok": True, "stats": {
+            "total_requests": total, "flagged": flagged,
+            "disputed": disputed, "completed": completed, "active_staff": staff
+        }})
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e)}), 500
+
+
 if __name__ == "__main__":
     port = int(os.getenv("PORT", "10000"))
     app.run(host="0.0.0.0", port=port, debug=True)
@@ -3601,10 +4144,17 @@ def upload_job_file(job_id):
                 upload_dir.mkdir(parents=True, exist_ok=True)
                 file_path = upload_dir / unique_filename
                 file.save(str(file_path))
-                
+
+                # ── RUN SCAN ──────────────────────────────
+                scan_passed, scan_reason = run_full_scan(
+                    file_path, original_filename,
+                    file.content_type or 'application/octet-stream'
+                )
+                scan_status = 'clean' if scan_passed else 'flagged'
+
                 # For now, just store filename. In production, upload to S3/Supabase Storage
                 file_url = f"/static/uploads/{unique_filename}"
-                
+
                 # Store file record
                 cur.execute("""
                     INSERT INTO service_request_files (
@@ -3626,15 +4176,37 @@ def upload_job_file(job_id):
                     file_url,
                     va_email
                 ))
-                
                 file_record = cur.fetchone()
+
+                # Update service_request scan status
+                cur.execute("""
+                    UPDATE service_requests
+                    SET scan_status = %s,
+                        scan_flagged_reason = %s
+                    WHERE id = %s
+                """, (scan_status, scan_reason, job_id))
+
+                # Auto-complete if scan passed — status set to completed
+                if scan_passed:
+                    cur.execute("""
+                        UPDATE service_requests
+                        SET status = 'completed', completed_at = NOW()
+                        WHERE id = %s AND status = 'submitted'
+                    """, (job_id,))
+
                 conn.commit()
-                
+
+                log_activity(va_email, 'va', 'file_upload',
+                    target_type='service_request', target_id=job_id,
+                    details=f"scan={scan_status}" + (f" reason={scan_reason}" if scan_reason else ""))
+
                 return jsonify({
                     "ok": True,
                     "file_id": file_record['id'],
                     "filename": original_filename,
-                    "size": file_size
+                    "size": file_size,
+                    "scan_status": scan_status,
+                    "scan_reason": scan_reason
                 })
     
     except Exception as e:
