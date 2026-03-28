@@ -92,6 +92,8 @@ body { font-family: 'Segoe UI', system-ui, sans-serif; background: linear-gradie
 .sp-in_progress { background: #e0f2fe; color: #0369a1; }
 .sp-submitted { background: #ede9fe; color: #6d28d9; }
 .sp-approved { background: #dcfce7; color: #166534; }
+.sp-completed { background: #dcfce7; color: #166534; }
+.sp-rejected { background: #fee2e2; color: #991b1b; }
 .sp-rejected { background: #fee2e2; color: #991b1b; }
 .proof-thumb { width: 36px; height: 36px; object-fit: cover; border-radius: 6px; cursor: pointer; border: 1px solid #e2e8f0; }
 
@@ -671,18 +673,24 @@ async function loadReqs() {
     </tr></thead><tbody>
     ${reqs.map(req => {
       const sc = `sp-${req.status||'pending'}`;
+      const isComplete = req.status === 'completed' || req.status === 'approved';
+      const isRejected = req.status === 'rejected';
       const proof = req.proof_url
         ? (/\.(jpg|jpeg|png|gif|webp)$/i.test(req.proof_url)
             ? `<img src="${req.proof_url}" class="proof-thumb" onclick="window.open('${req.proof_url}','_blank')" title="View proof">`
             : `<a href="${req.proof_url}" target="_blank" style="font-size:12px;color:#667eea;font-weight:600">📎 View</a>`)
-        : '<span style="color:#94a3b8;font-size:12px">—</span>';
+        : (isComplete || isRejected
+            ? `<a href="#" onclick="viewFiles(${req.id},event)" style="font-size:12px;color:#667eea;font-weight:600">📎 View</a>`
+            : '<span style="color:#94a3b8;font-size:12px">—</span>');
+      const adminNote = req.admin_notes || req.rejection_reason
+        ? `<div style="font-size:11px;color:${isRejected?'#991b1b':'#166534'};margin-top:2px">📋 ${req.admin_notes||req.rejection_reason}</div>` : '';
       return `<tr>
         <td><strong>${(req.service_type||'').replace(/_/g,' ')}</strong></td>
         <td style="font-size:12px;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${req.property_address||req.parcel||'—'}</td>
         <td><span class="s-pill ${sc}">${(req.status||'pending').replace(/_/g,' ')}</span></td>
         <td style="font-size:12px;color:#64748b">${req.claimed_by_va_email||'Unassigned'}</td>
         <td style="font-weight:700;color:#15803d">$${parseFloat(req.amount_charged||0).toFixed(2)}</td>
-        <td>${proof}</td>
+        <td>${proof}${adminNote}</td>
         <td style="font-size:12px;color:#94a3b8">${req.submitted_at?new Date(req.submitted_at).toLocaleDateString():'—'}</td>
       </tr>`;
     }).join('')}
@@ -788,6 +796,17 @@ async function loadRewardsPanel() {
   } catch(e) {
     c.innerHTML = `<div class="empty-s"><div class="empty-ico">⚠️</div><div class="empty-ttl">Failed to Load</div><div class="empty-txt">${e.message}</div></div>`;
   }
+}
+
+async function viewFiles(jobId, e) {
+  e.preventDefault();
+  try {
+    const r = await fetch(`/api/va/jobs/${jobId}/files`, { credentials: 'include' });
+    const d = await r.json();
+    if (!d.ok || !d.files?.length) { toast('No files attached to this job', 'info'); return; }
+    // Open each file in new tab
+    d.files.forEach(f => window.open(f.file_url, '_blank'));
+  } catch(e) { toast('Could not load files', 'error'); }
 }
 
 // ─── TOAST ───
