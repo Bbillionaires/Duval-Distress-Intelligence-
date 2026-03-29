@@ -4055,6 +4055,292 @@ def management_stats():
         return jsonify({"ok": False, "error": str(e)}), 500
 
 
+
+# ══════════════════════════════════════════════
+# END BUYER MARKETPLACE ENDPOINTS
+# ══════════════════════════════════════════════
+
+@app.get("/marketplace")
+@app.get("/marketplace/")
+def marketplace_page():
+    u = require_login()
+    if not u: return redirect("/login")
+    return send_from_directory(BASE_DIR, "marketplace.html")
+
+@app.get("/api/marketplace")
+def api_get_marketplace():
+    u = require_login()
+    if not u: return jsonify({"ok": False, "error": "Not authorized"}), 401
+    status   = request.args.get('status', '')
+    ltype    = request.args.get('type', '')
+    min_price = request.args.get('min_price', '')
+    max_price = request.args.get('max_price', '')
+    try:
+        with db_conn() as conn:
+            with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+                # Pull admin listings + approved JV listings merged
+                cur.execute("""
+                    SELECT id, source, listing_type, address, price, arv,
+                           description, status, loan_balance, monthly_payment,
+                           note_amount, equity_percentage, is_performing,
+                           photos, va_findings, listed_by, created_at, updated_at
+                    FROM marketplace_listings
+                    WHERE status NOT IN ('off_market')
+                    ORDER BY created_at DESC
+                """)
+                rows = cur.fetchall()
+                # Also pull approved JV listings not yet in marketplace
+                cur.execute("""
+                    SELECT l.id as jv_id, l.listing_type, l.address,
+                           l.purchase_price as price, l.arv, l.description,
+                           l.approved_split, l.expires_at, l.submitted_by,
+                           l.loan_balance, l.monthly_payment, l.note_amount,
+                           l.equity_percentage, l.submitted_at
+                    FROM jv_partner_listings l
+                    WHERE l.status = 'approved'
+                    AND NOT EXISTS (
+                        SELECT 1 FROM marketplace_listings m WHERE m.jv_listing_id = l.id
+                    )
+                    AND (l.expires_at IS NULL OR l.expires_at > NOW())
+                """)
+                jv_rows = cur.fetchall()
+
+                listings = [dict(r) for r in rows]
+                # Merge JV listings as virtual marketplace entries
+                for j in jv_rows:
+                    listings.append({
+                        'id': f"jv-{j['jv_id']}",
+                        'source': 'jv',
+                        'listing_type': j['listing_type'],
+                        'address': j['address'],
+                        'price': j['price'],
+                        'arv': j['arv'],
+                        'description': j['description'],
+                        'status': 'available',
+                        'loan_balance': j['loan_balance'],
+                        'monthly_payment': j['monthly_payment'],
+                        'note_amount': j['note_amount'],
+                        'equity_percentage': j['equity_percentage'],
+                        'is_performing': None,
+                        'photos': [],
+                        'va_findings': None,
+                        'listed_by': j['submitted_by'],
+                        'created_at': str(j['submitted_at']),
+                        'expires_at': str(j['expires_at']) if j['expires_at'] else None,
+                        'approved_split': j['approved_split'],
+                    })
+
+                # Apply filters
+                if status:
+                    listings = [l for l in listings if l.get('status') == status]
+                if ltype:
+                    listings = [l for l in listings if l.get('listing_type') == ltype]
+                if min_price:
+                    listings = [l for l in listings if l.get('price') and float(l['price']) >= float(min_price)]
+                if max_price:
+                    listings = [l for l in listings if l.get('price') and float(l['price']) <= float(max_price)]
+
+                # Get user favorites
+                cur.execute("SELECT listing_id FROM marketplace_favorites WHERE user_email=%s", (u['email'],))
+                favs = {str(r['listing_id']) for r in cur.fetchall()}
+
+                return jsonify({"ok": True, "listings": listings, "favorites": list(favs)})
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e)}), 500
+
+
+@app.post("/api/marketplace/<listing_id>/favorite")
+def api_toggle_favorite(listing_id):
+    u = require_login()
+    if not u: return jsonify({"ok": False, "error": "Not authorized"}), 401
+    try:
+        with db_conn() as conn:
+            with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+                # Only works for real integer listing IDs
+                if not listing_id.isdigit():
+                    return jsonify({"ok": False, "error": "Cannot favorite JV listing directly"}), 400
+                cur.execute("SELECT id FROM marketplace_favorites WHERE user_email=%s AND listing_id=%s",
+                    (u['email'], int(listing_id)))
+                existing = cur.fetchone()
+                if existing:
+                    cur.execute("DELETE FROM marketplace_favorites WHERE user_email=%s AND listing_id=%s",
+                        (u['email'], int(listing_id)))
+                    conn.commit()
+                    return jsonify({"ok": True, "favorited": False})
+                else:
+                    cur.execute("INSERT INTO marketplace_favorites (user_email, listing_id) VALUES (%s,%s)",
+                        (u['email'], int(listing_id)))
+                    conn.commit()
+                    return jsonify({"ok": True, "favorited": True})
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e)}), 500
+
+
+@app.post("/api/marketplace/<listing_id>/offer")
+def api_submit_offer(listing_id):
+    u = require_login()
+    if not u: return jsonify({"ok": False, "error": "Not authorized"}), 401
+    data = request.get_json(silent=True) or {}
+    offer_amount = data.get('offer_amount')
+    message = data.get('message', '').strip()
+    if not offer_amount:
+        return jsonify({"ok": False, "error": "Offer amount required"}), 400
+    # Scan message for contact info
+    flagged = False
+    for p in CONTACT_PATTERNS:
+        if p.search(message):
+            flagged = True
+            break
+    if flagged:
+        return jsonify({"ok": False, "error": "Message cannot contain contact information"}), 400
+    try:
+        with db_conn() as conn:
+            with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+                lid = int(listing_id) if listing_id.isdigit() else None
+                cur.execute("""
+                    INSERT INTO marketplace_offers (listing_id, buyer_email, offer_amount, message, status, created_at)
+                    VALUES (%s,%s,%s,%s,'pending',NOW()) RETURNING id
+                """, (lid, u['email'], float(offer_amount), message))
+                offer_id = cur.fetchone()['id']
+                # Update listing status
+                if lid:
+                    cur.execute("UPDATE marketplace_listings SET status='offer_received', updated_at=NOW() WHERE id=%s AND status='available'", (lid,))
+                # Log first message
+                cur.execute("""
+                    INSERT INTO marketplace_messages (listing_id, buyer_email, sender_email, sender_role, content, scan_status, response_number, created_at)
+                    VALUES (%s,%s,%s,'buyer',%s,'clean',1,NOW())
+                """, (lid, u['email'], u['email'], message or f"Offer: ${float(offer_amount):,.2f}"))
+                conn.commit()
+                log_activity(u['email'], 'user', 'submit_offer', target_type='marketplace_listing', target_id=listing_id,
+                    details=f"amount=${offer_amount}")
+        return jsonify({"ok": True, "offer_id": offer_id})
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e)}), 500
+
+
+@app.post("/api/marketplace/<listing_id>/message")
+def api_send_message(listing_id):
+    u = require_login()
+    if not u: return jsonify({"ok": False, "error": "Not authorized"}), 401
+    data = request.get_json(silent=True) or {}
+    content = data.get('content', '').strip()
+    if not content:
+        return jsonify({"ok": False, "error": "Message required"}), 400
+    # Scan for contact info
+    for p in CONTACT_PATTERNS:
+        if p.search(content):
+            return jsonify({"ok": False, "error": "Messages cannot contain contact information (phone, email, social handles)"}), 400
+    lid = int(listing_id) if listing_id.isdigit() else None
+    try:
+        with db_conn() as conn:
+            with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+                # Count existing messages for this buyer on this listing
+                cur.execute("""
+                    SELECT COUNT(*) as cnt FROM marketplace_messages
+                    WHERE listing_id=%s AND buyer_email=%s
+                """, (lid, u['email']))
+                count = cur.fetchone()['cnt']
+                if count >= 3:
+                    return jsonify({"ok": False, "error": "3-message limit reached. Contact admin to continue: admin@ddi.com"}), 400
+                cur.execute("""
+                    INSERT INTO marketplace_messages (listing_id, buyer_email, sender_email, sender_role, content, scan_status, response_number, created_at)
+                    VALUES (%s,%s,%s,'buyer',%s,'clean',%s,NOW())
+                """, (lid, u['email'], u['email'], content, count + 1))
+                conn.commit()
+        return jsonify({"ok": True, "messages_used": count + 1, "messages_remaining": 3 - (count + 1)})
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e)}), 500
+
+
+@app.get("/api/marketplace/<listing_id>/messages")
+def api_get_messages(listing_id):
+    u = require_login()
+    if not u: return jsonify({"ok": False, "error": "Not authorized"}), 401
+    lid = int(listing_id) if listing_id.isdigit() else None
+    try:
+        with db_conn() as conn:
+            with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+                cur.execute("""
+                    SELECT * FROM marketplace_messages
+                    WHERE listing_id=%s AND buyer_email=%s
+                    ORDER BY created_at ASC
+                """, (lid, u['email']))
+                msgs = cur.fetchall()
+        return jsonify({"ok": True, "messages": [dict(m) for m in msgs]})
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e)}), 500
+
+
+# Admin — create marketplace listing
+@app.post("/api/admin/marketplace/listings/create")
+def admin_create_marketplace_listing():
+    u = require_login(admin=True)
+    if not u: return jsonify({"ok": False, "error": "Not authorized"}), 401
+    data = request.get_json(silent=True) or {}
+    try:
+        with db_conn() as conn:
+            with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+                cur.execute("""
+                    INSERT INTO marketplace_listings (
+                        source, listing_type, address, price, arv, description,
+                        status, loan_balance, monthly_payment, note_amount,
+                        equity_percentage, is_performing, va_findings, listed_by,
+                        created_at, updated_at
+                    ) VALUES ('admin',%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,NOW(),NOW())
+                    RETURNING id
+                """, (
+                    data.get('listing_type'), data.get('address'),
+                    data.get('price'), data.get('arv'), data.get('description'),
+                    data.get('status','available'), data.get('loan_balance'),
+                    data.get('monthly_payment'), data.get('note_amount'),
+                    data.get('equity_percentage'), data.get('is_performing'),
+                    data.get('va_findings'), u['email']
+                ))
+                lid = cur.fetchone()['id']
+                conn.commit()
+        log_activity(u['email'], 'admin', 'create_marketplace_listing', target_type='marketplace', target_id=lid)
+        return jsonify({"ok": True, "listing_id": lid})
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e)}), 500
+
+
+@app.put("/api/admin/marketplace/listings/<int:lid>/status")
+def admin_update_listing_status(lid):
+    u = require_login(admin=True)
+    if not u: return jsonify({"ok": False, "error": "Not authorized"}), 401
+    data = request.get_json(silent=True) or {}
+    status = data.get('status')
+    if status not in ('available','offer_received','under_contract','sold','off_market'):
+        return jsonify({"ok": False, "error": "Invalid status"}), 400
+    try:
+        with db_conn() as conn:
+            with conn.cursor() as cur:
+                cur.execute("UPDATE marketplace_listings SET status=%s, updated_at=NOW() WHERE id=%s", (status, lid))
+                conn.commit()
+        return jsonify({"ok": True})
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e)}), 500
+
+
+@app.get("/api/admin/marketplace/offers")
+def admin_get_offers():
+    u = require_login(admin=True)
+    if not u: return jsonify({"ok": False, "error": "Not authorized"}), 401
+    try:
+        with db_conn() as conn:
+            with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+                cur.execute("""
+                    SELECT o.*, m.address, m.listing_type, m.price as asking_price
+                    FROM marketplace_offers o
+                    LEFT JOIN marketplace_listings m ON m.id = o.listing_id
+                    ORDER BY o.created_at DESC
+                """)
+                offers = cur.fetchall()
+        return jsonify({"ok": True, "offers": [dict(o) for o in offers]})
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e)}), 500
+
+
 if __name__ == "__main__":
     port = int(os.getenv("PORT", "10000"))
     app.run(host="0.0.0.0", port=port, debug=True)

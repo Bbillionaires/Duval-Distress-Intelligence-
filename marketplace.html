@@ -1,0 +1,450 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Marketplace — Real Estate Intelligence</title>
+<style>
+* { box-sizing:border-box;margin:0;padding:0; }
+body { font-family:'Segoe UI',system-ui,sans-serif;background:linear-gradient(135deg,#667eea 0%,#764ba2 100%);min-height:100vh;color:#fff; }
+
+.topbar { background:rgba(255,255,255,0.15);backdrop-filter:blur(20px);border-bottom:1px solid rgba(255,255,255,0.2);padding:14px 28px;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;position:sticky;top:0;z-index:100; }
+.brand { display:flex;align-items:center;gap:10px; }
+.brand-name { font-size:18px;font-weight:800; }
+.topbar-right { display:flex;align-items:center;gap:8px;flex-wrap:wrap; }
+.btn-nav { background:rgba(255,255,255,0.15);border:1px solid rgba(255,255,255,0.3);color:#fff;padding:8px 16px;border-radius:20px;cursor:pointer;font-size:13px;font-weight:600;text-decoration:none;transition:all 0.2s; }
+.btn-nav:hover { background:rgba(255,255,255,0.25); }
+.user-pill { background:rgba(255,255,255,0.15);border:1px solid rgba(255,255,255,0.2);border-radius:20px;padding:6px 14px;font-size:13px; }
+
+/* FILTERS */
+.filter-bar { background:rgba(255,255,255,0.1);backdrop-filter:blur(10px);border-bottom:1px solid rgba(255,255,255,0.15);padding:14px 28px;display:flex;gap:10px;flex-wrap:wrap;align-items:center; }
+.filter-select { background:rgba(255,255,255,0.15);border:1px solid rgba(255,255,255,0.3);border-radius:10px;padding:9px 14px;font-size:13px;color:#fff;outline:none;font-family:inherit; }
+.filter-select option { background:#2d1b69;color:#fff; }
+.search-input { flex:1;min-width:200px;background:rgba(255,255,255,0.15);border:1px solid rgba(255,255,255,0.3);border-radius:10px;padding:9px 14px;font-size:13px;color:#fff;outline:none; }
+.search-input::placeholder { color:rgba(255,255,255,0.5); }
+.price-input { width:120px;background:rgba(255,255,255,0.15);border:1px solid rgba(255,255,255,0.3);border-radius:10px;padding:9px 14px;font-size:13px;color:#fff;outline:none; }
+.price-input::placeholder { color:rgba(255,255,255,0.5); }
+.filter-label { font-size:12px;font-weight:700;opacity:0.75; }
+
+/* STATUS TABS */
+.status-tabs { padding:16px 28px 0;max-width:1300px;margin:0 auto;display:flex;gap:6px;flex-wrap:wrap; }
+.status-tab { padding:8px 18px;border-radius:20px;font-size:12px;font-weight:700;cursor:pointer;border:1px solid rgba(255,255,255,0.3);background:rgba(255,255,255,0.1);transition:all 0.2s;opacity:0.75; }
+.status-tab:hover { opacity:1; }
+.status-tab.active { background:#fff;color:#764ba2;border-color:#fff;opacity:1; }
+
+/* GRID */
+.content { padding:20px 28px 48px;max-width:1300px;margin:0 auto; }
+.results-info { font-size:13px;opacity:0.75;margin-bottom:14px; }
+.grid { display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:18px; }
+
+/* LISTING CARD */
+.listing-card { background:rgba(255,255,255,0.97);color:#1a1a2e;border-radius:16px;overflow:hidden;box-shadow:0 4px 20px rgba(0,0,0,0.12);transition:transform 0.2s,box-shadow 0.2s;position:relative; }
+.listing-card:hover { transform:translateY(-3px);box-shadow:0 10px 36px rgba(0,0,0,0.2); }
+.listing-img { width:100%;height:180px;background:linear-gradient(135deg,#667eea22,#764ba222);display:flex;align-items:center;justify-content:center;font-size:48px;position:relative; }
+.listing-img img { width:100%;height:100%;object-fit:cover; }
+.status-ribbon { position:absolute;top:12px;left:12px;font-size:10px;font-weight:700;text-transform:uppercase;padding:4px 12px;border-radius:20px;letter-spacing:0.08em; }
+.sr-available { background:#22c55e;color:#fff; }
+.sr-offer_received { background:#f97316;color:#fff; }
+.sr-under_contract { background:#8b5cf6;color:#fff; }
+.sr-sold { background:#64748b;color:#fff; }
+.sr-off_market { background:#1e293b;color:#fff; }
+.fav-btn { position:absolute;top:12px;right:12px;width:34px;height:34px;border-radius:50%;background:rgba(255,255,255,0.9);border:none;cursor:pointer;font-size:18px;display:flex;align-items:center;justify-content:center;transition:all 0.2s;box-shadow:0 2px 8px rgba(0,0,0,0.15); }
+.fav-btn:hover { transform:scale(1.15); }
+.type-badge { position:absolute;bottom:12px;left:12px;font-size:10px;font-weight:700;text-transform:uppercase;padding:3px 10px;border-radius:20px; }
+.lt-standard_jv,.lt-performing_note { background:#dbeafe;color:#1e40af; }
+.lt-non_exclusive { background:#fef3c7;color:#92400e; }
+.lt-subject_to { background:#dcfce7;color:#166534; }
+.lt-seller_finance { background:#f3e8ff;color:#7e22ce; }
+.lt-note,.lt-non_performing_note { background:#ffedd5;color:#c2410c; }
+.lt-equity { background:#fae8ff;color:#9333ea; }
+.card-body { padding:16px; }
+.card-address { font-size:15px;font-weight:800;color:#1e293b;margin-bottom:8px;line-height:1.3; }
+.card-meta { display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px; }
+.meta-item .ml { font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:#94a3b8; }
+.meta-item .mv { font-size:15px;font-weight:800;color:#1e293b; }
+.card-desc { font-size:12px;color:#64748b;line-height:1.6;margin-bottom:12px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden; }
+.va-findings { background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:8px 12px;font-size:11px;color:#166534;margin-bottom:12px; }
+.card-actions { display:flex;gap:8px; }
+.btn-offer { flex:1;background:linear-gradient(135deg,#667eea,#764ba2);color:#fff;border:none;padding:10px;border-radius:10px;font-size:13px;font-weight:700;cursor:pointer;transition:all 0.2s; }
+.btn-offer:hover { opacity:0.9;transform:translateY(-1px); }
+.btn-offer:disabled { opacity:0.5;cursor:not-allowed;transform:none; }
+.btn-msg { background:#f1f5f9;color:#475569;border:none;padding:10px 14px;border-radius:10px;font-size:13px;font-weight:700;cursor:pointer;transition:all 0.2s; }
+.btn-msg:hover { background:#e2e8f0; }
+.jv-badge { background:#fef3c7;color:#92400e;font-size:10px;font-weight:700;padding:2px 8px;border-radius:10px;display:inline-block;margin-bottom:6px; }
+.expiry-warn { font-size:11px;color:#ef4444;font-weight:600;margin-bottom:6px; }
+
+/* MODAL */
+.overlay { display:none;position:fixed;inset:0;background:rgba(0,0,0,0.65);backdrop-filter:blur(4px);z-index:1000;align-items:center;justify-content:center;padding:20px; }
+.overlay.open { display:flex; }
+.modal { background:rgba(15,10,40,0.98);color:#fff;border:1px solid rgba(255,255,255,0.18);border-radius:20px;width:100%;max-width:540px;max-height:92vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,0.6); }
+.modal-hdr { padding:24px 24px 0;display:flex;align-items:flex-start;justify-content:space-between;gap:10px; }
+.modal-title { font-size:18px;font-weight:800; }
+.modal-sub { font-size:13px;opacity:0.7;margin-top:3px; }
+.modal-x { background:rgba(255,255,255,0.1);border:none;width:32px;height:32px;border-radius:50%;cursor:pointer;font-size:16px;color:#fff;flex-shrink:0; }
+.modal-x:hover { background:rgba(239,68,68,0.3); }
+.modal-body { padding:20px 24px 28px; }
+.m-label { display:block;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.1em;opacity:0.7;margin-bottom:5px;margin-top:14px; }
+.m-input { width:100%;background:rgba(255,255,255,0.12);border:1px solid rgba(255,255,255,0.25);border-radius:10px;padding:10px 14px;font-size:13px;color:#fff;outline:none;font-family:inherit;transition:all 0.2s; }
+.m-input:focus { background:rgba(255,255,255,0.18);border-color:rgba(255,255,255,0.5); }
+.m-input::placeholder { color:rgba(255,255,255,0.4); }
+.m-textarea { min-height:90px;resize:vertical; }
+.m-btn { width:100%;padding:13px;border-radius:12px;font-size:14px;font-weight:700;cursor:pointer;border:none;font-family:inherit;margin-top:12px;transition:all 0.2s; }
+.m-btn-primary { background:linear-gradient(135deg,#667eea,#764ba2);color:#fff; }
+.m-btn-primary:hover { opacity:0.9; }
+.m-btn-cancel { background:rgba(255,255,255,0.1);color:#fff;border:1px solid rgba(255,255,255,0.2); }
+.msg-limit { font-size:12px;opacity:0.7;text-align:center;margin-top:8px; }
+.msg-bubble { background:rgba(255,255,255,0.1);border-radius:10px;padding:10px 14px;margin-bottom:8px;font-size:13px;line-height:1.5; }
+.msg-bubble .msg-meta { font-size:11px;opacity:0.55;margin-top:4px; }
+.scan-warn { background:rgba(239,68,68,0.15);border:1px solid rgba(239,68,68,0.4);border-radius:10px;padding:10px 14px;font-size:12px;color:#fca5a5;margin-bottom:10px; }
+
+/* EMPTY/LOADING */
+.empty-s { text-align:center;padding:64px 20px;background:rgba(255,255,255,0.06);border-radius:16px; }
+.empty-ico { font-size:56px;margin-bottom:14px;opacity:0.5; }
+.empty-ttl { font-size:20px;font-weight:800;margin-bottom:8px; }
+.empty-txt { font-size:14px;opacity:0.7; }
+.loading-s { display:flex;align-items:center;justify-content:center;gap:12px;padding:64px;font-size:14px;opacity:0.75; }
+.spinner { width:22px;height:22px;border:2px solid rgba(255,255,255,0.3);border-top-color:#fff;border-radius:50%;animation:spin 0.8s linear infinite; }
+@keyframes spin { to{transform:rotate(360deg)} }
+
+/* TOAST */
+#toasts { position:fixed;bottom:24px;right:24px;display:flex;flex-direction:column;gap:8px;z-index:9999; }
+.toast { background:#fff;color:#1e293b;border-radius:12px;padding:12px 18px;font-size:14px;font-weight:600;box-shadow:0 8px 32px rgba(0,0,0,0.2);border-left:4px solid #667eea;animation:tIn 0.3s ease;min-width:240px; }
+.toast.success { border-left-color:#22c55e; }
+.toast.error { border-left-color:#ef4444; }
+@keyframes tIn { from{transform:translateX(100px);opacity:0}to{transform:translateX(0);opacity:1} }
+
+@media(max-width:640px){
+  .grid { grid-template-columns:1fr; }
+  .content,.filter-bar,.status-tabs { padding-left:16px;padding-right:16px; }
+  .topbar { padding:12px 16px; }
+}
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="brand">
+    <span style="font-size:24px">🏘</span>
+    <div>
+      <div class="brand-name">Property Marketplace</div>
+      <div style="font-size:11px;opacity:0.65">Real Estate Intelligence</div>
+    </div>
+  </div>
+  <div class="topbar-right">
+    <a href="/dashboard" class="btn-nav">← Dashboard</a>
+    <div class="user-pill">👤 <span id="user-email">—</span></div>
+  </div>
+</div>
+
+<!-- FILTER BAR -->
+<div class="filter-bar">
+  <input type="text" class="search-input" id="search-q" placeholder="🔍 Search by address…" oninput="filterListings()">
+  <select class="filter-select" id="type-filter" onchange="filterListings()">
+    <option value="">All Types</option>
+    <option value="standard_jv">Standard JV</option>
+    <option value="non_exclusive">Non-Exclusive</option>
+    <option value="subject_to">Subject-To</option>
+    <option value="seller_finance">Seller Finance</option>
+    <option value="note">Note</option>
+    <option value="equity">Equity</option>
+    <option value="performing_note">Performing Note</option>
+    <option value="non_performing_note">Non-Performing Note</option>
+  </select>
+  <span class="filter-label">Price:</span>
+  <input type="number" class="price-input" id="min-price" placeholder="Min $" oninput="filterListings()">
+  <input type="number" class="price-input" id="max-price" placeholder="Max $" oninput="filterListings()">
+</div>
+
+<!-- STATUS TABS -->
+<div class="status-tabs">
+  <div class="status-tab active" id="st-all" onclick="setStatusFilter('')">All</div>
+  <div class="status-tab" id="st-available" onclick="setStatusFilter('available')">🟢 Available</div>
+  <div class="status-tab" id="st-offer_received" onclick="setStatusFilter('offer_received')">🟠 Offer Received</div>
+  <div class="status-tab" id="st-under_contract" onclick="setStatusFilter('under_contract')">🟣 Under Contract</div>
+  <div class="status-tab" id="st-sold" onclick="setStatusFilter('sold')">⚫ Sold</div>
+  <div class="status-tab" id="st-favorites" onclick="setStatusFilter('favorites')">❤️ Saved</div>
+</div>
+
+<div class="content">
+  <div class="results-info" id="results-info"></div>
+  <div id="grid-wrap"><div class="loading-s"><div class="spinner"></div> Loading marketplace…</div></div>
+</div>
+
+<!-- OFFER MODAL -->
+<div class="overlay" id="offer-modal">
+  <div class="modal">
+    <div class="modal-hdr">
+      <div>
+        <div class="modal-title">💰 Submit Offer</div>
+        <div class="modal-sub" id="offer-address">—</div>
+      </div>
+      <button class="modal-x" onclick="closeOffer()">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="scan-warn">⚠️ Do not include phone numbers, emails, or social handles in your message. Violations are flagged automatically.</div>
+      <label class="m-label">Your Offer Amount</label>
+      <input type="number" class="m-input" id="offer-amount" placeholder="$0">
+      <label class="m-label">Message to Seller (optional)</label>
+      <textarea class="m-input m-textarea" id="offer-message" placeholder="Introduce yourself, your timeline, financing terms…"></textarea>
+      <button class="m-btn m-btn-primary" id="offer-submit-btn" onclick="submitOffer()">📤 Submit Offer</button>
+      <button class="m-btn m-btn-cancel" onclick="closeOffer()">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<!-- MESSAGE MODAL -->
+<div class="overlay" id="msg-modal">
+  <div class="modal">
+    <div class="modal-hdr">
+      <div>
+        <div class="modal-title">💬 Messages</div>
+        <div class="modal-sub" id="msg-address">—</div>
+      </div>
+      <button class="modal-x" onclick="closeMsg()">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="scan-warn">⚠️ No contact info allowed in messages. After 3 messages, contact admin to continue.</div>
+      <div id="msg-thread" style="margin-bottom:16px;max-height:280px;overflow-y:auto"></div>
+      <div id="msg-input-area">
+        <label class="m-label">Your Message (<span id="msgs-remaining">3</span> remaining)</label>
+        <textarea class="m-input m-textarea" id="msg-content" placeholder="Type your message…" rows="3"></textarea>
+        <button class="m-btn m-btn-primary" id="msg-send-btn" onclick="sendMessage()">Send Message</button>
+      </div>
+      <div id="msg-limit-notice" style="display:none" class="msg-limit">
+        ✉️ 3-message limit reached. <strong>Contact admin to continue:</strong> <a href="mailto:admin@realestateintelligence.com" style="color:#a78bfa">admin@realstateintelligence.com</a>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="toasts"></div>
+
+<script>
+let allListings = [];
+let favorites = new Set();
+let currentUser = null;
+let statusFilter = '';
+let currentOfferListing = null;
+let currentMsgListing = null;
+
+const TYPE_LABELS = {
+  standard_jv:'Standard JV', non_exclusive:'Non-Exclusive', subject_to:'Subject-To',
+  seller_finance:'Seller Finance', note:'Note', equity:'Equity',
+  performing_note:'Performing Note', non_performing_note:'Non-Performing Note'
+};
+
+const STATUS_LABELS = {
+  available:'Available', offer_received:'Offer Received',
+  under_contract:'Under Contract', sold:'Sold', off_market:'Off Market'
+};
+
+window.addEventListener('DOMContentLoaded', async () => {
+  try {
+    const r = await fetch('/api/user/profile', { credentials:'include' });
+    const d = await r.json();
+    if (d.ok) { currentUser = d; document.getElementById('user-email').textContent = d.email; }
+    else { window.location.href = '/login'; return; }
+  } catch(e) { window.location.href = '/login'; return; }
+  loadMarketplace();
+});
+
+async function loadMarketplace() {
+  document.getElementById('grid-wrap').innerHTML = '<div class="loading-s"><div class="spinner"></div> Loading marketplace…</div>';
+  try {
+    const r = await fetch('/api/marketplace', { credentials:'include' });
+    const d = await r.json();
+    allListings = d.listings || [];
+    favorites = new Set(d.favorites || []);
+    filterListings();
+  } catch(e) {
+    document.getElementById('grid-wrap').innerHTML = `<div class="empty-s"><div class="empty-ico">⚠️</div><div class="empty-ttl">Failed to Load</div></div>`;
+  }
+}
+
+function setStatusFilter(s) {
+  statusFilter = s;
+  document.querySelectorAll('.status-tab').forEach(t => t.classList.remove('active'));
+  document.getElementById(`st-${s||'all'}`).classList.add('active');
+  filterListings();
+}
+
+function filterListings() {
+  const q = (document.getElementById('search-q').value || '').toLowerCase();
+  const type = document.getElementById('type-filter').value;
+  const minP = parseFloat(document.getElementById('min-price').value) || 0;
+  const maxP = parseFloat(document.getElementById('max-price').value) || Infinity;
+
+  let filtered = allListings.filter(l => {
+    if (q && !(l.address||'').toLowerCase().includes(q)) return false;
+    if (type && l.listing_type !== type) return false;
+    if (l.price && parseFloat(l.price) < minP) return false;
+    if (l.price && parseFloat(l.price) > maxP) return false;
+    if (statusFilter === 'favorites') return favorites.has(String(l.id));
+    if (statusFilter && l.status !== statusFilter) return false;
+    return true;
+  });
+
+  document.getElementById('results-info').textContent = `${filtered.length} propert${filtered.length===1?'y':'ies'} found`;
+  renderGrid(filtered);
+}
+
+function renderGrid(listings) {
+  const c = document.getElementById('grid-wrap');
+  if (!listings.length) {
+    c.innerHTML = `<div class="empty-s"><div class="empty-ico">🏘</div><div class="empty-ttl">No Properties Found</div><div class="empty-txt">Try adjusting your filters.</div></div>`;
+    return;
+  }
+  c.innerHTML = `<div class="grid">${listings.map(l => listingCard(l)).join('')}</div>`;
+}
+
+function listingCard(l) {
+  const isFav = favorites.has(String(l.id));
+  const isJV = l.source === 'jv';
+  const isSold = l.status === 'sold' || l.status === 'under_contract';
+  const expiry = l.expires_at ? new Date(l.expires_at) : null;
+  const daysLeft = expiry ? Math.ceil((expiry - Date.now()) / 86400000) : null;
+
+  return `<div class="listing-card">
+    <div class="listing-img">
+      🏠
+      <div class="status-ribbon sr-${l.status||'available'}">${STATUS_LABELS[l.status]||l.status}</div>
+      <button class="fav-btn" onclick="toggleFav('${l.id}',event)" title="${isFav?'Remove from saved':'Save property'}">${isFav?'❤️':'🤍'}</button>
+      <div class="type-badge lt-${l.listing_type}">${TYPE_LABELS[l.listing_type]||l.listing_type}</div>
+    </div>
+    <div class="card-body">
+      ${isJV ? '<div class="jv-badge">🤝 JV Partner Listing</div>' : ''}
+      ${daysLeft !== null && daysLeft <= 7 ? `<div class="expiry-warn">⏰ ${daysLeft} days left</div>` : ''}
+      <div class="card-address">${l.address}</div>
+      <div class="card-meta">
+        <div class="meta-item"><div class="ml">Asking Price</div><div class="mv">${l.price ? '$'+parseFloat(l.price).toLocaleString() : 'Contact Us'}</div></div>
+        <div class="meta-item"><div class="ml">ARV</div><div class="mv">${l.arv ? '$'+parseFloat(l.arv).toLocaleString() : '—'}</div></div>
+        ${l.loan_balance ? `<div class="meta-item"><div class="ml">Loan Balance</div><div class="mv">$${parseFloat(l.loan_balance).toLocaleString()}</div></div>` : ''}
+        ${l.monthly_payment ? `<div class="meta-item"><div class="ml">Mo. Payment</div><div class="mv">$${parseFloat(l.monthly_payment).toLocaleString()}</div></div>` : ''}
+        ${l.note_amount ? `<div class="meta-item"><div class="ml">Note Amount</div><div class="mv">$${parseFloat(l.note_amount).toLocaleString()}</div></div>` : ''}
+        ${l.equity_percentage ? `<div class="meta-item"><div class="ml">Equity %</div><div class="mv">${l.equity_percentage}%</div></div>` : ''}
+      </div>
+      ${l.description ? `<div class="card-desc">${l.description}</div>` : ''}
+      ${l.va_findings ? `<div class="va-findings">🔍 VA Findings: ${l.va_findings}</div>` : ''}
+      ${l.listing_type === 'non_exclusive' ? `<div style="background:#fef9c3;border-radius:8px;padding:6px 10px;font-size:11px;color:#92400e;margin-bottom:10px">First to fully fund wins · Platform title/escrow only</div>` : ''}
+      <div class="card-actions">
+        <button class="btn-offer" onclick="openOffer('${l.id}','${(l.address||'').replace(/'/g,"\\'")}',${isSold})" ${isSold?'disabled':''}>
+          ${isSold ? '🔒 '+STATUS_LABELS[l.status] : '💰 Make Offer'}
+        </button>
+        <button class="btn-msg" onclick="openMsg('${l.id}','${(l.address||'').replace(/'/g,"\\'")}')">💬</button>
+      </div>
+    </div>
+  </div>`;
+}
+
+// ── FAVORITES ──
+async function toggleFav(id, e) {
+  e.stopPropagation();
+  if (id.toString().startsWith('jv-')) { toast('Save JV listings after they are added to marketplace','info'); return; }
+  try {
+    const r = await fetch(`/api/marketplace/${id}/favorite`, { method:'POST', credentials:'include' });
+    const d = await r.json();
+    if (d.ok) {
+      if (d.favorited) { favorites.add(String(id)); toast('❤️ Saved','success'); }
+      else { favorites.delete(String(id)); toast('Removed from saved','info'); }
+      filterListings();
+    }
+  } catch(e) { toast('Connection error','error'); }
+}
+
+// ── OFFER MODAL ──
+function openOffer(id, address, isSold) {
+  if (isSold) return;
+  currentOfferListing = id;
+  document.getElementById('offer-address').textContent = address;
+  document.getElementById('offer-amount').value = '';
+  document.getElementById('offer-message').value = '';
+  document.getElementById('offer-modal').classList.add('open');
+}
+function closeOffer() { document.getElementById('offer-modal').classList.remove('open'); }
+
+async function submitOffer() {
+  const amount = document.getElementById('offer-amount').value;
+  const message = document.getElementById('offer-message').value;
+  if (!amount) { toast('Please enter an offer amount','error'); return; }
+  const btn = document.getElementById('offer-submit-btn');
+  btn.disabled = true; btn.textContent = 'Submitting…';
+  try {
+    const r = await fetch(`/api/marketplace/${currentOfferListing}/offer`, {
+      method:'POST', credentials:'include',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ offer_amount: parseFloat(amount), message })
+    });
+    const d = await r.json();
+    if (r.ok && d.ok) {
+      toast('✅ Offer submitted! We\'ll be in touch shortly.','success');
+      closeOffer();
+      loadMarketplace();
+    } else toast(d.error||'Submission failed','error');
+  } catch(e) { toast('Connection error','error'); }
+  finally { btn.disabled=false; btn.textContent='📤 Submit Offer'; }
+}
+
+// ── MESSAGE MODAL ──
+async function openMsg(id, address) {
+  currentMsgListing = id;
+  document.getElementById('msg-address').textContent = address;
+  document.getElementById('msg-content').value = '';
+  document.getElementById('msg-modal').classList.add('open');
+  await loadMessages(id);
+}
+function closeMsg() { document.getElementById('msg-modal').classList.remove('open'); }
+
+async function loadMessages(id) {
+  try {
+    const r = await fetch(`/api/marketplace/${id}/messages`, { credentials:'include' });
+    const d = await r.json();
+    const msgs = d.messages || [];
+    const thread = document.getElementById('msg-thread');
+    thread.innerHTML = msgs.length
+      ? msgs.map(m=>`<div class="msg-bubble">
+          <div>${m.content}</div>
+          <div class="msg-meta">${new Date(m.created_at).toLocaleString()} · Message ${m.response_number}/3</div>
+        </div>`).join('')
+      : '<div style="font-size:13px;opacity:0.5;margin-bottom:12px">No messages yet — start the conversation</div>';
+    const remaining = 3 - msgs.length;
+    document.getElementById('msgs-remaining').textContent = remaining;
+    if (remaining <= 0) {
+      document.getElementById('msg-input-area').style.display = 'none';
+      document.getElementById('msg-limit-notice').style.display = 'block';
+    } else {
+      document.getElementById('msg-input-area').style.display = 'block';
+      document.getElementById('msg-limit-notice').style.display = 'none';
+    }
+  } catch(e) {}
+}
+
+async function sendMessage() {
+  const content = document.getElementById('msg-content').value.trim();
+  if (!content) return;
+  const btn = document.getElementById('msg-send-btn');
+  btn.disabled=true; btn.textContent='Sending…';
+  try {
+    const r = await fetch(`/api/marketplace/${currentMsgListing}/message`, {
+      method:'POST', credentials:'include',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ content })
+    });
+    const d = await r.json();
+    if (r.ok && d.ok) {
+      document.getElementById('msg-content').value = '';
+      toast(`✅ Message sent (${d.messages_remaining} remaining)`,'success');
+      await loadMessages(currentMsgListing);
+    } else toast(d.error||'Failed to send','error');
+  } catch(e) { toast('Connection error','error'); }
+  finally { btn.disabled=false; btn.textContent='Send Message'; }
+}
+
+function toast(msg, type='info') {
+  const t = document.createElement('div');
+  t.className=`toast ${type}`; t.textContent=msg;
+  document.getElementById('toasts').appendChild(t);
+  setTimeout(()=>t.remove(), 4500);
+}
+</script>
+</body>
+</html>
