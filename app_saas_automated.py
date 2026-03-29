@@ -319,6 +319,16 @@ def user_dashboard_page():
 def login_page():
     return send_from_directory(BASE_DIR, "login.html")
 
+@app.get("/forgot-password")
+@app.get("/forgot-password/")
+def forgot_password_page():
+    return send_from_directory(BASE_DIR, "reset_password.html")
+
+@app.get("/reset-password")
+@app.get("/reset-password/")
+def reset_password_page():
+    return send_from_directory(BASE_DIR, "reset_password.html")
+
 
 # ========== AUTH API ==========
 
@@ -408,18 +418,15 @@ def api_forgot_password():
                 conn.commit()
                 
                 reset_url = f"https://real-estate-intel.onrender.com/reset-password?token={token}"
-                
+
                 print(f"🔐 Password reset requested for {email}")
-                print(f"📧 Reset URL: {reset_url}")
-                
-                # TODO: Send email with reset link in production
-                
+
+                # Send email via Resend
+                email_password_reset(email, reset_url)
+
                 return jsonify({
                     "ok": True,
-                    "message": "If that email exists, a reset link has been sent",
-                    # DEBUG ONLY - Remove in production
-                    "debug_token": token,
-                    "debug_url": reset_url
+                    "message": "If that email exists, a reset link has been sent"
                 })
     
     except Exception as e:
@@ -1752,7 +1759,16 @@ def api_admin_approve_request(request_id):
                         SET total_completed = total_completed + 1,
                             total_earned = total_earned + %s
                         WHERE id = %s
+                        RETURNING email, total_completed
                     """, (req['va_payout'], req['claimed_by_va_id']))
+                    va_row = cur.fetchone()
+                    if va_row:
+                        # Check milestones after commit
+                        va_email_for_reward = va_row['email']
+                        va_total_done = va_row['total_completed']
+                    else:
+                        va_email_for_reward = None
+                        va_total_done = 0
                 
                 # Update property with skiptracing results
                 if req['parcel']:
@@ -1767,7 +1783,30 @@ def api_admin_approve_request(request_id):
                     """, (req['phone'], req['email'], req['notes'], req['parcel']))
                 
                 conn.commit()
-                
+
+                # Check VA milestones and award bonuses
+                if req.get('claimed_by_va_id') and va_email_for_reward:
+                    check_va_milestones(va_email_for_reward, va_total_done, req['va_payout'])
+
+                # Notify user their job is done
+                create_notification(
+                    req.get('user_email', ''), 'user',
+                    '✅ Your VA Work is Complete!',
+                    f"Your {req.get('service_type','').replace('_',' ').title()} for {req.get('property_address', req.get('parcel',''))} has been approved.",
+                    'success', '/dashboard'
+                )
+
+                # Email user that their job is complete
+                try:
+                    email_job_approved(
+                        req.get('user_email', ''),
+                        req.get('service_type', ''),
+                        req.get('property_address', req.get('parcel', '')),
+                        req.get('notes', '')
+                    )
+                except Exception as email_err:
+                    print(f"⚠️ Email notification failed: {email_err}")
+
                 return jsonify({"ok": True, "message": "Request approved"})
     
     except Exception as e:
@@ -1804,8 +1843,33 @@ def api_admin_reject_request(request_id):
                     WHERE id = %s
                 """, (reason, u['email'], request_id))
                 
+                cur.execute("""
+                    SELECT user_email, service_type, property_address, parcel
+                    FROM service_requests WHERE id = %s
+                """, (request_id,))
+                req_info = cur.fetchone() or {}
+
                 conn.commit()
-                
+
+                # Notify user about rejection
+                create_notification(
+                    req_info.get('user_email', ''), 'user',
+                    '❌ Work Order Returned for Revision',
+                    f"Your {req_info.get('service_type','').replace('_',' ').title()} request was returned. Reason: {reason}",
+                    'error', '/dashboard'
+                )
+
+                # Email user about rejection
+                try:
+                    email_job_rejected(
+                        req_info.get('user_email', ''),
+                        req_info.get('service_type', ''),
+                        req_info.get('property_address', req_info.get('parcel', '')),
+                        reason
+                    )
+                except Exception as email_err:
+                    print(f"⚠️ Email notification failed: {email_err}")
+
                 return jsonify({"ok": True, "message": "Request rejected and returned to queue"})
     
     except Exception as e:
@@ -2393,6 +2457,78 @@ def api_va_cancel_job(job_id):
 # JV Partners + End Buyers System
 
 from datetime import datetime, date
+
+# ── RESEND EMAIL UTILITY ──────────────────────────────────
+import resend as resend_client
+
+def send_email(to: str, subject: str, html: str, reply_to: str = None):
+    """Send email via Resend. Falls back to logging if no API key."""
+    api_key = os.environ.get('RESEND_API_KEY', '')
+    if not api_key:
+        print(f"📧 [EMAIL NOT SENT - no RESEND_API_KEY] To:{to} Subject:{subject}")
+        return False
+    try:
+        resend_client.api_key = api_key
+        params = {
+            "from": "Real Estate Intelligence <onboarding@resend.dev>",
+            "to": [to],
+            "subject": subject,
+            "html": html,
+        }
+        if reply_to:
+            params["reply_to"] = reply_to
+        resend_client.Emails.send(params)
+        print(f"✅ Email sent to {to}: {subject}")
+        return True
+    except Exception as e:
+        print(f"❌ Email send error: {e}")
+        return False
+
+def email_password_reset(to: str, reset_url: str):
+    send_email(to, "Reset Your Password — Real Estate Intelligence", f"""
+    <div style="font-family:sans-serif;max-width:560px;margin:0 auto;padding:32px 24px">
+      <h2 style="color:#764ba2;margin-bottom:8px">Password Reset Request</h2>
+      <p style="color:#475569;margin-bottom:24px">We received a request to reset your password. Click the button below — this link expires in <strong>1 hour</strong>.</p>
+      <a href="{reset_url}" style="display:inline-block;background:linear-gradient(135deg,#667eea,#764ba2);color:#fff;padding:14px 28px;border-radius:10px;text-decoration:none;font-weight:700;font-size:15px">Reset My Password</a>
+      <p style="color:#94a3b8;font-size:12px;margin-top:24px">If you didn't request this, ignore this email. Your password won't change.</p>
+      <p style="color:#94a3b8;font-size:12px">Or copy this link: {reset_url}</p>
+    </div>""")
+
+def email_job_approved(to: str, service_type: str, property_address: str, va_notes: str = ''):
+    send_email(to, "✅ Your VA Work is Ready — Real Estate Intelligence", f"""
+    <div style="font-family:sans-serif;max-width:560px;margin:0 auto;padding:32px 24px">
+      <h2 style="color:#22c55e;margin-bottom:8px">Your Work Order is Complete!</h2>
+      <p style="color:#475569;margin-bottom:16px">Your <strong>{service_type.replace('_',' ').title()}</strong> request for <strong>{property_address}</strong> has been completed and approved.</p>
+      {"<div style='background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:14px;margin-bottom:20px'><strong style='color:#15803d'>VA Notes:</strong><p style='color:#166534;margin:6px 0 0'>"+va_notes+"</p></div>" if va_notes else ""}
+      <a href="https://real-estate-intel.onrender.com/dashboard" style="display:inline-block;background:linear-gradient(135deg,#667eea,#764ba2);color:#fff;padding:14px 28px;border-radius:10px;text-decoration:none;font-weight:700;font-size:15px">View Proof of Work</a>
+      <p style="color:#94a3b8;font-size:12px;margin-top:24px">Log in to your dashboard to view the full results and proof of work.</p>
+    </div>""")
+
+def email_job_rejected(to: str, service_type: str, property_address: str, reason: str = ''):
+    send_email(to, "❌ VA Work Returned for Revision — Real Estate Intelligence", f"""
+    <div style="font-family:sans-serif;max-width:560px;margin:0 auto;padding:32px 24px">
+      <h2 style="color:#ef4444;margin-bottom:8px">Work Order Returned</h2>
+      <p style="color:#475569;margin-bottom:16px">Your <strong>{service_type.replace('_',' ').title()}</strong> request for <strong>{property_address}</strong> was returned to the queue for revision.</p>
+      {"<div style='background:#fef2f2;border:1px solid #fecaca;border-radius:8px;padding:14px;margin-bottom:20px'><strong style='color:#991b1b'>Reason:</strong><p style='color:#991b1b;margin:6px 0 0'>"+reason+"</p></div>" if reason else ""}
+      <a href="https://real-estate-intel.onrender.com/dashboard" style="display:inline-block;background:linear-gradient(135deg,#667eea,#764ba2);color:#fff;padding:14px 28px;border-radius:10px;text-decoration:none;font-weight:700;font-size:15px">View Dashboard</a>
+    </div>""")
+
+def email_offer_received(to: str, address: str, buyer_email: str, offer_amount: float, message: str = ''):
+    send_email(to, f"💰 New Offer Received — {address}", f"""
+    <div style="font-family:sans-serif;max-width:560px;margin:0 auto;padding:32px 24px">
+      <h2 style="color:#764ba2;margin-bottom:8px">New Offer on Your Listing</h2>
+      <p style="color:#475569;margin-bottom:16px">You received an offer on <strong>{address}</strong>.</p>
+      <div style="background:#f5f3ff;border:1px solid #c4b5fd;border-radius:8px;padding:16px;margin-bottom:20px">
+        <div style="font-size:28px;font-weight:800;color:#764ba2">${offer_amount:,.2f}</div>
+        <div style="color:#6d28d9;font-size:13px">Offer Amount</div>
+        {"<p style='color:#475569;font-size:13px;margin-top:12px'>"+message+"</p>" if message else ""}
+        <p style="color:#64748b;font-size:12px;margin-top:8px">From: {buyer_email}</p>
+      </div>
+      <a href="https://real-estate-intel.onrender.com/marketplace" style="display:inline-block;background:linear-gradient(135deg,#667eea,#764ba2);color:#fff;padding:14px 28px;border-radius:10px;text-decoration:none;font-weight:700;font-size:15px">View Marketplace</a>
+      <p style="color:#94a3b8;font-size:12px;margin-top:24px">Log in to respond to this offer.</p>
+    </div>""")
+
+
 
 # ── SCAN UTILITIES ────────────────────────────────────────
 import re, hashlib, requests as http_requests
@@ -4211,6 +4347,22 @@ def api_submit_offer(listing_id):
                     VALUES (%s,%s,%s,'buyer',%s,'clean',1,NOW())
                 """, (lid, u['email'], u['email'], message or f"Offer: ${float(offer_amount):,.2f}"))
                 conn.commit()
+
+                # Email listing owner about new offer
+                try:
+                    cur.execute("SELECT listed_by, address FROM marketplace_listings WHERE id=%s", (lid,))
+                    listing_info = cur.fetchone()
+                    if listing_info and listing_info.get('listed_by'):
+                        email_offer_received(
+                            listing_info['listed_by'],
+                            listing_info.get('address', ''),
+                            u['email'],
+                            float(offer_amount),
+                            message
+                        )
+                except Exception as email_err:
+                    print(f"⚠️ Offer email failed: {email_err}")
+
                 log_activity(u['email'], 'user', 'submit_offer', target_type='marketplace_listing', target_id=listing_id,
                     details=f"amount=${offer_amount}")
         return jsonify({"ok": True, "offer_id": offer_id})
@@ -4337,6 +4489,412 @@ def admin_get_offers():
                 """)
                 offers = cur.fetchall()
         return jsonify({"ok": True, "offers": [dict(o) for o in offers]})
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e)}), 500
+
+
+
+# ══════════════════════════════════════════════
+# VA REWARDS SYSTEM
+# ══════════════════════════════════════════════
+
+VA_TIERS = [
+    {'name': 'Bronze',   'min': 0,   'bonus_pct': 0,    'color': '#cd7f32'},
+    {'name': 'Silver',   'min': 10,  'bonus_pct': 5,    'color': '#c0c0c0'},
+    {'name': 'Gold',     'min': 25,  'bonus_pct': 10,   'color': '#ffd700'},
+    {'name': 'Platinum', 'min': 50,  'bonus_pct': 15,   'color': '#e5e4e2'},
+]
+
+VA_MILESTONES = {10: 10.00, 25: 25.00, 50: 50.00, 100: 100.00, 200: 200.00}
+
+def get_va_tier(total_completed):
+    tier = VA_TIERS[0]
+    for t in VA_TIERS:
+        if total_completed >= t['min']:
+            tier = t
+    return tier
+
+def check_va_milestones(va_email, total_completed, va_payout):
+    """Check and award milestone bonuses after job completion."""
+    try:
+        with db_conn() as conn:
+            with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+                for jobs, bonus in VA_MILESTONES.items():
+                    if total_completed == jobs:
+                        # Check not already awarded
+                        cur.execute("""
+                            SELECT id FROM va_rewards
+                            WHERE va_email=%s AND description LIKE %s
+                        """, (va_email, f'%{jobs} jobs%'))
+                        if not cur.fetchone():
+                            cur.execute("""
+                                INSERT INTO va_rewards (va_email, reward_type, amount, description, status, created_at)
+                                VALUES (%s, 'milestone', %s, %s, 'pending', NOW())
+                            """, (va_email, bonus, f'Milestone bonus: {jobs} jobs completed! 🎉'))
+                            # Create notification
+                            create_notification(va_email, 'va',
+                                f'🎉 Milestone Unlocked: {jobs} Jobs!',
+                                f'You earned a ${bonus:.2f} bonus for completing {jobs} jobs!',
+                                'success')
+                            conn.commit()
+
+                # Tier bonus — apply bonus pct to this payout
+                tier = get_va_tier(total_completed)
+                if tier['bonus_pct'] > 0 and va_payout:
+                    bonus_amount = round(float(va_payout) * tier['bonus_pct'] / 100, 2)
+                    if bonus_amount > 0:
+                        cur.execute("""
+                            INSERT INTO va_rewards (va_email, reward_type, amount, description, status, created_at)
+                            VALUES (%s, 'tier_bonus', %s, %s, 'pending', NOW())
+                        """, (va_email, bonus_amount, f'{tier["name"]} tier bonus ({tier["bonus_pct"]}%)'))
+                        conn.commit()
+    except Exception as e:
+        print(f"⚠️ Milestone check error: {e}")
+
+
+@app.get("/api/va/rewards")
+def va_get_rewards():
+    """VA views their rewards dashboard"""
+    va_session = request.cookies.get('va_session', '')
+    va_email = None
+    try:
+        with db_conn() as conn:
+            with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+                cur.execute("""
+                    SELECT v.email, v.total_completed, v.total_earned
+                    FROM va_sessions s JOIN va_users v ON v.id = s.va_user_id
+                    WHERE s.token = %s AND s.expires_at > NOW()
+                """, (va_session,))
+                va = cur.fetchone()
+                if not va:
+                    return jsonify({"ok": False, "error": "Not authorized"}), 401
+                va_email = va['email']
+                tier = get_va_tier(va['total_completed'])
+                next_tier = next((t for t in VA_TIERS if t['min'] > va['total_completed']), None)
+                # Get pending rewards
+                cur.execute("""
+                    SELECT * FROM va_rewards WHERE va_email = %s
+                    ORDER BY created_at DESC LIMIT 50
+                """, (va_email,))
+                rewards = cur.fetchall()
+                pending_total = sum(float(r['amount']) for r in rewards if r['status'] == 'pending')
+        return jsonify({
+            "ok": True,
+            "tier": tier,
+            "next_tier": next_tier,
+            "total_completed": va['total_completed'],
+            "total_earned": float(va['total_earned'] or 0),
+            "pending_bonus": pending_total,
+            "rewards": [dict(r) for r in rewards],
+            "milestones": VA_MILESTONES
+        })
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e)}), 500
+
+
+# ══════════════════════════════════════════════
+# IN-APP NOTIFICATIONS
+# ══════════════════════════════════════════════
+
+def create_notification(user_email, user_type, title, message, notif_type='info', link=None):
+    """Create an in-app notification for any user type."""
+    try:
+        with db_conn() as conn:
+            with conn.cursor() as cur:
+                cur.execute("""
+                    INSERT INTO notifications (user_email, user_type, title, message, type, link, created_at)
+                    VALUES (%s, %s, %s, %s, %s, %s, NOW())
+                """, (user_email, user_type, title, message, notif_type, link))
+                conn.commit()
+    except Exception as e:
+        print(f"⚠️ Notification create error: {e}")
+
+
+@app.get("/api/notifications")
+def get_notifications():
+    """Get notifications for current user (any type)."""
+    # Try user session first
+    u = require_login()
+    email = None
+    user_type = 'user'
+    if u:
+        email = u['email']
+        user_type = 'admin' if u.get('is_admin') else 'user'
+    else:
+        # Try VA session
+        va_session = request.cookies.get('va_session', '')
+        if va_session:
+            try:
+                with db_conn() as conn:
+                    with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+                        cur.execute("""
+                            SELECT v.email FROM va_sessions s
+                            JOIN va_users v ON v.id = s.va_user_id
+                            WHERE s.token = %s AND s.expires_at > NOW()
+                        """, (va_session,))
+                        row = cur.fetchone()
+                        if row:
+                            email = row['email']
+                            user_type = 'va'
+            except Exception:
+                pass
+    if not email:
+        return jsonify({"ok": False, "error": "Not authorized"}), 401
+    try:
+        with db_conn() as conn:
+            with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+                cur.execute("""
+                    SELECT * FROM notifications
+                    WHERE user_email = %s
+                    ORDER BY created_at DESC LIMIT 20
+                """, (email,))
+                notifs = cur.fetchall()
+                unread = sum(1 for n in notifs if not n['read'])
+        return jsonify({"ok": True, "notifications": [dict(n) for n in notifs], "unread": unread})
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e)}), 500
+
+
+@app.post("/api/notifications/read")
+def mark_notifications_read():
+    """Mark notifications as read."""
+    u = require_login()
+    email = None
+    if u:
+        email = u['email']
+    else:
+        va_session = request.cookies.get('va_session', '')
+        if va_session:
+            try:
+                with db_conn() as conn:
+                    with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+                        cur.execute("""
+                            SELECT v.email FROM va_sessions s
+                            JOIN va_users v ON v.id = s.va_user_id
+                            WHERE s.token = %s AND s.expires_at > NOW()
+                        """, (va_session,))
+                        row = cur.fetchone()
+                        if row: email = row['email']
+            except Exception:
+                pass
+    if not email:
+        return jsonify({"ok": False, "error": "Not authorized"}), 401
+    data = request.get_json(silent=True) or {}
+    notif_id = data.get('id')  # specific ID or None = mark all
+    try:
+        with db_conn() as conn:
+            with conn.cursor() as cur:
+                if notif_id:
+                    cur.execute("UPDATE notifications SET read=TRUE WHERE id=%s AND user_email=%s", (notif_id, email))
+                else:
+                    cur.execute("UPDATE notifications SET read=TRUE WHERE user_email=%s", (email,))
+                conn.commit()
+        return jsonify({"ok": True})
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e)}), 500
+
+
+
+# ══════════════════════════════════════════════
+# VA REWARDS SYSTEM
+# ══════════════════════════════════════════════
+
+VA_TIERS = [
+    {"name": "Bronze",   "min": 0,    "max": 499,   "bonus_pct": 0,  "color": "#cd7f32"},
+    {"name": "Silver",   "min": 500,  "max": 1499,  "bonus_pct": 5,  "color": "#94a3b8"},
+    {"name": "Gold",     "min": 1500, "max": 3999,  "bonus_pct": 10, "color": "#f59e0b"},
+    {"name": "Platinum", "min": 4000, "max": 999999,"bonus_pct": 15, "color": "#8b5cf6"},
+]
+
+def get_va_tier(total_earned: float) -> dict:
+    for tier in VA_TIERS:
+        if tier["min"] <= total_earned <= tier["max"]:
+            return tier
+    return VA_TIERS[-1]
+
+def check_va_milestones(va_email: str, total_completed: int, total_earned: float):
+    """Check and award milestone bonuses after job completion"""
+    milestones = [
+        (1,   5.00,  "First job completed!"),
+        (10,  15.00, "10 jobs milestone"),
+        (25,  25.00, "25 jobs milestone"),
+        (50,  50.00, "50 jobs milestone"),
+        (100, 100.00,"100 jobs milestone"),
+    ]
+    try:
+        with db_conn() as conn:
+            with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+                for count, bonus, desc in milestones:
+                    if total_completed == count:
+                        # Check not already awarded
+                        cur.execute("""
+                            SELECT id FROM va_rewards
+                            WHERE va_email=%s AND description=%s
+                        """, (va_email, desc))
+                        if not cur.fetchone():
+                            cur.execute("""
+                                INSERT INTO va_rewards (va_email, reward_type, amount, description, status)
+                                VALUES (%s, 'milestone', %s, %s, 'pending')
+                            """, (va_email, bonus, desc))
+                            # Notify VA
+                            push_notification(va_email, 'va',
+                                f"🏆 Milestone Bonus: ${bonus:.2f}",
+                                desc,
+                                'success')
+                conn.commit()
+    except Exception as e:
+        print(f"⚠️ Milestone check error: {e}")
+
+
+def push_notification(user_email: str, user_type: str, title: str, message: str,
+                       notif_type: str = 'info', link: str = None):
+    """Alias for create_notification for backwards compatibility"""
+    create_notification(user_email, user_type, title, message, notif_type, link)
+
+
+@app.get("/api/va/rewards")
+def va_get_rewards():
+    """VA views their rewards and tier status"""
+    va_session = request.cookies.get('va_session', '')
+    va_email = None
+    try:
+        with db_conn() as conn:
+            with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+                if va_session:
+                    cur.execute("""
+                        SELECT v.email, v.total_earned, v.total_completed
+                        FROM va_sessions s JOIN va_users v ON v.id = s.va_user_id
+                        WHERE s.token = %s AND s.expires_at > NOW()
+                    """, (va_session,))
+                    row = cur.fetchone()
+                    if row:
+                        va_email = row['email']
+                        total_earned = float(row['total_earned'] or 0)
+                        total_completed = int(row['total_completed'] or 0)
+                if not va_email:
+                    return jsonify({"ok": False, "error": "Not authorized"}), 401
+
+                tier = get_va_tier(total_earned)
+                next_tier = None
+                for i, t in enumerate(VA_TIERS):
+                    if t['name'] == tier['name'] and i + 1 < len(VA_TIERS):
+                        next_tier = VA_TIERS[i + 1]
+                        break
+
+                cur.execute("""
+                    SELECT * FROM va_rewards WHERE va_email = %s ORDER BY created_at DESC
+                """, (va_email,))
+                rewards = [dict(r) for r in cur.fetchall()]
+
+                pending_bonus = sum(r['amount'] for r in rewards if r['status'] == 'pending')
+
+                return jsonify({
+                    "ok": True,
+                    "total_earned": total_earned,
+                    "total_completed": total_completed,
+                    "tier": tier,
+                    "next_tier": next_tier,
+                    "pending_bonus": float(pending_bonus),
+                    "rewards": rewards,
+                    "milestones": {1: 5.00, 10: 15.00, 25: 25.00, 50: 50.00, 100: 100.00}
+                })
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e)}), 500
+
+
+# ── NOTIFICATIONS API ─────────────────────────
+
+@app.get("/api/notifications")
+def get_notifications():
+    """Get notifications for current user (any role)"""
+    # Try user session first
+    u = require_login()
+    user_email = None
+    user_type = 'user'
+
+    if u:
+        user_email = u['email']
+        user_type = 'admin' if u.get('is_admin') else 'user'
+    else:
+        # Try VA session
+        va_session = request.cookies.get('va_session', '')
+        if va_session:
+            try:
+                with db_conn() as conn:
+                    with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+                        cur.execute("""
+                            SELECT v.email FROM va_sessions s
+                            JOIN va_users v ON v.id = s.va_user_id
+                            WHERE s.token = %s AND s.expires_at > NOW()
+                        """, (va_session,))
+                        row = cur.fetchone()
+                        if row:
+                            user_email = row['email']
+                            user_type = 'va'
+            except Exception:
+                pass
+
+    if not user_email:
+        return jsonify({"ok": False, "error": "Not authorized"}), 401
+
+    try:
+        with db_conn() as conn:
+            with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+                cur.execute("""
+                    SELECT * FROM notifications
+                    WHERE user_email = %s
+                    ORDER BY created_at DESC LIMIT 30
+                """, (user_email,))
+                notifs = [dict(n) for n in cur.fetchall()]
+                unread = sum(1 for n in notifs if not n['read'])
+        return jsonify({"ok": True, "notifications": notifs, "unread": unread})
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e)}), 500
+
+
+@app.post("/api/notifications/read-all")
+def mark_all_read():
+    """Mark all notifications as read"""
+    u = require_login()
+    user_email = None
+    if u:
+        user_email = u['email']
+    else:
+        va_session = request.cookies.get('va_session', '')
+        if va_session:
+            try:
+                with db_conn() as conn:
+                    with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+                        cur.execute("""
+                            SELECT v.email FROM va_sessions s
+                            JOIN va_users v ON v.id = s.va_user_id
+                            WHERE s.token = %s AND s.expires_at > NOW()
+                        """, (va_session,))
+                        row = cur.fetchone()
+                        if row: user_email = row['email']
+            except Exception: pass
+
+    if not user_email:
+        return jsonify({"ok": False, "error": "Not authorized"}), 401
+    try:
+        with db_conn() as conn:
+            with conn.cursor() as cur:
+                cur.execute("UPDATE notifications SET read=TRUE WHERE user_email=%s AND read=FALSE",
+                    (user_email,))
+                conn.commit()
+        return jsonify({"ok": True})
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e)}), 500
+
+
+@app.post("/api/notifications/<int:notif_id>/read")
+def mark_one_read(notif_id):
+    try:
+        with db_conn() as conn:
+            with conn.cursor() as cur:
+                cur.execute("UPDATE notifications SET read=TRUE WHERE id=%s", (notif_id,))
+                conn.commit()
+        return jsonify({"ok": True})
     except Exception as e:
         return jsonify({"ok": False, "error": str(e)}), 500
 

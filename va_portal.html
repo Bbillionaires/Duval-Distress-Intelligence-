@@ -179,6 +179,15 @@
     <div class="topbar-right">
       <div class="topbar-user">👤 <span id="va-email-display">—</span></div>
       <button class="btn-logout" onclick="doLogout()">Log Out</button>
+      <div style="position:relative">
+        <button onclick="toggleVANotifs()" style="background:rgba(255,255,255,0.15);border:1px solid rgba(255,255,255,0.3);color:#fff;padding:8px 14px;border-radius:20px;font-size:13px;cursor:pointer;position:relative" id="va-notif-btn">
+          🔔 <span id="va-notif-count" style="display:none;position:absolute;top:-6px;right:-6px;background:#ef4444;color:#fff;border-radius:50%;width:18px;height:18px;font-size:10px;font-weight:800;align-items:center;justify-content:center">0</span>
+        </button>
+        <div id="va-notif-dropdown" style="display:none;position:absolute;right:0;top:44px;width:300px;background:#1e1340;border:1px solid rgba(255,255,255,0.2);border-radius:14px;box-shadow:0 8px 32px rgba(0,0,0,0.4);z-index:200;overflow:hidden">
+          <div style="padding:12px 16px;border-bottom:1px solid rgba(255,255,255,0.1);font-size:13px;font-weight:700">Notifications</div>
+          <div id="va-notif-list" style="max-height:300px;overflow-y:auto"></div>
+        </div>
+      </div>
     </div>
   </div>
 
@@ -194,6 +203,7 @@
       <div class="tab active" onclick="switchTab('available')" id="tab-available">📋 Available <span class="tab-ct" id="count-available">0</span></div>
       <div class="tab" onclick="switchTab('mine')" id="tab-mine">⚡ My Jobs <span class="tab-ct" id="count-mine">0</span></div>
       <div class="tab" onclick="switchTab('completed')" id="tab-completed">✅ Completed <span class="tab-ct" id="count-completed">0</span></div>
+      <div class="tab" onclick="switchTab('rewards')" id="tab-rewards">🏆 Rewards</div>
     </div>
   </div>
 
@@ -201,6 +211,7 @@
     <div class="panel active" id="panel-available"><div id="avail-wrap"><div class="loading-state"><div class="spinner"></div> Loading available jobs…</div></div></div>
     <div class="panel" id="panel-mine"><div id="mine-wrap"><div class="loading-state"><div class="spinner"></div> Loading your jobs…</div></div></div>
     <div class="panel" id="panel-completed"><div id="done-wrap"><div class="loading-state"><div class="spinner"></div> Loading completed jobs…</div></div></div>
+    <div class="panel" id="panel-rewards"><div id="rewards-wrap"><div class="loading-state"><div class="spinner"></div> Loading rewards…</div></div></div>
   </div>
 </div>
 
@@ -257,7 +268,93 @@ function switchTab(n) {
   if (n==='available') loadAvailable();
   if (n==='mine') loadMine();
   if (n==='completed') loadDone();
+  if (n==='rewards') loadVARewards();
 }
+
+// VA REWARDS
+async function loadVARewards() {
+  const c = document.getElementById('rewards-wrap');
+  c.innerHTML = '<div class="loading-state"><div class="spinner"></div> Loading rewards…</div>';
+  try {
+    const r = await fetch('/api/va/rewards', { credentials:'include' });
+    const d = await r.json();
+    if (!d.ok) { c.innerHTML = `<div class="empty-state"><div class="empty-icon">⚠️</div><div class="empty-title">Failed to Load</div></div>`; return; }
+    const tier = d.tier;
+    const next = d.next_tier;
+    const progress = next ? Math.round(((d.total_completed - tier.min) / (next.min - tier.min)) * 100) : 100;
+    const milestoneHtml = Object.entries(d.milestones).map(([jobs, bonus]) => {
+      const done = d.total_completed >= parseInt(jobs);
+      return `<div style="display:flex;align-items:center;justify-content:space-between;padding:10px 0;border-bottom:1px solid rgba(255,255,255,0.08)">
+        <div style="display:flex;align-items:center;gap:10px">
+          <span style="font-size:20px">${done?'✅':'🔒'}</span>
+          <div><div style="font-size:13px;font-weight:700;${done?'':'opacity:0.5'}">${jobs} Jobs Completed</div></div>
+        </div>
+        <div style="font-size:15px;font-weight:800;color:${done?'#22c55e':'rgba(255,255,255,0.3)'}">+$${parseFloat(bonus).toFixed(2)}</div>
+      </div>`;
+    }).join('');
+    c.innerHTML = `
+      <div class="job-card" style="margin-top:16px">
+        <div style="display:flex;align-items:center;gap:16px;margin-bottom:20px;flex-wrap:wrap">
+          <div style="font-size:48px">🏆</div>
+          <div>
+            <div style="font-size:24px;font-weight:800;color:${tier.color}">${tier.name} VA</div>
+            <div style="font-size:13px;color:#64748b">${d.total_completed} jobs completed · $${d.total_earned.toFixed(2)} earned</div>
+          </div>
+          ${d.pending_bonus > 0 ? `<div style="margin-left:auto;background:#fef3c7;border-radius:12px;padding:12px 18px;text-align:center">
+            <div style="font-size:20px;font-weight:800;color:#92400e">$${d.pending_bonus.toFixed(2)}</div>
+            <div style="font-size:11px;color:#92400e;font-weight:700">Pending Bonus</div>
+          </div>` : ''}
+        </div>
+        ${next ? `<div style="margin-bottom:20px">
+          <div style="display:flex;justify-content:space-between;font-size:12px;color:#64748b;margin-bottom:6px">
+            <span>${tier.name}</span><span>${next.name} (${next.min} jobs)</span>
+          </div>
+          <div style="background:#f1f5f9;border-radius:10px;height:10px;overflow:hidden">
+            <div style="height:100%;border-radius:10px;background:linear-gradient(135deg,#667eea,#764ba2);width:${progress}%;transition:width 0.5s"></div>
+          </div>
+          <div style="font-size:12px;color:#64748b;margin-top:4px">${next.min - d.total_completed} more jobs to ${next.name} (+${next.bonus_pct}% bonus)</div>
+        </div>` : '<div style="background:#dcfce7;border-radius:10px;padding:10px 14px;margin-bottom:20px;font-size:13px;color:#166534;font-weight:700">🌟 Maximum tier reached!</div>'}
+        <div style="font-size:14px;font-weight:800;margin-bottom:8px">Milestone Bonuses</div>
+        ${milestoneHtml}
+      </div>`;
+  } catch(e) { c.innerHTML = `<div class="empty-state"><div class="empty-icon">⚠️</div><div class="empty-title">Failed to Load</div></div>`; }
+}
+
+// VA NOTIFICATIONS
+async function loadVANotifications() {
+  try {
+    const r = await fetch('/api/notifications', { credentials:'include' });
+    const d = await r.json();
+    if (!d.ok) return;
+    const count = d.unread || 0;
+    const badge = document.getElementById('va-notif-count');
+    if (count > 0) { badge.textContent = count > 9 ? '9+' : count; badge.style.display = 'flex'; }
+    else badge.style.display = 'none';
+    const list = document.getElementById('va-notif-list');
+    if (!d.notifications?.length) { list.innerHTML = '<div style="padding:20px;text-align:center;font-size:13px;opacity:0.5">No notifications</div>'; return; }
+    const icons = {success:'✅',error:'❌',warning:'⚠️',info:'ℹ️'};
+    list.innerHTML = d.notifications.map(n => `
+      <div style="padding:12px 16px;border-bottom:1px solid rgba(255,255,255,0.08);cursor:pointer;background:${n.read?'transparent':'rgba(255,255,255,0.05)'}">
+        <div style="display:flex;gap:8px;align-items:flex-start">
+          <span>${icons[n.type]||'🔔'}</span>
+          <div>
+            <div style="font-size:12px;font-weight:${n.read?400:700}">${n.title}</div>
+            <div style="font-size:11px;opacity:0.6;margin-top:2px">${n.message}</div>
+          </div>
+        </div>
+      </div>`).join('');
+  } catch(e) {}
+}
+
+function toggleVANotifs() {
+  const dd = document.getElementById('va-notif-dropdown');
+  dd.style.display = dd.style.display === 'none' ? 'block' : 'none';
+  if (dd.style.display === 'block') loadVANotifications();
+}
+
+// Poll notifications every 60s
+setInterval(loadVANotifications, 60000);
+window.addEventListener('DOMContentLoaded', () => setTimeout(loadVANotifications, 2000));
 
 // BADGE HELPER
 function badgeClass(st) { return ['skiptrace','cold_call_block','postcard','door_knock'].includes(st)?`b-${st}`:'b-default'; }

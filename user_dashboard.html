@@ -264,6 +264,18 @@ body { font-family: 'Segoe UI', system-ui, sans-serif; background: linear-gradie
   <div class="topbar-right">
     <a href="/marketplace" style="background:rgba(255,255,255,0.15);border:1px solid rgba(255,255,255,0.3);color:#fff;padding:8px 16px;border-radius:20px;font-size:13px;font-weight:600;text-decoration:none">🏘 Marketplace</a>
     <a href="/jv" style="background:rgba(255,255,255,0.15);border:1px solid rgba(255,255,255,0.3);color:#fff;padding:8px 16px;border-radius:20px;font-size:13px;font-weight:600;text-decoration:none">🤝 JV Portal</a>
+    <div style="position:relative">
+      <button onclick="toggleNotifs()" style="background:rgba(255,255,255,0.15);border:1px solid rgba(255,255,255,0.3);color:#fff;padding:8px 14px;border-radius:20px;font-size:13px;font-weight:600;cursor:pointer;position:relative" id="notif-btn">
+        🔔 <span id="notif-count" style="display:none;position:absolute;top:-6px;right:-6px;background:#ef4444;color:#fff;border-radius:50%;width:18px;height:18px;font-size:10px;font-weight:800;display:none;align-items:center;justify-content:center">0</span>
+      </button>
+      <div id="notif-dropdown" style="display:none;position:absolute;right:0;top:44px;width:320px;background:#1e1340;border:1px solid rgba(255,255,255,0.2);border-radius:14px;box-shadow:0 8px 32px rgba(0,0,0,0.4);z-index:200;overflow:hidden">
+        <div style="padding:12px 16px;border-bottom:1px solid rgba(255,255,255,0.1);display:flex;align-items:center;justify-content:space-between">
+          <span style="font-size:13px;font-weight:700">Notifications</span>
+          <button onclick="markAllRead()" style="background:none;border:none;color:rgba(255,255,255,0.6);font-size:11px;cursor:pointer">Mark all read</button>
+        </div>
+        <div id="notif-list" style="max-height:320px;overflow-y:auto"></div>
+      </div>
+    </div>
     <div class="user-pill">👤 <span id="user-email">—</span></div>
     <button class="btn-logout" onclick="doLogout()">Log Out</button>
   </div>
@@ -481,6 +493,9 @@ window.addEventListener('DOMContentLoaded', async () => {
 async function boot() {
   document.getElementById('user-email').textContent = currentUser.email;
   await Promise.all([loadProps(), loadRewards(), loadReqs()]);
+  loadNotifications();
+  // Poll for new notifications every 60 seconds
+  setInterval(loadNotifications, 60000);
   initStripe();
 }
 
@@ -938,6 +953,64 @@ async function viewFiles(jobId, e) {
     d.files.forEach(f => window.open(f.file_url, '_blank'));
   } catch(e) { toast('Could not load files', 'error'); }
 }
+
+// ─── NOTIFICATIONS ───
+async function loadNotifications() {
+  try {
+    const r = await fetch('/api/notifications', { credentials:'include' });
+    const d = await r.json();
+    if (!d.ok) return;
+    const count = d.unread || 0;
+    const badge = document.getElementById('notif-count');
+    if (count > 0) {
+      badge.textContent = count > 9 ? '9+' : count;
+      badge.style.display = 'flex';
+    } else {
+      badge.style.display = 'none';
+    }
+    const list = document.getElementById('notif-list');
+    if (!d.notifications?.length) {
+      list.innerHTML = '<div style="padding:20px;text-align:center;font-size:13px;opacity:0.5">No notifications</div>';
+      return;
+    }
+    const icons = { success:'✅', error:'❌', warning:'⚠️', info:'ℹ️' };
+    list.innerHTML = d.notifications.map(n => `
+      <div onclick="clickNotif(${n.id},'${n.link||''}')" style="padding:12px 16px;border-bottom:1px solid rgba(255,255,255,0.08);cursor:pointer;background:${n.read?'transparent':'rgba(255,255,255,0.05)'};transition:background 0.2s" onmouseover="this.style.background='rgba(255,255,255,0.08)'" onmouseout="this.style.background='${n.read?'transparent':'rgba(255,255,255,0.05)'}'">
+        <div style="display:flex;align-items:flex-start;gap:10px">
+          <span style="font-size:16px;flex-shrink:0">${icons[n.type]||'🔔'}</span>
+          <div style="flex:1;min-width:0">
+            <div style="font-size:13px;font-weight:${n.read?'400':'700'}">${n.title}</div>
+            <div style="font-size:12px;opacity:0.7;margin-top:2px;line-height:1.4">${n.message}</div>
+            <div style="font-size:11px;opacity:0.45;margin-top:4px">${new Date(n.created_at).toLocaleString()}</div>
+          </div>
+          ${!n.read ? '<div style="width:8px;height:8px;border-radius:50%;background:#667eea;flex-shrink:0;margin-top:4px"></div>' : ''}
+        </div>
+      </div>`).join('');
+  } catch(e) {}
+}
+
+async function clickNotif(id, link) {
+  await fetch('/api/notifications/read', { method:'POST', credentials:'include', headers:{'Content-Type':'application/json'}, body:JSON.stringify({id}) });
+  loadNotifications();
+  if (link) window.location.href = link;
+}
+
+async function markAllRead() {
+  await fetch('/api/notifications/read', { method:'POST', credentials:'include', headers:{'Content-Type':'application/json'}, body:JSON.stringify({}) });
+  loadNotifications();
+}
+
+function toggleNotifs() {
+  const dd = document.getElementById('notif-dropdown');
+  dd.style.display = dd.style.display === 'none' ? 'block' : 'none';
+  if (dd.style.display === 'block') loadNotifications();
+}
+
+document.addEventListener('click', e => {
+  const btn = document.getElementById('notif-btn');
+  const dd = document.getElementById('notif-dropdown');
+  if (dd && btn && !btn.contains(e.target) && !dd.contains(e.target)) dd.style.display = 'none';
+});
 
 // ─── TOAST ───
 function toast(msg, type='info') {
