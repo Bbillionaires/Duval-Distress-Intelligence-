@@ -3756,6 +3756,118 @@ def crm_import_leads():
 
 
 
+
+# ══════════════════════════════════════════════
+# ADMIN JV QUEUE ENDPOINTS
+# ══════════════════════════════════════════════
+
+@app.get("/admin/jv")
+@app.get("/admin/jv/")
+def admin_jv_queue_page():
+    u = require_login(admin=True)
+    if not u: return redirect("/login")
+    return send_from_directory(BASE_DIR, "admin_jv_queue.html")
+
+
+def admin_get_jv_verifications():
+    u = require_login(admin=True)
+    if not u: return jsonify({"ok": False, "error": "Not authorized"}), 401
+    status = request.args.get('status', 'pending')
+    try:
+        with db_conn() as conn:
+            with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+                if status == 'all':
+                    cur.execute("SELECT * FROM jv_verifications ORDER BY submitted_at DESC")
+                else:
+                    cur.execute("SELECT * FROM jv_verifications WHERE status=%s ORDER BY submitted_at DESC", (status,))
+                return jsonify({"ok": True, "verifications": [dict(v) for v in cur.fetchall()]})
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e)}), 500
+
+@app.post("/api/admin/jv/verifications/<int:vid>/approve")
+def admin_approve_jv_verification(vid):
+    u = require_login(admin=True)
+    if not u: return jsonify({"ok": False, "error": "Not authorized"}), 401
+    data = request.get_json(silent=True) or {}
+    try:
+        with db_conn() as conn:
+            with conn.cursor() as cur:
+                cur.execute("UPDATE jv_verifications SET status='approved', admin_notes=%s, reviewed_at=NOW() WHERE id=%s",
+                    (data.get('notes',''), vid))
+                conn.commit()
+        log_activity(u['email'], 'admin', 'approve_jv_verification', target_type='jv_verification', target_id=vid)
+        return jsonify({"ok": True})
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e)}), 500
+
+@app.post("/api/admin/jv/verifications/<int:vid>/reject")
+def admin_reject_jv_verification(vid):
+    u = require_login(admin=True)
+    if not u: return jsonify({"ok": False, "error": "Not authorized"}), 401
+    data = request.get_json(silent=True) or {}
+    try:
+        with db_conn() as conn:
+            with conn.cursor() as cur:
+                cur.execute("UPDATE jv_verifications SET status='rejected', admin_notes=%s, reviewed_at=NOW() WHERE id=%s",
+                    (data.get('reason','Rejected'), vid))
+                conn.commit()
+        log_activity(u['email'], 'admin', 'reject_jv_verification', target_type='jv_verification', target_id=vid)
+        return jsonify({"ok": True})
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e)}), 500
+
+@app.get("/api/admin/jv/listings")
+def admin_get_jv_listings():
+    u = require_login(admin=True)
+    if not u: return jsonify({"ok": False, "error": "Not authorized"}), 401
+    status = request.args.get('status', 'pending_review')
+    try:
+        with db_conn() as conn:
+            with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+                if status == 'all':
+                    cur.execute("SELECT * FROM jv_partner_listings ORDER BY submitted_at DESC")
+                else:
+                    cur.execute("SELECT * FROM jv_partner_listings WHERE status=%s ORDER BY submitted_at DESC", (status,))
+                return jsonify({"ok": True, "listings": [dict(l) for l in cur.fetchall()]})
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e)}), 500
+
+@app.post("/api/admin/jv/listings/<int:lid>/approve")
+def admin_approve_jv_listing(lid):
+    u = require_login(admin=True)
+    if not u: return jsonify({"ok": False, "error": "Not authorized"}), 401
+    data = request.get_json(silent=True) or {}
+    try:
+        with db_conn() as conn:
+            with conn.cursor() as cur:
+                cur.execute("""
+                    UPDATE jv_partner_listings
+                    SET status='approved', approved_split=%s, admin_notes=%s, reviewed_at=NOW()
+                    WHERE id=%s
+                """, (data.get('approved_split'), data.get('notes',''), lid))
+                conn.commit()
+        log_activity(u['email'], 'admin', 'approve_jv_listing', target_type='jv_listing', target_id=lid)
+        return jsonify({"ok": True})
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e)}), 500
+
+@app.post("/api/admin/jv/listings/<int:lid>/reject")
+def admin_reject_jv_listing(lid):
+    u = require_login(admin=True)
+    if not u: return jsonify({"ok": False, "error": "Not authorized"}), 401
+    data = request.get_json(silent=True) or {}
+    try:
+        with db_conn() as conn:
+            with conn.cursor() as cur:
+                cur.execute("UPDATE jv_partner_listings SET status='rejected', admin_notes=%s, reviewed_at=NOW() WHERE id=%s",
+                    (data.get('reason','Rejected'), lid))
+                conn.commit()
+        log_activity(u['email'], 'admin', 'reject_jv_listing', target_type='jv_listing', target_id=lid)
+        return jsonify({"ok": True})
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e)}), 500
+
+
 # ══════════════════════════════════════════════
 # MANAGEMENT ACCOUNT ENDPOINTS
 # ══════════════════════════════════════════════

@@ -193,6 +193,64 @@ body { font-family: 'Segoe UI', system-ui, sans-serif; background: linear-gradie
   .topbar { padding: 12px 16px; }
   .props-grid { grid-template-columns: 1fr; }
 }
+/* ── CRM ── */
+.crm-btn-primary { background:#fff;color:#764ba2;border:none;padding:9px 18px;border-radius:10px;font-size:13px;font-weight:700;cursor:pointer;transition:all 0.2s; }
+.crm-btn-primary:hover { background:#f0e8ff;transform:translateY(-1px); }
+.crm-btn-outline { background:rgba(255,255,255,0.15);border:1px solid rgba(255,255,255,0.3);color:#fff;padding:9px 16px;border-radius:10px;font-size:13px;font-weight:700;cursor:pointer;transition:all 0.2s; }
+.crm-btn-outline:hover { background:rgba(255,255,255,0.25); }
+.crm-btn-outline.active { background:#fff;color:#764ba2; }
+.kanban-col { min-width:210px;max-width:210px;background:rgba(255,255,255,0.1);border-radius:12px;padding:12px;flex-shrink:0; }
+.kanban-col-hdr { font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:0.08em;opacity:0.85;margin-bottom:10px;display:flex;align-items:center;justify-content:space-between; }
+.kanban-count { background:rgba(255,255,255,0.2);border-radius:10px;padding:1px 8px;font-size:11px; }
+.kanban-card { background:rgba(255,255,255,0.97);color:#1a1a2e;border-radius:10px;padding:12px;margin-bottom:8px;cursor:pointer;transition:all 0.2s;box-shadow:0 2px 8px rgba(0,0,0,0.08); }
+.kanban-card:hover { transform:translateY(-2px);box-shadow:0 6px 20px rgba(0,0,0,0.15); }
+.kc-name { font-size:13px;font-weight:700;margin-bottom:2px; }
+.kc-addr { font-size:11px;color:#64748b;margin-bottom:6px;line-height:1.4; }
+.kc-pills { display:flex;flex-wrap:wrap;gap:4px;margin-bottom:6px; }
+.kc-pill { font-size:10px;padding:2px 7px;border-radius:10px;font-weight:700; }
+.kc-phone { background:#dbeafe;color:#1e40af; }
+.kc-contract { background:#dcfce7;color:#166534; }
+.kc-contract-exp { background:#fee2e2;color:#991b1b; }
+.kc-tag { background:#f3e8ff;color:#7e22ce; }
+.kc-attempts { display:flex;gap:6px;font-size:10px;color:#94a3b8; }
+.crm-list-row { background:rgba(255,255,255,0.97);color:#1a1a2e;border-radius:12px;padding:14px 18px;margin-bottom:8px;display:grid;grid-template-columns:1fr 1fr 120px 120px auto;gap:12px;align-items:center;cursor:pointer;transition:all 0.2s; }
+.crm-list-row:hover { transform:translateX(2px);box-shadow:0 4px 16px rgba(0,0,0,0.1); }
+.stage-dot { width:10px;height:10px;border-radius:50%;flex-shrink:0;display:inline-block;margin-right:6px; }
+/* Lead detail modal */
+.crm-modal { background:rgba(15,10,40,0.98);color:#fff;border:1px solid rgba(255,255,255,0.15);border-radius:20px;width:100%;max-width:700px;max-height:94vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,0.6); }
+.crm-tabs { display:flex;gap:4px;background:rgba(255,255,255,0.08);border-radius:10px;padding:4px;margin-bottom:20px; }
+.crm-tab { padding:8px 16px;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;transition:all 0.2s;opacity:0.65; }
+.crm-tab:hover { opacity:1; }
+.crm-tab.active { background:rgba(255,255,255,0.15);opacity:1; }
+.attempt-row { display:flex;align-items:center;justify-content:space-between;background:rgba(255,255,255,0.06);border-radius:10px;padding:10px 14px;margin-bottom:8px; }
+.attempt-label { font-size:13px;font-weight:700; }
+.attempt-count { font-size:20px;font-weight:800;color:#fcd34d;min-width:36px;text-align:center; }
+.attempt-btns { display:flex;gap:6px; }
+.attempt-btn { background:rgba(255,255,255,0.15);border:1px solid rgba(255,255,255,0.25);color:#fff;width:30px;height:30px;border-radius:8px;cursor:pointer;font-size:16px;font-weight:700; }
+.attempt-btn:hover { background:rgba(255,255,255,0.28); }
+.contract-card { background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.15);border-radius:10px;padding:14px;margin-bottom:10px; }
+.contract-status { display:inline-block;font-size:10px;font-weight:700;text-transform:uppercase;padding:3px 10px;border-radius:10px; }
+.cs-not_sent { background:rgba(148,163,184,0.2);color:#94a3b8; }
+.cs-sent { background:rgba(251,191,36,0.2);color:#fbbf24; }
+.cs-signed { background:rgba(34,197,94,0.2);color:#22c55e; }
+.cs-rejected { background:rgba(239,68,68,0.2);color:#ef4444; }
+.cs-expired { background:rgba(239,68,68,0.15);color:#f87171; }
+.contract-timer { font-size:12px;font-weight:700;margin-top:4px; }
+.timer-warn { color:#ef4444; }
+.timer-ok { color:#86efac; }
+.activity-item { display:flex;gap:12px;padding:10px 0;border-bottom:1px solid rgba(255,255,255,0.08); }
+.activity-icon { width:30px;height:30px;border-radius:50%;background:rgba(255,255,255,0.1);display:flex;align-items:center;justify-content:center;font-size:14px;flex-shrink:0; }
+.activity-text { font-size:13px;line-height:1.5; }
+.activity-time { font-size:11px;opacity:0.55;margin-top:2px; }
+.tag-chip { display:inline-flex;align-items:center;gap:4px;background:rgba(118,75,162,0.3);border:1px solid rgba(118,75,162,0.5);color:#c4b5fd;border-radius:20px;padding:4px 10px;font-size:12px;font-weight:600; }
+.tag-chip .rm { cursor:pointer;opacity:0.7;font-size:14px; }
+.tag-chip .rm:hover { opacity:1; }
+.crm-input { width:100%;background:rgba(255,255,255,0.12);border:1px solid rgba(255,255,255,0.25);border-radius:10px;padding:10px 14px;font-size:13px;color:#fff;outline:none;font-family:inherit;transition:all 0.2s; }
+.crm-input:focus { background:rgba(255,255,255,0.18);border-color:rgba(255,255,255,0.5); }
+.crm-input::placeholder { color:rgba(255,255,255,0.4); }
+.crm-label { display:block;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.1em;opacity:0.7;margin-bottom:5px;margin-top:14px; }
+.crm-save-btn { background:linear-gradient(135deg,#667eea,#764ba2);border:none;color:#fff;padding:11px 28px;border-radius:12px;font-size:14px;font-weight:700;cursor:pointer;width:100%;margin-top:16px;transition:all 0.2s; }
+.crm-save-btn:hover { opacity:0.9;transform:translateY(-1px); }
 </style>
 </head>
 <body>
@@ -234,6 +292,7 @@ body { font-family: 'Segoe UI', system-ui, sans-serif; background: linear-gradie
   <div class="tabs">
     <div class="tab active" onclick="switchTab('properties')" id="tab-properties">🏘 Properties</div>
     <div class="tab" onclick="switchTab('requests')" id="tab-requests">📋 My Requests</div>
+    <div class="tab" onclick="switchTab('crm')" id="tab-crm">🗂 CRM</div>
     <div class="tab" onclick="switchTab('rewards')" id="tab-rewards">🏆 Rewards</div>
   </div>
 </div>
@@ -260,6 +319,53 @@ body { font-family: 'Segoe UI', system-ui, sans-serif; background: linear-gradie
 
   <div class="panel" id="panel-rewards">
     <div class="rewards-grid" id="rewards-wrap"><div class="loading-s"><div class="spinner"></div> Loading rewards…</div></div>
+  </div>
+
+  <!-- CRM PANEL -->
+  <div class="panel" id="panel-crm">
+    <!-- CRM TOOLBAR -->
+    <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;margin-bottom:16px">
+      <div>
+        <div style="font-size:20px;font-weight:800">Contact CRM</div>
+        <div style="font-size:13px;opacity:0.75">Manage your leads, contracts, and deal pipeline</div>
+      </div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <button class="crm-btn-outline" onclick="showCrmView('kanban')" id="crm-vw-kanban">📊 Pipeline</button>
+        <button class="crm-btn-outline" onclick="showCrmView('list')" id="crm-vw-list">☰ List</button>
+        <label class="crm-btn-outline" style="cursor:pointer" title="Import CSV">
+          📥 Import
+          <input type="file" accept=".csv" id="crm-csv-input" style="display:none" onchange="importCsvLeads(event)">
+        </label>
+        <button class="crm-btn-primary" onclick="openAddLead()">➕ Add Lead</button>
+      </div>
+    </div>
+
+    <!-- PIPELINE KANBAN -->
+    <div id="crm-kanban" style="overflow-x:auto;padding-bottom:8px">
+      <div id="kanban-board" style="display:flex;gap:12px;min-width:max-content">
+        <div class="loading-s"><div class="spinner"></div> Loading CRM…</div>
+      </div>
+    </div>
+
+    <!-- LIST VIEW -->
+    <div id="crm-list" style="display:none">
+      <div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap">
+        <input type="text" id="crm-search" placeholder="🔍 Search by name, address, phone…" oninput="filterCrmList()" style="flex:1;min-width:200px;background:rgba(255,255,255,0.15);border:1px solid rgba(255,255,255,0.3);border-radius:10px;padding:9px 14px;font-size:13px;color:#fff;outline:none">
+        <select id="crm-stage-filter" onchange="filterCrmList()" style="background:rgba(255,255,255,0.15);border:1px solid rgba(255,255,255,0.3);border-radius:10px;padding:9px 14px;font-size:13px;color:#fff;outline:none">
+          <option value="">All Stages</option>
+          <option value="attempted_contact">Attempted Contact</option>
+          <option value="connected">Connected</option>
+          <option value="offer_sent">Offer Sent</option>
+          <option value="negotiating">Negotiating</option>
+          <option value="contract_signed">Contract Signed</option>
+          <option value="under_contract">Under Contract</option>
+          <option value="disposition">Assigned to Disposition</option>
+          <option value="closed_won">Closed / Won</option>
+          <option value="dead_lost">Dead / Lost</option>
+        </select>
+      </div>
+      <div id="crm-list-wrap"></div>
+    </div>
   </div>
 </div>
 
@@ -398,6 +504,7 @@ function switchTab(name) {
   document.getElementById('panel-'+name).classList.add('active');
   if (name === 'requests') loadReqs();
   if (name === 'rewards') loadRewardsPanel();
+  if (name === 'crm') loadCrm();
 }
 
 // ─── PROPERTIES ───
@@ -660,37 +767,58 @@ async function loadReqs() {
     const d = await r.json();
     const reqs = Array.isArray(d) ? d : (d.requests || d.service_requests || []);
     document.getElementById('stat-reqs').textContent = reqs.length;
-    const done = reqs.filter(r => r.status==='approved').length;
+    const done = reqs.filter(r => r.status==='completed'||r.status==='approved').length;
     document.getElementById('stat-done').textContent = done;
-    const spent = reqs.filter(r=>r.payment_status==='paid'||r.status==='approved').reduce((s,r)=>s+parseFloat(r.amount_charged||0),0);
+    const spent = reqs.filter(r=>r.payment_status==='paid'||r.status==='approved'||r.status==='completed').reduce((s,r)=>s+parseFloat(r.amount_charged||0),0);
     document.getElementById('stat-spent').textContent = '$'+spent.toFixed(2);
     if (!reqs.length) {
       c.innerHTML = `<div class="empty-s"><div class="empty-ico">📋</div><div class="empty-ttl">No Requests Yet</div><div class="empty-txt">Request a VA service from any property.</div></div>`;
       return;
     }
+
+    // Pre-fetch proof files for all completed jobs in parallel
+    const completedIds = reqs.filter(r => r.status==='completed'||r.status==='approved').map(r=>r.id);
+    const filesMap = {};
+    await Promise.all(completedIds.map(async id => {
+      try {
+        const fr = await fetch(`/api/va/jobs/${id}/files`, { credentials:'include' });
+        const fd = await fr.json();
+        if (fd.ok && fd.files?.length) filesMap[id] = fd.files;
+      } catch(e) {}
+    }));
+
     c.innerHTML = `<div class="req-table-wrap"><table class="req-table"><thead><tr>
-      <th>Service</th><th>Property</th><th>Status</th><th>VA</th><th>Amount</th><th>Proof</th><th>Date</th>
+      <th>Service</th><th>Property</th><th>Status</th><th>VA</th><th>Amount</th><th>Proof of Work</th><th>Date</th>
     </tr></thead><tbody>
     ${reqs.map(req => {
       const sc = `sp-${req.status||'pending'}`;
       const isComplete = req.status === 'completed' || req.status === 'approved';
       const isRejected = req.status === 'rejected';
-      const proof = req.proof_url
-        ? (/\.(jpg|jpeg|png|gif|webp)$/i.test(req.proof_url)
-            ? `<img src="${req.proof_url}" class="proof-thumb" onclick="window.open('${req.proof_url}','_blank')" title="View proof">`
-            : `<a href="${req.proof_url}" target="_blank" style="font-size:12px;color:#667eea;font-weight:600">📎 View</a>`)
-        : (isComplete || isRejected
-            ? `<a href="#" onclick="viewFiles(${req.id},event)" style="font-size:12px;color:#667eea;font-weight:600">📎 View</a>`
-            : '<span style="color:#94a3b8;font-size:12px">—</span>');
+
+      // Build proof cell
+      let proofHtml = '<span style="color:#94a3b8;font-size:12px">—</span>';
+      if (isComplete && filesMap[req.id]?.length) {
+        const files = filesMap[req.id];
+        proofHtml = `<div style="display:flex;flex-wrap:wrap;gap:6px;align-items:center">` +
+          files.map(f => {
+            const isImg = /\.(jpg|jpeg|png|gif|webp)$/i.test(f.file_url||f.original_filename||'');
+            return isImg
+              ? `<img src="${f.file_url}" class="proof-thumb" onclick="window.open('${f.file_url}','_blank')" title="${f.original_filename||'View proof'}">`
+              : `<a href="${f.file_url}" target="_blank" style="font-size:12px;color:#667eea;font-weight:600;white-space:nowrap">📎 ${f.original_filename||'View File'}</a>`;
+          }).join('') + '</div>';
+      } else if (isComplete || isRejected) {
+        proofHtml = `<a href="#" onclick="viewFiles(${req.id},event)" style="font-size:12px;color:#667eea;font-weight:600">📎 View</a>`;
+      }
+
       const adminNote = req.admin_notes || req.rejection_reason
-        ? `<div style="font-size:11px;color:${isRejected?'#991b1b':'#166534'};margin-top:2px">📋 ${req.admin_notes||req.rejection_reason}</div>` : '';
+        ? `<div style="font-size:11px;color:${isRejected?'#991b1b':'#166534'};margin-top:4px">📋 ${req.admin_notes||req.rejection_reason}</div>` : '';
       return `<tr>
         <td><strong>${(req.service_type||'').replace(/_/g,' ')}</strong></td>
         <td style="font-size:12px;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${req.property_address||req.parcel||'—'}</td>
         <td><span class="s-pill ${sc}">${(req.status||'pending').replace(/_/g,' ')}</span></td>
         <td style="font-size:12px;color:#64748b">${req.claimed_by_va_email||'Unassigned'}</td>
         <td style="font-weight:700;color:#15803d">$${parseFloat(req.amount_charged||0).toFixed(2)}</td>
-        <td>${proof}${adminNote}</td>
+        <td>${proofHtml}${adminNote}</td>
         <td style="font-size:12px;color:#94a3b8">${req.submitted_at?new Date(req.submitted_at).toLocaleDateString():'—'}</td>
       </tr>`;
     }).join('')}
@@ -816,6 +944,470 @@ function toast(msg, type='info') {
   document.getElementById('toasts').appendChild(t);
   setTimeout(() => t.remove(), 4000);
 }
+
+// ══════════════════════════════════════════════
+// CRM MODULE
+// ══════════════════════════════════════════════
+
+let crmLeads = [];
+let crmCurrentView = 'kanban';
+let currentLead = null;
+let currentLeadTab = 'info';
+
+const STAGES = [
+  { key:'attempted_contact', label:'Attempted Contact', color:'#f59e0b' },
+  { key:'connected',         label:'Connected',          color:'#3b82f6' },
+  { key:'offer_sent',        label:'Offer Sent',         color:'#8b5cf6' },
+  { key:'negotiating',       label:'Negotiating',        color:'#f97316' },
+  { key:'contract_signed',   label:'Contract Signed',    color:'#10b981' },
+  { key:'under_contract',    label:'Under Contract',     color:'#06b6d4' },
+  { key:'disposition',       label:'Disposition',        color:'#6366f1' },
+  { key:'closed_won',        label:'Closed / Won',       color:'#22c55e' },
+  { key:'dead_lost',         label:'Dead / Lost',        color:'#ef4444' },
+];
+const CONTRACT_TYPES = ['Purchase & Sale Agreement','Assignment Contract','Subject-To Agreement','Seller Finance Agreement','JV Agreement','Non-Exclusive Marketing Service Agreement','Other / Custom'];
+const TAGS = ['Motivated','Vacant','Probate','Pre-Foreclosure','Tax Delinquent','Absentee Owner','Estate Sale','Divorce','Tired Landlord'];
+
+async function loadCrm() {
+  try {
+    const r = await fetch('/api/crm/leads', { credentials:'include' });
+    const d = await r.json();
+    crmLeads = d.leads || [];
+    renderCrm();
+  } catch(e) {
+    document.getElementById('kanban-board').innerHTML = `<div style="opacity:0.7;padding:20px">Failed to load CRM</div>`;
+  }
+}
+
+function showCrmView(v) {
+  crmCurrentView = v;
+  document.getElementById('crm-kanban').style.display = v === 'kanban' ? 'block' : 'none';
+  document.getElementById('crm-list').style.display = v === 'list' ? 'block' : 'none';
+  document.getElementById('crm-vw-kanban').classList.toggle('active', v === 'kanban');
+  document.getElementById('crm-vw-list').classList.toggle('active', v === 'list');
+  renderCrm();
+}
+
+function renderCrm() {
+  if (crmCurrentView === 'kanban') renderKanban(crmLeads);
+  else renderList(crmLeads);
+}
+
+function renderKanban(leads) {
+  const board = document.getElementById('kanban-board');
+  if (!leads.length) {
+    board.innerHTML = `<div style="background:rgba(255,255,255,0.08);border-radius:14px;padding:48px;text-align:center;min-width:300px"><div style="font-size:44px;margin-bottom:12px">🗂</div><div style="font-size:18px;font-weight:700;margin-bottom:6px">No Leads Yet</div><div style="font-size:13px;opacity:0.7">Add a lead manually or import from CSV</div><br><button class="crm-btn-primary" onclick="openAddLead()">➕ Add First Lead</button></div>`;
+    return;
+  }
+  board.innerHTML = STAGES.map(s => {
+    const cols = leads.filter(l => l.pipeline_stage === s.key);
+    return `<div class="kanban-col">
+      <div class="kanban-col-hdr" style="color:${s.color}">${s.label} <span class="kanban-count">${cols.length}</span></div>
+      ${cols.map(l => kanbanCard(l)).join('') || '<div style="font-size:12px;opacity:0.4;text-align:center;padding:8px">Empty</div>'}
+    </div>`;
+  }).join('');
+}
+
+function kanbanCard(l) {
+  const hasPhone = l.phone;
+  const hasContract = l.contract_count > 0;
+  const contractExpiring = l.contract_expiring_soon;
+  return `<div class="kanban-card" onclick="openLead(${l.id})">
+    <div class="kc-name">${l.owner_name||'Unknown Owner'}</div>
+    <div class="kc-addr">${(l.property_address||'').substring(0,45)}${(l.property_address||'').length>45?'…':''}</div>
+    <div class="kc-pills">
+      ${hasPhone ? `<span class="kc-pill kc-phone">📞 ${l.phone}</span>` : ''}
+      ${hasContract && !contractExpiring ? `<span class="kc-pill kc-contract">📄 Contract</span>` : ''}
+      ${contractExpiring ? `<span class="kc-pill kc-contract-exp">⚠️ Expiring</span>` : ''}
+      ${(l.tags||[]).slice(0,2).map(t=>`<span class="kc-pill kc-tag">${t}</span>`).join('')}
+    </div>
+    <div class="kc-attempts">
+      ${l.attempts_text>0?`📱${l.attempts_text}`:''}
+      ${l.attempts_email>0?` ✉️${l.attempts_email}`:''}
+      ${l.attempts_cold_call>0?` 📞${l.attempts_cold_call}`:''}
+      ${l.attempts_postcard>0?` 📬${l.attempts_postcard}`:''}
+    </div>
+    ${l.deal_value ? `<div style="font-size:12px;color:#10b981;font-weight:700;margin-top:4px">$${parseFloat(l.deal_value).toLocaleString()}</div>` : ''}
+  </div>`;
+}
+
+function renderList(leads) {
+  const q = (document.getElementById('crm-search')?.value||'').toLowerCase();
+  const stageF = document.getElementById('crm-stage-filter')?.value||'';
+  let filtered = leads;
+  if (q) filtered = filtered.filter(l =>
+    (l.owner_name||'').toLowerCase().includes(q) ||
+    (l.property_address||'').toLowerCase().includes(q) ||
+    (l.phone||'').includes(q));
+  if (stageF) filtered = filtered.filter(l => l.pipeline_stage === stageF);
+  const c = document.getElementById('crm-list-wrap');
+  if (!filtered.length) { c.innerHTML = `<div class="empty-s"><div class="empty-ico">🗂</div><div class="empty-ttl">No Leads Found</div></div>`; return; }
+  const stageMap = Object.fromEntries(STAGES.map(s=>[s.key,s]));
+  c.innerHTML = filtered.map(l => {
+    const s = stageMap[l.pipeline_stage]||{label:l.pipeline_stage,color:'#94a3b8'};
+    return `<div class="crm-list-row" onclick="openLead(${l.id})">
+      <div><div style="font-size:14px;font-weight:700">${l.owner_name||'Unknown'}</div><div style="font-size:12px;color:#64748b">${l.property_address||'—'}</div></div>
+      <div style="font-size:13px">${l.phone||'—'}<br><span style="font-size:12px;color:#64748b">${l.email||''}</span></div>
+      <div><span class="stage-dot" style="background:${s.color}"></span><span style="font-size:12px;font-weight:700">${s.label}</span></div>
+      <div style="font-size:13px;font-weight:700;color:#10b981">${l.deal_value?'$'+parseFloat(l.deal_value).toLocaleString():'—'}</div>
+      <div style="font-size:12px;opacity:0.6">${new Date(l.created_at).toLocaleDateString()}</div>
+    </div>`;
+  }).join('');
+}
+
+function filterCrmList() { renderList(crmLeads); }
+
+// ── OPEN LEAD DETAIL ──
+async function openLead(id) {
+  try {
+    const r = await fetch(`/api/crm/leads/${id}`, { credentials:'include' });
+    const d = await r.json();
+    if (!d.ok) { toast('Failed to load lead','error'); return; }
+    currentLead = d.lead;
+    currentLead.contracts = d.contracts || [];
+    currentLead.activities = d.activities || [];
+    renderLeadModal();
+    document.getElementById('crm-lead-modal').classList.add('open');
+  } catch(e) { toast('Connection error','error'); }
+}
+
+function renderLeadModal() {
+  const l = currentLead;
+  const stageMap = Object.fromEntries(STAGES.map(s=>[s.key,s]));
+  const stage = stageMap[l.pipeline_stage]||{label:l.pipeline_stage,color:'#94a3b8'};
+  document.getElementById('crm-modal-title').textContent = l.owner_name||'Unknown Owner';
+  document.getElementById('crm-modal-stage').innerHTML = `<span style="background:${stage.color}22;color:${stage.color};border:1px solid ${stage.color}55;border-radius:20px;padding:3px 12px;font-size:12px;font-weight:700">${stage.label}</span>`;
+  switchLeadTab('info');
+}
+
+function switchLeadTab(tab) {
+  currentLeadTab = tab;
+  document.querySelectorAll('.crm-tab').forEach(t => t.classList.remove('active'));
+  document.getElementById(`crm-ltab-${tab}`).classList.add('active');
+  const l = currentLead;
+
+  if (tab === 'info') {
+    document.getElementById('crm-tab-body').innerHTML = `
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+        <div><label class="crm-label">Owner Name</label><input class="crm-input" id="e-name" value="${l.owner_name||''}"></div>
+        <div><label class="crm-label">Phone</label><input class="crm-input" id="e-phone" value="${l.phone||''}"></div>
+        <div><label class="crm-label">Email</label><input class="crm-input" id="e-email" value="${l.email||''}"></div>
+        <div><label class="crm-label">Deal Value ($)</label><input class="crm-input" id="e-deal" type="number" value="${l.deal_value||''}"></div>
+      </div>
+      <label class="crm-label">Property Address</label>
+      <input class="crm-input" id="e-addr" value="${l.property_address||''}">
+      <label class="crm-label">Mailing Address</label>
+      <input class="crm-input" id="e-mail-addr" value="${l.mailing_address||''}">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+        <div><label class="crm-label">VA Assigned</label><input class="crm-input" id="e-va" value="${l.va_assigned||''}"></div>
+        <div><label class="crm-label">Partner Assigned</label><input class="crm-input" id="e-partner" value="${l.partner_assigned||''}"></div>
+      </div>
+      <label class="crm-label">Pipeline Stage</label>
+      <select class="crm-input" id="e-stage">
+        ${STAGES.map(s=>`<option value="${s.key}" ${l.pipeline_stage===s.key?'selected':''}>${s.label}</option>`).join('')}
+      </select>
+      <label class="crm-label">Tags</label>
+      <div id="e-tags-wrap" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px">
+        ${(l.tags||[]).map(t=>`<span class="tag-chip">${t}<span class="rm" onclick="removeTag('${t}')">×</span></span>`).join('')}
+      </div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap">
+        ${TAGS.filter(t=>!(l.tags||[]).includes(t)).map(t=>`<span onclick="addTag('${t}')" style="font-size:11px;padding:4px 10px;border-radius:20px;border:1px solid rgba(255,255,255,0.25);cursor:pointer;opacity:0.75" onmouseover="this.style.opacity=1" onmouseout="this.style.opacity=0.75">${t}</span>`).join('')}
+      </div>
+      <label class="crm-label">Notes</label>
+      <textarea class="crm-input" id="e-notes" rows="3" style="resize:vertical">${l.notes||''}</textarea>
+      <button class="crm-save-btn" onclick="saveLead()">💾 Save Changes</button>`;
+  }
+
+  else if (tab === 'attempts') {
+    document.getElementById('crm-tab-body').innerHTML = `
+      <div style="font-size:13px;opacity:0.7;margin-bottom:14px">Track every outreach attempt to this contact</div>
+      ${[['📱','Text',l.attempts_text||0,'text'],['✉️','Email',l.attempts_email||0,'email'],['📞','Cold Call',l.attempts_cold_call||0,'cold_call'],['📬','Postcard',l.attempts_postcard||0,'postcard']].map(([ico,label,count,key])=>`
+      <div class="attempt-row">
+        <div class="attempt-label">${ico} ${label}</div>
+        <div class="attempt-count" id="att-${key}">${count}</div>
+        <div class="attempt-btns">
+          <button class="attempt-btn" onclick="changeAttempt('${key}',-1)">−</button>
+          <button class="attempt-btn" onclick="changeAttempt('${key}',1)">+</button>
+        </div>
+      </div>`).join('')}
+      <button class="crm-save-btn" onclick="saveAttempts()">💾 Save Attempts</button>`;
+  }
+
+  else if (tab === 'contracts') {
+    const contracts = l.contracts || [];
+    document.getElementById('crm-tab-body').innerHTML = `
+      <div style="margin-bottom:16px">
+        ${contracts.length ? contracts.map(c => contractCard(c)).join('') : '<div style="opacity:0.6;font-size:13px;margin-bottom:16px">No contracts yet</div>'}
+      </div>
+      <div style="background:rgba(255,255,255,0.06);border-radius:12px;padding:16px">
+        <div style="font-size:14px;font-weight:700;margin-bottom:12px">➕ Upload Contract</div>
+        <label class="crm-label">Contract Type</label>
+        <select class="crm-input" id="nc-type">
+          ${CONTRACT_TYPES.map(t=>`<option>${t}</option>`).join('')}
+        </select>
+        <label class="crm-label">Status</label>
+        <select class="crm-input" id="nc-status">
+          <option value="not_sent">Not Sent</option>
+          <option value="sent">Sent — Awaiting Signature</option>
+          <option value="signed">Signed ✅</option>
+          <option value="rejected">Rejected ❌</option>
+        </select>
+        <label class="crm-label">Expiration Date</label>
+        <input type="date" class="crm-input" id="nc-expiry">
+        <label class="crm-label">Upload File (PDF/Image)</label>
+        <input type="file" class="crm-input" id="nc-file" accept=".pdf,image/*" style="padding:8px">
+        <label class="crm-label">Notes</label>
+        <input class="crm-input" id="nc-notes" placeholder="Contract notes…">
+        <button class="crm-save-btn" onclick="uploadContract()">📤 Upload Contract</button>
+      </div>`;
+  }
+
+  else if (tab === 'activity') {
+    const acts = l.activities || [];
+    document.getElementById('crm-tab-body').innerHTML = `
+      <div style="margin-bottom:16px">
+        <textarea class="crm-input" id="new-note" placeholder="Add a note, call log, or update…" rows="2" style="resize:vertical"></textarea>
+        <button class="crm-save-btn" style="margin-top:8px" onclick="addNote()">💬 Add Note</button>
+      </div>
+      <div>
+        ${acts.length ? acts.map(a => `
+          <div class="activity-item">
+            <div class="activity-icon">${actIcon(a.activity_type)}</div>
+            <div><div class="activity-text">${a.content}</div><div class="activity-time">${new Date(a.created_at).toLocaleString()}</div></div>
+          </div>`).join('') : '<div style="opacity:0.5;font-size:13px">No activity yet</div>'}
+      </div>`;
+  }
+}
+
+function actIcon(type) {
+  const m = {note:'📝',call:'📞',text:'📱',email:'✉️',postcard:'📬',stage_change:'🔄',contract:'📄'};
+  return m[type]||'📌';
+}
+
+function contractCard(c) {
+  let timerHtml = '';
+  if (c.expiration_date) {
+    const days = Math.ceil((new Date(c.expiration_date) - Date.now()) / 86400000);
+    timerHtml = `<div class="contract-timer ${days<=7?'timer-warn':'timer-ok'}">${days>0?`⏱ ${days} days left`:'⚠️ Expired'}</div>`;
+  }
+  return `<div class="contract-card">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
+      <div style="font-size:13px;font-weight:700">${c.contract_type}</div>
+      <span class="contract-status cs-${c.status}">${c.status.replace(/_/g,' ')}</span>
+    </div>
+    ${timerHtml}
+    ${c.notes?`<div style="font-size:12px;opacity:0.7;margin-top:4px">${c.notes}</div>`:''}
+    ${c.file_url?`<a href="${c.file_url}" target="_blank" style="font-size:12px;color:#a78bfa;margin-top:6px;display:block">📎 View File</a>`:''}
+  </div>`;
+}
+
+// ── LEAD ACTIONS ──
+function addTag(t) {
+  if (!(currentLead.tags||[]).includes(t)) {
+    currentLead.tags = [...(currentLead.tags||[]), t];
+    switchLeadTab('info');
+  }
+}
+function removeTag(t) {
+  currentLead.tags = (currentLead.tags||[]).filter(x=>x!==t);
+  switchLeadTab('info');
+}
+
+function changeAttempt(key, delta) {
+  const field = `attempts_${key}`;
+  currentLead[field] = Math.max(0, (currentLead[field]||0) + delta);
+  document.getElementById(`att-${key}`).textContent = currentLead[field];
+}
+
+async function saveLead() {
+  const payload = {
+    owner_name: document.getElementById('e-name').value,
+    phone: document.getElementById('e-phone').value,
+    email: document.getElementById('e-email').value,
+    deal_value: document.getElementById('e-deal').value||null,
+    property_address: document.getElementById('e-addr').value,
+    mailing_address: document.getElementById('e-mail-addr').value,
+    va_assigned: document.getElementById('e-va').value,
+    partner_assigned: document.getElementById('e-partner').value,
+    pipeline_stage: document.getElementById('e-stage').value,
+    tags: currentLead.tags||[],
+    notes: document.getElementById('e-notes').value,
+  };
+  try {
+    const r = await fetch(`/api/crm/leads/${currentLead.id}`, { method:'PUT', credentials:'include', headers:{'Content-Type':'application/json'}, body:JSON.stringify(payload) });
+    const d = await r.json();
+    if (d.ok) {
+      Object.assign(currentLead, payload);
+      toast('✅ Lead saved', 'success');
+      loadCrm();
+      renderLeadModal();
+    } else toast(d.error||'Save failed','error');
+  } catch(e) { toast('Connection error','error'); }
+}
+
+async function saveAttempts() {
+  const payload = {
+    attempts_text: currentLead.attempts_text||0,
+    attempts_email: currentLead.attempts_email||0,
+    attempts_cold_call: currentLead.attempts_cold_call||0,
+    attempts_postcard: currentLead.attempts_postcard||0,
+  };
+  try {
+    const r = await fetch(`/api/crm/leads/${currentLead.id}/attempts`, { method:'PUT', credentials:'include', headers:{'Content-Type':'application/json'}, body:JSON.stringify(payload) });
+    const d = await r.json();
+    if (d.ok) { toast('✅ Attempts saved','success'); loadCrm(); }
+    else toast(d.error||'Save failed','error');
+  } catch(e) { toast('Connection error','error'); }
+}
+
+async function uploadContract() {
+  const file = document.getElementById('nc-file').files[0];
+  const type = document.getElementById('nc-type').value;
+  const status = document.getElementById('nc-status').value;
+  const expiry = document.getElementById('nc-expiry').value;
+  const notes = document.getElementById('nc-notes').value;
+  const fd = new FormData();
+  fd.append('contract_type', type);
+  fd.append('status', status);
+  if (expiry) fd.append('expiration_date', expiry);
+  if (notes) fd.append('notes', notes);
+  if (file) fd.append('file', file);
+  try {
+    const r = await fetch(`/api/crm/leads/${currentLead.id}/contracts`, { method:'POST', credentials:'include', body:fd });
+    const d = await r.json();
+    if (d.ok) {
+      toast('✅ Contract uploaded','success');
+      const r2 = await fetch(`/api/crm/leads/${currentLead.id}`, { credentials:'include' });
+      const d2 = await r2.json();
+      if (d2.ok) { currentLead.contracts = d2.contracts||[]; switchLeadTab('contracts'); }
+    } else toast(d.error||'Upload failed','error');
+  } catch(e) { toast('Connection error','error'); }
+}
+
+async function addNote() {
+  const content = document.getElementById('new-note').value.trim();
+  if (!content) return;
+  try {
+    const r = await fetch(`/api/crm/leads/${currentLead.id}/activity`, { method:'POST', credentials:'include', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ activity_type:'note', content }) });
+    const d = await r.json();
+    if (d.ok) {
+      const r2 = await fetch(`/api/crm/leads/${currentLead.id}`, { credentials:'include' });
+      const d2 = await r2.json();
+      if (d2.ok) { currentLead.activities = d2.activities||[]; switchLeadTab('activity'); }
+      toast('Note added','success');
+    } else toast(d.error||'Failed','error');
+  } catch(e) { toast('Connection error','error'); }
+}
+
+// ── ADD LEAD MODAL ──
+function openAddLead() { document.getElementById('add-lead-modal').classList.add('open'); }
+function closeAddLead() { document.getElementById('add-lead-modal').classList.remove('open'); }
+
+async function createLead() {
+  const payload = {
+    owner_name: document.getElementById('al-name').value.trim(),
+    property_address: document.getElementById('al-addr').value.trim(),
+    phone: document.getElementById('al-phone').value.trim(),
+    email: document.getElementById('al-email').value.trim(),
+    deal_value: document.getElementById('al-deal').value||null,
+    pipeline_stage: document.getElementById('al-stage').value,
+    source: 'manual',
+  };
+  if (!payload.owner_name && !payload.property_address) { toast('Enter at least a name or address','error'); return; }
+  try {
+    const r = await fetch('/api/crm/leads', { method:'POST', credentials:'include', headers:{'Content-Type':'application/json'}, body:JSON.stringify(payload) });
+    const d = await r.json();
+    if (d.ok) { toast('✅ Lead created','success'); closeAddLead(); loadCrm(); }
+    else toast(d.error||'Failed to create','error');
+  } catch(e) { toast('Connection error','error'); }
+}
+
+// ── CSV IMPORT ──
+function importCsvLeads(e) {
+  const file = e.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = async (ev) => {
+    const text = ev.target.result;
+    const rows = text.trim().split('\n');
+    const headers = rows[0].split(',').map(h=>h.trim().toLowerCase().replace(/"/g,''));
+    const leads = rows.slice(1).map(row => {
+      const vals = row.split(',').map(v=>v.trim().replace(/"/g,''));
+      const obj = {};
+      headers.forEach((h,i) => obj[h]=vals[i]||'');
+      return {
+        owner_name: obj['owner_name']||obj['name']||obj['owner']||'',
+        property_address: obj['property_address']||obj['address']||'',
+        phone: obj['phone']||obj['phone_number']||'',
+        email: obj['email']||'',
+        deal_value: obj['deal_value']||obj['value']||null,
+        pipeline_stage: 'attempted_contact',
+        source: 'csv'
+      };
+    }).filter(l=>l.owner_name||l.property_address);
+    if (!leads.length) { toast('No valid rows found in CSV','error'); return; }
+    try {
+      const r = await fetch('/api/crm/leads/import', { method:'POST', credentials:'include', headers:{'Content-Type':'application/json'}, body:JSON.stringify({leads}) });
+      const d = await r.json();
+      if (d.ok) { toast(`✅ Imported ${d.count} leads`,'success'); loadCrm(); }
+      else toast(d.error||'Import failed','error');
+    } catch(e) { toast('Connection error','error'); }
+  };
+  reader.readAsText(file);
+  e.target.value = '';
+}
+
+function closeCrmLead() { document.getElementById('crm-lead-modal').classList.remove('open'); }
 </script>
+
+<!-- CRM LEAD DETAIL MODAL -->
+<div class="overlay" id="crm-lead-modal">
+  <div class="crm-modal">
+    <div class="modal-hdr" style="padding:20px 20px 0">
+      <div>
+        <div class="modal-title" id="crm-modal-title">Lead</div>
+        <div id="crm-modal-stage" style="margin-top:4px"></div>
+      </div>
+      <button class="modal-x" onclick="closeCrmLead()">✕</button>
+    </div>
+    <div class="modal-body" style="padding:16px 20px 24px">
+      <div class="crm-tabs">
+        <div class="crm-tab active" id="crm-ltab-info" onclick="switchLeadTab('info')">📋 Info</div>
+        <div class="crm-tab" id="crm-ltab-attempts" onclick="switchLeadTab('attempts')">📊 Attempts</div>
+        <div class="crm-tab" id="crm-ltab-contracts" onclick="switchLeadTab('contracts')">📄 Contracts</div>
+        <div class="crm-tab" id="crm-ltab-activity" onclick="switchLeadTab('activity')">📝 Activity</div>
+      </div>
+      <div id="crm-tab-body"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ADD LEAD MODAL -->
+<div class="overlay" id="add-lead-modal">
+  <div class="crm-modal" style="max-width:480px">
+    <div class="modal-hdr" style="padding:20px 20px 0">
+      <div class="modal-title">➕ Add New Lead</div>
+      <button class="modal-x" onclick="closeAddLead()">✕</button>
+    </div>
+    <div class="modal-body" style="padding:16px 20px 24px">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+        <div><label class="crm-label">Owner Name</label><input class="crm-input" id="al-name" placeholder="John Smith"></div>
+        <div><label class="crm-label">Phone</label><input class="crm-input" id="al-phone" placeholder="(904) 555-0100"></div>
+      </div>
+      <label class="crm-label">Property Address</label>
+      <input class="crm-input" id="al-addr" placeholder="123 Main St Jacksonville FL">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+        <div><label class="crm-label">Email</label><input class="crm-input" id="al-email" placeholder="owner@email.com"></div>
+        <div><label class="crm-label">Deal Value ($)</label><input class="crm-input" id="al-deal" type="number" placeholder="0"></div>
+      </div>
+      <label class="crm-label">Starting Stage</label>
+      <select class="crm-input" id="al-stage">
+        ${STAGES.map(s=>`<option value="${s.key}">${s.label}</option>`).join('')}
+      </select>
+      <button class="crm-save-btn" onclick="createLead()">✅ Create Lead</button>
+    </div>
+  </div>
+</div>
+
 </body>
 </html>

@@ -1,0 +1,406 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>JV Queue — Admin</title>
+<style>
+* { box-sizing:border-box;margin:0;padding:0; }
+body { font-family:'Segoe UI',system-ui,sans-serif;background:linear-gradient(135deg,#667eea 0%,#764ba2 100%);min-height:100vh;color:#fff; }
+
+.topbar { background:rgba(255,255,255,0.15);backdrop-filter:blur(20px);border-bottom:1px solid rgba(255,255,255,0.2);padding:14px 28px;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;position:sticky;top:0;z-index:100; }
+.brand { display:flex;align-items:center;gap:10px; }
+.brand-name { font-size:17px;font-weight:800; }
+.btn-back { background:rgba(255,255,255,0.15);border:1px solid rgba(255,255,255,0.3);color:#fff;padding:8px 16px;border-radius:20px;cursor:pointer;font-size:13px;font-weight:600;text-decoration:none;transition:all 0.2s; }
+.btn-back:hover { background:rgba(255,255,255,0.25); }
+
+.tabs-wrap { padding:20px 28px 0;max-width:1200px;margin:0 auto; }
+.tabs { display:flex;gap:4px;background:rgba(255,255,255,0.1);border-radius:12px;padding:4px;width:fit-content; }
+.tab { padding:10px 20px;border-radius:9px;font-size:13px;font-weight:700;cursor:pointer;transition:all 0.2s;opacity:0.65; }
+.tab:hover { opacity:1; }
+.tab.active { background:#fff;color:#764ba2;opacity:1; }
+.tab-badge { background:#ef4444;color:#fff;border-radius:10px;padding:1px 7px;font-size:10px;margin-left:5px; }
+
+.content { padding:20px 28px 48px;max-width:1200px;margin:0 auto; }
+.panel { display:none; }
+.panel.active { display:block; }
+
+.section-title { font-size:18px;font-weight:800;margin-bottom:4px; }
+.section-sub { font-size:13px;opacity:0.75;margin-bottom:16px; }
+
+/* CARDS */
+.verify-card { background:rgba(255,255,255,0.97);color:#1a1a2e;border-radius:14px;padding:20px;margin-bottom:12px;display:grid;grid-template-columns:1fr auto;gap:16px;align-items:start; }
+.vc-name { font-size:16px;font-weight:800;margin-bottom:4px; }
+.vc-email { font-size:13px;color:#64748b;margin-bottom:8px; }
+.vc-meta { display:flex;gap:12px;flex-wrap:wrap;font-size:12px;color:#64748b;margin-bottom:10px; }
+.vc-sig { background:#f8fafc;border-radius:8px;padding:8px 12px;font-size:13px;color:#475569;margin-bottom:10px;font-style:italic; }
+.vc-id-link { font-size:13px;color:#667eea;font-weight:600;text-decoration:none;display:inline-flex;align-items:center;gap:4px; }
+.vc-id-link:hover { text-decoration:underline; }
+.vc-actions { display:flex;flex-direction:column;gap:8px;min-width:140px; }
+
+.listing-card { background:rgba(255,255,255,0.97);color:#1a1a2e;border-radius:14px;padding:20px;margin-bottom:12px; }
+.lc-header { display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:12px; }
+.lc-type { display:inline-block;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.1em;padding:4px 12px;border-radius:20px;margin-bottom:6px; }
+.lt-standard_jv { background:#dbeafe;color:#1e40af; }
+.lt-non_exclusive { background:#fef3c7;color:#92400e; }
+.lt-subject_to { background:#dcfce7;color:#166534; }
+.lt-seller_finance { background:#f3e8ff;color:#7e22ce; }
+.lt-note { background:#ffedd5;color:#c2410c; }
+.lt-equity { background:#fae8ff;color:#9333ea; }
+.lc-address { font-size:15px;font-weight:800;margin-bottom:4px; }
+.lc-meta { display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:14px; }
+.meta-label { font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:#94a3b8; }
+.meta-value { font-size:14px;font-weight:700;color:#1e293b; }
+.lc-desc { font-size:13px;color:#64748b;margin-bottom:14px;line-height:1.6; }
+
+/* BUTTONS */
+.btn { padding:9px 18px;border-radius:10px;font-size:13px;font-weight:700;cursor:pointer;border:none;font-family:inherit;transition:all 0.2s; }
+.btn-approve { background:#22c55e;color:#fff; }
+.btn-approve:hover { background:#16a34a; }
+.btn-reject { background:#ef4444;color:#fff; }
+.btn-reject:hover { background:#dc2626; }
+.btn-outline { background:rgba(255,255,255,0.15);border:1px solid rgba(255,255,255,0.3);color:#fff; }
+.btn-outline:hover { background:rgba(255,255,255,0.25); }
+
+/* STATUS PILLS */
+.pill { display:inline-block;font-size:10px;font-weight:700;text-transform:uppercase;padding:3px 10px;border-radius:20px; }
+.p-pending { background:#fef3c7;color:#92400e; }
+.p-approved { background:#dcfce7;color:#166534; }
+.p-rejected { background:#fee2e2;color:#991b1b; }
+.p-pending_review { background:#fef3c7;color:#92400e; }
+
+/* SPLIT INPUT */
+.split-row { display:flex;gap:8px;align-items:center;margin-bottom:10px; }
+.split-input { background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:8px 12px;font-size:13px;width:90px;color:#1a1a2e;outline:none; }
+.split-label { font-size:12px;color:#64748b;font-weight:600; }
+
+/* NOTES INPUT */
+.notes-input { width:100%;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:8px 12px;font-size:13px;color:#1a1a2e;outline:none;font-family:inherit;resize:none;margin-bottom:10px; }
+
+/* FILTER */
+.filter-row { display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap; }
+.filter-btn { padding:7px 16px;border-radius:20px;font-size:12px;font-weight:700;cursor:pointer;border:1px solid rgba(255,255,255,0.3);background:rgba(255,255,255,0.1);color:#fff;transition:all 0.2s; }
+.filter-btn.active { background:#fff;color:#764ba2;border-color:#fff; }
+
+/* EMPTY/LOADING */
+.empty-s { text-align:center;padding:48px;background:rgba(255,255,255,0.08);border-radius:14px; }
+.empty-ico { font-size:44px;margin-bottom:10px;opacity:0.5; }
+.empty-ttl { font-size:18px;font-weight:700;margin-bottom:6px; }
+.empty-txt { font-size:13px;opacity:0.7; }
+.loading-s { display:flex;align-items:center;justify-content:center;gap:10px;padding:48px;opacity:0.7;font-size:14px; }
+.spinner { width:20px;height:20px;border:2px solid rgba(255,255,255,0.3);border-top-color:#fff;border-radius:50%;animation:spin 0.8s linear infinite; }
+@keyframes spin { to{transform:rotate(360deg)} }
+
+/* STATS */
+.stats-row { display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:24px; }
+.stat-card { background:rgba(255,255,255,0.15);border:1px solid rgba(255,255,255,0.22);border-radius:14px;padding:16px;text-align:center; }
+.stat-n { font-size:26px;font-weight:800;margin-bottom:4px; }
+.stat-l { font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;opacity:0.75; }
+
+/* TOAST */
+#toasts { position:fixed;bottom:24px;right:24px;display:flex;flex-direction:column;gap:8px;z-index:9999; }
+.toast { background:#fff;color:#1e293b;border-radius:12px;padding:12px 18px;font-size:14px;font-weight:600;box-shadow:0 8px 32px rgba(0,0,0,0.2);border-left:4px solid #667eea;animation:tIn 0.3s ease;min-width:240px; }
+.toast.success { border-left-color:#22c55e; }
+.toast.error { border-left-color:#ef4444; }
+@keyframes tIn { from{transform:translateX(100px);opacity:0}to{transform:translateX(0);opacity:1} }
+
+@media(max-width:768px) {
+  .lc-meta { grid-template-columns:repeat(2,1fr); }
+  .stats-row { grid-template-columns:repeat(2,1fr); }
+  .content,.tabs-wrap { padding-left:16px;padding-right:16px; }
+  .verify-card { grid-template-columns:1fr; }
+}
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="brand">
+    <span style="font-size:22px">🤝</span>
+    <div>
+      <div class="brand-name">JV Partner Queue</div>
+      <div style="font-size:11px;opacity:0.65">Admin Review Portal</div>
+    </div>
+  </div>
+  <a href="/admin" class="btn-back">← Back to Admin</a>
+</div>
+
+<div class="tabs-wrap">
+  <div class="tabs">
+    <div class="tab active" onclick="switchTab('verifications')" id="tab-verifications">🪪 Verifications <span class="tab-badge" id="v-badge" style="display:none">0</span></div>
+    <div class="tab" onclick="switchTab('listings')" id="tab-listings">🏘 Listings <span class="tab-badge" id="l-badge" style="display:none">0</span></div>
+  </div>
+</div>
+
+<div class="content">
+
+  <!-- STATS -->
+  <div class="stats-row" style="margin-top:20px">
+    <div class="stat-card"><div class="stat-n" id="s-pending-v">—</div><div class="stat-l">Pending Verifications</div></div>
+    <div class="stat-card"><div class="stat-n" id="s-approved-v" style="color:#86efac">—</div><div class="stat-l">Approved Partners</div></div>
+    <div class="stat-card"><div class="stat-n" id="s-pending-l">—</div><div class="stat-l">Pending Listings</div></div>
+    <div class="stat-card"><div class="stat-n" id="s-approved-l" style="color:#86efac">—</div><div class="stat-l">Live Listings</div></div>
+  </div>
+
+  <!-- VERIFICATIONS PANEL -->
+  <div class="panel active" id="panel-verifications">
+    <div class="section-title">🪪 JV Partner Verifications</div>
+    <div class="section-sub">Review identity documents and consent forms before granting JV marketplace access</div>
+
+    <div class="filter-row">
+      <button class="filter-btn active" id="vf-pending" onclick="setVerifyFilter('pending')">⏳ Pending</button>
+      <button class="filter-btn" id="vf-approved" onclick="setVerifyFilter('approved')">✅ Approved</button>
+      <button class="filter-btn" id="vf-rejected" onclick="setVerifyFilter('rejected')">❌ Rejected</button>
+      <button class="filter-btn" id="vf-all" onclick="setVerifyFilter('all')">All</button>
+    </div>
+
+    <div id="verifications-wrap"><div class="loading-s"><div class="spinner"></div> Loading…</div></div>
+  </div>
+
+  <!-- LISTINGS PANEL -->
+  <div class="panel" id="panel-listings">
+    <div class="section-title">🏘 JV Partner Listings</div>
+    <div class="section-sub">Review and approve property listings before they appear in the JV marketplace</div>
+
+    <div class="filter-row">
+      <button class="filter-btn active" id="lf-pending_review" onclick="setListingFilter('pending_review')">⏳ Pending</button>
+      <button class="filter-btn" id="lf-approved" onclick="setListingFilter('approved')">✅ Approved</button>
+      <button class="filter-btn" id="lf-rejected" onclick="setListingFilter('rejected')">❌ Rejected</button>
+      <button class="filter-btn" id="lf-all" onclick="setListingFilter('all')">All</button>
+    </div>
+
+    <div id="listings-wrap"><div class="loading-s"><div class="spinner"></div> Loading…</div></div>
+  </div>
+
+</div>
+
+<div id="toasts"></div>
+
+<script>
+let verifyFilter = 'pending';
+let listingFilter = 'pending_review';
+
+const TYPE_LABELS = { standard_jv:'Standard JV', non_exclusive:'Non-Exclusive', subject_to:'Subject-To', seller_finance:'Seller Finance', note:'Note', equity:'Equity' };
+
+window.addEventListener('DOMContentLoaded', () => {
+  loadStats();
+  loadVerifications();
+});
+
+function switchTab(name) {
+  document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+  document.querySelectorAll('.panel').forEach(p=>p.classList.remove('active'));
+  document.getElementById(`tab-${name}`).classList.add('active');
+  document.getElementById(`panel-${name}`).classList.add('active');
+  if (name === 'listings') loadListings();
+}
+
+async function loadStats() {
+  try {
+    const [vr, lr] = await Promise.all([
+      fetch('/api/admin/jv/verifications?status=all', { credentials:'include' }).then(r=>r.json()),
+      fetch('/api/admin/jv/listings?status=all', { credentials:'include' }).then(r=>r.json()),
+    ]);
+    const vs = vr.verifications || [];
+    const ls = lr.listings || [];
+    const pv = vs.filter(v=>v.status==='pending').length;
+    const av = vs.filter(v=>v.status==='approved').length;
+    const pl = ls.filter(l=>l.status==='pending_review').length;
+    const al = ls.filter(l=>l.status==='approved').length;
+    document.getElementById('s-pending-v').textContent = pv;
+    document.getElementById('s-approved-v').textContent = av;
+    document.getElementById('s-pending-l').textContent = pl;
+    document.getElementById('s-approved-l').textContent = al;
+    if (pv>0) { document.getElementById('v-badge').textContent=pv; document.getElementById('v-badge').style.display='inline'; }
+    if (pl>0) { document.getElementById('l-badge').textContent=pl; document.getElementById('l-badge').style.display='inline'; }
+  } catch(e) {}
+}
+
+// ── VERIFICATIONS ──
+function setVerifyFilter(f) {
+  verifyFilter = f;
+  document.querySelectorAll('[id^="vf-"]').forEach(b=>b.classList.remove('active'));
+  document.getElementById(`vf-${f}`).classList.add('active');
+  loadVerifications();
+}
+
+async function loadVerifications() {
+  const c = document.getElementById('verifications-wrap');
+  c.innerHTML = '<div class="loading-s"><div class="spinner"></div> Loading…</div>';
+  try {
+    const r = await fetch(`/api/admin/jv/verifications?status=${verifyFilter}`, { credentials:'include' });
+    const d = await r.json();
+    const items = d.verifications || [];
+    if (!items.length) {
+      c.innerHTML = `<div class="empty-s"><div class="empty-ico">✅</div><div class="empty-ttl">No ${verifyFilter} Applications</div><div class="empty-txt">Check a different filter above.</div></div>`;
+      return;
+    }
+    c.innerHTML = items.map(v => `
+      <div class="verify-card" id="vc-${v.id}">
+        <div>
+          <div class="vc-name">${v.full_name||'—'}</div>
+          <div class="vc-email">${v.user_email}</div>
+          <div class="vc-meta">
+            <span>📅 Submitted ${new Date(v.submitted_at).toLocaleDateString()}</span>
+            <span class="pill p-${v.status}">${v.status}</span>
+          </div>
+          <div class="vc-sig">✍️ Signature: "${v.signature||'—'}"</div>
+          ${v.id_document_url
+            ? `<a href="${v.id_document_url}" target="_blank" class="vc-id-link">🪪 View ID Document</a>`
+            : '<span style="font-size:12px;color:#94a3b8">No ID uploaded</span>'}
+          ${v.admin_notes ? `<div style="background:#fef9c3;border-radius:8px;padding:8px 12px;font-size:12px;color:#92400e;margin-top:8px">📋 Notes: ${v.admin_notes}</div>` : ''}
+          ${v.status === 'pending' ? `
+            <div style="margin-top:12px">
+              <textarea class="notes-input" id="vn-${v.id}" placeholder="Admin notes (optional)…" rows="2"></textarea>
+            </div>` : ''}
+        </div>
+        <div class="vc-actions">
+          ${v.status === 'pending' ? `
+            <button class="btn btn-approve" onclick="approveVerification(${v.id})">✅ Approve</button>
+            <button class="btn btn-reject" onclick="rejectVerification(${v.id})">❌ Reject</button>
+          ` : v.status === 'approved' ? `
+            <button class="btn btn-reject" onclick="rejectVerification(${v.id})">Revoke</button>
+          ` : `
+            <button class="btn btn-approve" onclick="approveVerification(${v.id})">Re-Approve</button>
+          `}
+        </div>
+      </div>`).join('');
+  } catch(e) { c.innerHTML = `<div class="empty-s"><div class="empty-ico">⚠️</div><div class="empty-ttl">Failed to Load</div></div>`; }
+}
+
+async function approveVerification(id) {
+  const notes = document.getElementById(`vn-${id}`)?.value || '';
+  try {
+    const r = await fetch(`/api/admin/jv/verifications/${id}/approve`, {
+      method:'POST', credentials:'include',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ notes })
+    });
+    const d = await r.json();
+    if (d.ok) { toast('✅ Partner approved — JV access granted', 'success'); loadVerifications(); loadStats(); }
+    else toast(d.error||'Failed','error');
+  } catch(e) { toast('Connection error','error'); }
+}
+
+async function rejectVerification(id) {
+  const notes = document.getElementById(`vn-${id}`)?.value || '';
+  const reason = notes || prompt('Reason for rejection:') || 'Verification rejected';
+  try {
+    const r = await fetch(`/api/admin/jv/verifications/${id}/reject`, {
+      method:'POST', credentials:'include',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ reason })
+    });
+    const d = await r.json();
+    if (d.ok) { toast('Verification rejected', 'success'); loadVerifications(); loadStats(); }
+    else toast(d.error||'Failed','error');
+  } catch(e) { toast('Connection error','error'); }
+}
+
+// ── LISTINGS ──
+function setListingFilter(f) {
+  listingFilter = f;
+  document.querySelectorAll('[id^="lf-"]').forEach(b=>b.classList.remove('active'));
+  document.getElementById(`lf-${f}`).classList.add('active');
+  loadListings();
+}
+
+async function loadListings() {
+  const c = document.getElementById('listings-wrap');
+  c.innerHTML = '<div class="loading-s"><div class="spinner"></div> Loading…</div>';
+  try {
+    const r = await fetch(`/api/admin/jv/listings?status=${listingFilter}`, { credentials:'include' });
+    const d = await r.json();
+    const items = d.listings || [];
+    if (!items.length) {
+      c.innerHTML = `<div class="empty-s"><div class="empty-ico">🏘</div><div class="empty-ttl">No ${listingFilter.replace('_',' ')} Listings</div></div>`;
+      return;
+    }
+    c.innerHTML = items.map(l => `
+      <div class="listing-card">
+        <div class="lc-header">
+          <div>
+            <div class="lc-type lt-${l.listing_type}">${TYPE_LABELS[l.listing_type]||l.listing_type}</div>
+            <div class="lc-address">${l.address}</div>
+            <div style="font-size:12px;color:#64748b">Submitted by ${l.submitted_by} · ${new Date(l.submitted_at).toLocaleDateString()}</div>
+          </div>
+          <span class="pill p-${l.status}">${l.status.replace(/_/g,' ')}</span>
+        </div>
+
+        <div class="lc-meta">
+          <div><div class="meta-label">Asking Price</div><div class="meta-value">${l.purchase_price?'$'+parseFloat(l.purchase_price).toLocaleString():'—'}</div></div>
+          <div><div class="meta-label">ARV</div><div class="meta-value">${l.arv?'$'+parseFloat(l.arv).toLocaleString():'—'}</div></div>
+          <div><div class="meta-label">Asking Split</div><div class="meta-value">${l.asking_split||'—'}%</div></div>
+          <div><div class="meta-label">Approved Split</div><div class="meta-value">${l.approved_split||'—'}${l.approved_split?'%':''}</div></div>
+          ${l.loan_balance?`<div><div class="meta-label">Loan Balance</div><div class="meta-value">$${parseFloat(l.loan_balance).toLocaleString()}</div></div>`:''}
+          ${l.monthly_payment?`<div><div class="meta-label">Monthly Pmt</div><div class="meta-value">$${parseFloat(l.monthly_payment).toLocaleString()}</div></div>`:''}
+          ${l.note_amount?`<div><div class="meta-label">Note Amount</div><div class="meta-value">$${parseFloat(l.note_amount).toLocaleString()}</div></div>`:''}
+          ${l.equity_percentage?`<div><div class="meta-label">Equity %</div><div class="meta-value">${l.equity_percentage}%</div></div>`:''}
+        </div>
+
+        ${l.description?`<div class="lc-desc">${l.description}</div>`:''}
+        ${l.admin_notes?`<div style="background:#fef9c3;border-radius:8px;padding:10px 14px;font-size:13px;color:#92400e;margin-bottom:12px">📋 Admin Notes: ${l.admin_notes}</div>`:''}
+
+        ${l.status === 'pending_review' ? `
+          <div style="border-top:1px solid #f1f5f9;padding-top:14px;margin-top:4px">
+            <div class="split-row">
+              <span class="split-label">Approved Split %:</span>
+              <input type="number" class="split-input" id="split-${l.id}" placeholder="${l.asking_split||40}" min="1" max="99" value="${l.asking_split||''}">
+              <span class="split-label">(partner receives this %)</span>
+            </div>
+            <textarea class="notes-input" id="ln-${l.id}" placeholder="Admin notes to partner (optional)…" rows="2"></textarea>
+            <div style="display:flex;gap:8px">
+              <button class="btn btn-approve" onclick="approveListing(${l.id})">✅ Approve Listing</button>
+              <button class="btn btn-reject" onclick="rejectListing(${l.id})">❌ Reject</button>
+            </div>
+          </div>
+        ` : `
+          <div style="display:flex;gap:8px;margin-top:8px">
+            ${l.status==='approved'
+              ? `<button class="btn btn-reject" onclick="rejectListing(${l.id})" style="font-size:12px;padding:6px 14px">Remove from Marketplace</button>`
+              : `<button class="btn btn-approve" onclick="approveListing(${l.id})" style="font-size:12px;padding:6px 14px">Re-Approve</button>`}
+          </div>`}
+      </div>`).join('');
+  } catch(e) { c.innerHTML = `<div class="empty-s"><div class="empty-ico">⚠️</div><div class="empty-ttl">Failed to Load</div></div>`; }
+}
+
+async function approveListing(id) {
+  const split = document.getElementById(`split-${id}`)?.value;
+  const notes = document.getElementById(`ln-${id}`)?.value || '';
+  if (!split) { toast('Enter approved split % before approving','error'); return; }
+  try {
+    const r = await fetch(`/api/admin/jv/listings/${id}/approve`, {
+      method:'POST', credentials:'include',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ approved_split: parseFloat(split), notes })
+    });
+    const d = await r.json();
+    if (d.ok) { toast('✅ Listing approved — now live in marketplace', 'success'); loadListings(); loadStats(); }
+    else toast(d.error||'Failed','error');
+  } catch(e) { toast('Connection error','error'); }
+}
+
+async function rejectListing(id) {
+  const notes = document.getElementById(`ln-${id}`)?.value || '';
+  const reason = notes || prompt('Reason for rejection:') || 'Listing rejected';
+  try {
+    const r = await fetch(`/api/admin/jv/listings/${id}/reject`, {
+      method:'POST', credentials:'include',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ reason })
+    });
+    const d = await r.json();
+    if (d.ok) { toast('Listing rejected', 'success'); loadListings(); loadStats(); }
+    else toast(d.error||'Failed','error');
+  } catch(e) { toast('Connection error','error'); }
+}
+
+function toast(msg, type='info') {
+  const t = document.createElement('div');
+  t.className = `toast ${type}`; t.textContent = msg;
+  document.getElementById('toasts').appendChild(t);
+  setTimeout(()=>t.remove(), 4500);
+}
+</script>
+</body>
+</html>
