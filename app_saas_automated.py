@@ -4572,50 +4572,6 @@ def create_notification(user_email, user_type, title, message, notif_type='info'
         print(f"⚠️ Notification create error: {e}")
 
 
-@app.get("/api/notifications")
-def get_notifications():
-    """Get notifications for current user (any type)."""
-    # Try user session first
-    u = require_login()
-    email = None
-    user_type = 'user'
-    if u:
-        email = u['email']
-        user_type = 'admin' if u.get('is_admin') else 'user'
-    else:
-        # Try VA session
-        va_session = request.cookies.get('va_session', '')
-        if va_session:
-            try:
-                with db_conn() as conn:
-                    with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
-                        cur.execute("""
-                            SELECT v.email FROM va_sessions s
-                            JOIN va_users v ON v.id = s.va_user_id
-                            WHERE s.token = %s AND s.expires_at > NOW()
-                        """, (va_session,))
-                        row = cur.fetchone()
-                        if row:
-                            email = row['email']
-                            user_type = 'va'
-            except Exception:
-                pass
-    if not email:
-        return jsonify({"ok": False, "error": "Not authorized"}), 401
-    try:
-        with db_conn() as conn:
-            with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
-                cur.execute("""
-                    SELECT * FROM notifications
-                    WHERE user_email = %s
-                    ORDER BY created_at DESC LIMIT 20
-                """, (email,))
-                notifs = cur.fetchall()
-                unread = sum(1 for n in notifs if not n['read'])
-        return jsonify({"ok": True, "notifications": [dict(n) for n in notifs], "unread": unread})
-    except Exception as e:
-        return jsonify({"ok": False, "error": str(e)}), 500
-
 
 @app.post("/api/notifications/read")
 def mark_notifications_read():
