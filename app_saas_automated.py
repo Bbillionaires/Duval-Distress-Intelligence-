@@ -4552,44 +4552,6 @@ def check_va_milestones(va_email, total_completed, va_payout):
         print(f"⚠️ Milestone check error: {e}")
 
 
-@app.get("/api/va/rewards")
-def va_get_rewards():
-    """VA views their rewards dashboard"""
-    va_session = request.cookies.get('va_session', '')
-    va_email = None
-    try:
-        with db_conn() as conn:
-            with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
-                cur.execute("""
-                    SELECT v.email, v.total_completed, v.total_earned
-                    FROM va_sessions s JOIN va_users v ON v.id = s.va_user_id
-                    WHERE s.token = %s AND s.expires_at > NOW()
-                """, (va_session,))
-                va = cur.fetchone()
-                if not va:
-                    return jsonify({"ok": False, "error": "Not authorized"}), 401
-                va_email = va['email']
-                tier = get_va_tier(va['total_completed'])
-                next_tier = next((t for t in VA_TIERS if t['min'] > va['total_completed']), None)
-                # Get pending rewards
-                cur.execute("""
-                    SELECT * FROM va_rewards WHERE va_email = %s
-                    ORDER BY created_at DESC LIMIT 50
-                """, (va_email,))
-                rewards = cur.fetchall()
-                pending_total = sum(float(r['amount']) for r in rewards if r['status'] == 'pending')
-        return jsonify({
-            "ok": True,
-            "tier": tier,
-            "next_tier": next_tier,
-            "total_completed": va['total_completed'],
-            "total_earned": float(va['total_earned'] or 0),
-            "pending_bonus": pending_total,
-            "rewards": [dict(r) for r in rewards],
-            "milestones": VA_MILESTONES
-        })
-    except Exception as e:
-        return jsonify({"ok": False, "error": str(e)}), 500
 
 
 # ══════════════════════════════════════════════
