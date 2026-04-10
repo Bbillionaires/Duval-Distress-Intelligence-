@@ -9,3 +9,5 @@ openpyxl==3.1.2
 python-dotenv==1.0.0
 bcrypt==4.1.2
 stripe==8.0.0
+
+resend
