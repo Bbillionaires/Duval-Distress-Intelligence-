@@ -683,8 +683,8 @@ def api_properties(county=None):
     with db_conn() as conn:
         with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
             # Count total
-            cur.execute(f"SELECT COUNT(*) as total FROM properties {where_sql}", params)
-            total = cur.fetchone()["total"]
+            cur.execute("SELECT reltuples::bigint FROM pg_class WHERE relname = 'properties'")
+            total = cur.fetchone()[0]
             
             # Get page
             offset = (page - 1) * page_size
