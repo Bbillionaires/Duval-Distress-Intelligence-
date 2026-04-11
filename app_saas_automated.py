@@ -10,43 +10,10 @@ Features:
 
 VERSION: 2026-03-17 - VA Portal Complete with all endpoints
 """
-import os
-import subprocess
-import sys
-import time
-from datetime import datetime, timezone, timedelta
-from pathlib import Path
-import csv
-import io
-import tempfile
 
-import psycopg2
-import psycopg2.extras
-from flask import Flask, jsonify, request, send_from_directory, redirect, make_response
-from werkzeug.security import generate_password_hash, check_password_hash
-from werkzeug.utils import secure_filename
-import secrets
-import stripe
-
-# Import openpyxl for Excel handling
-try:
-    from openpyxl import load_workbook
-    EXCEL_SUPPORT = True
-except ImportError:
-    EXCEL_SUPPORT = False
-
-BASE_DIR = Path(__file__).resolve().parent
-DATABASE_URL = os.getenv("DATABASE_URL", "").strip()
-APP_SECRET = os.getenv("APP_SECRET", "dev-secret-change-me")
-COOKIE_NAME = os.getenv("SESSION_COOKIE", "di_session")
-
-DEFAULT_ADMIN_EMAIL = os.getenv("ADMIN_EMAIL", "admin@local")
-DEFAULT_ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "ChangeMe123!")
-
-app = Flask(__name__)
-app.config["SECRET_KEY"] = APP_SECRET
-app.config["MAX_CONTENT_LENGTH"] = 16 * 1024 * 1024  # 16MB max file size
-app.config["UPLOAD_FOLDER"] = BASE_DIR / "uploads"
+# Simple in-memory cache for expensive queries
+_stats_cache = {}
+_stats_cache_time = {}
 
 # Stripe configuration
 stripe.api_key = os.getenv("STRIPE_SECRET_KEY")
@@ -736,6 +703,12 @@ def api_stats(county=None):
     if not u:
         return jsonify({"ok": False, "error": "Not authorized"}), 401
     
+    cache_key = county or "all"
+    now = time.time()
+    
+    if cache_key in _stats_cache and (now - _stats_cache_time.get(cache_key, 0)) < 300:
+        return jsonify(_stats_cache[cache_key])
+
     with db_conn() as conn:
         with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
             # Build county filter
@@ -774,12 +747,15 @@ def api_stats(county=None):
             """, county_params)
             recent_jobs = cur.fetchall()
     
-    return jsonify({
+    result = {
         "ok": True,
         "overall": overall,
         "by_stage": by_stage,
         "recent_jobs": recent_jobs
-    })
+    }
+    _stats_cache[cache_key] = result
+    _stats_cache_time[cache_key] = now
+    return jsonify(result)
 
 
 # ========== FILE UPLOAD API ==========
