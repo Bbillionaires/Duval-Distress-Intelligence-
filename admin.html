@@ -473,97 +473,41 @@
             }
         }
 
+// Client-side pagination - load all once, paginate in browser
+        let allProperties = [];
+        const PAGE_SIZE = 10;
+
         async function loadProperties() {
             const stage = document.getElementById('stageFilter').value;
             const category = document.getElementById('categoryFilter').value;
             const search = document.getElementById('searchInput').value.trim();
-            const params = new URLSearchParams({ page: currentPage, page_size: 10 });
+            const params = new URLSearchParams({ page: 1, page_size: 10000 });
             if (stage) params.append('stage', stage);
             if (category) params.append('category', category);
             if (search) params.append('search', search);
-
             try {
                 const response = await fetch(`/api/properties?${params}`);
                 const data = await response.json();
-                
-                if (data.ok && data.rows.length > 0) {
-                    renderProperties(data.rows);
-                    renderPagination(data.total);
+                if (data.ok) {
+                    allProperties = data.rows;
+                    currentPage = 1;
+                    renderCurrentPage();
                 }
             } catch (error) {
                 console.error('Error loading properties:', error);
             }
         }
 
-        function renderProperties(properties) {
-            const container = document.getElementById('propertiesTable');
-            container.innerHTML = `
-                <table>
-                    <thead>
-                        <tr>
-                            <th>Category</th>
-                            <th>Parcel</th>
-                            <th>Stage</th>
-                            <th>Address</th>
-                            <th>Owner</th>
-                            <th>Amount Due</th>
-                            <th>Actions</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        ${properties.map(prop => `
-                            <tr>
-                                <td>${formatCategory(prop.category)}</td>
-                                <td><strong>${prop.parcel}</strong></td>
-                                <td><span style="padding: 4px 8px; border-radius: 4px; font-size: 12px; background: ${getStageColor(prop.stage)}; color: white;">${formatStage(prop.stage)}</span></td>
-                                <td>${prop.address || '-'}</td>
-                                <td>${prop.owner || '-'}</td>
-                                <td><strong>$${parseFloat(prop.current_total_due || 0).toLocaleString()}</strong></td>
-                                <td>
-                                    <button class="btn btn-primary btn-sm" onclick="openNotesModal(${prop.id}, '${prop.parcel}')">
-                                        📝 Notes
-                                    </button>
-                                </td>
-                            </tr>
-                        `).join('')}
-                    </tbody>
-                </table>
-            `;
-        }
-
-        function formatCategory(cat) {
-            const cats = {
-                'tax': '💰 Tax',
-                'pre_foreclosure': '🏚️ Pre-FC',
-                'fire_damage': '🔥 Fire',
-                'probate': '⚖️ Probate',
-                'code_violation': '⚠️ Code',
-                'surplus_funds': '💵 Surplus'
-            };
-            return cats[cat] || cat;
-        }
-
-        function renderPagination(total) {
-            const totalPages = Math.ceil(total / 10);
-            const container = document.getElementById('pagination');
-            let html = '';
-            
-            if (currentPage > 1) {
-                html += `<button class="btn btn-secondary" onclick="changePage(${currentPage - 1})">← Previous</button>`;
-            }
-            
-            html += `<span style="padding: 10px;">Page ${currentPage} of ${totalPages}</span>`;
-            
-            if (currentPage < totalPages) {
-                html += `<button class="btn btn-secondary" onclick="changePage(${currentPage + 1})">Next →</button>`;
-            }
-            
-            container.innerHTML = html;
+        function renderCurrentPage() {
+            const start = (currentPage - 1) * PAGE_SIZE;
+            const pageRows = allProperties.slice(start, start + PAGE_SIZE);
+            renderProperties(pageRows);
+            renderPagination(allProperties.length);
         }
 
         function changePage(page) {
             currentPage = page;
-            loadProperties();
+            renderCurrentPage();
         }
 
         function getStageColor(stage) {
