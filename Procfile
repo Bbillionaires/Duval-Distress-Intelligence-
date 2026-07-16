@@ -1,1 +1,1 @@
-web: gunicorn app:app --workers=2 --threads=4 --timeout=120
+web: gunicorn -c gunicorn_config.py app_saas_automated:app

@@ -4,10 +4,9 @@ services:
     runtime: python
     plan: starter
     buildCommand: pip install -r requirements.txt
-    startCommand: gunicorn app_saas_automated:app --bind 0.0.0.0:$PORT
+    startCommand: gunicorn -c gunicorn_config.py app_saas_automated:app
     envVars:
       - key: PYTHON_VERSION
-        value: "3.11"
         value: "3.11"
       - key: PORT
         value: "10000"
