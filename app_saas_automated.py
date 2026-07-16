@@ -2664,14 +2664,14 @@ def require_management():
         with db_conn() as conn:
             with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
                 cur.execute("""
-                    SELECT s.user_email, m.name, m.active
-                    FROM sessions s
-                    JOIN management_users m ON m.email = s.user_email
+                    SELECT m.email, m.name, m.active
+                    FROM management_sessions s
+                    JOIN management_users m ON m.id = s.management_user_id
                     WHERE s.token = %s AND s.expires_at > NOW() AND m.active = TRUE
                 """, (token,))
                 row = cur.fetchone()
                 if row:
-                    return {'email': row['user_email'], 'name': row['name'], 'role': 'management'}
+                    return {'email': row['email'], 'name': row['name'], 'role': 'management'}
     except Exception:
         pass
     return None
@@ -3302,7 +3302,7 @@ def marketplace_get_listings():
                 cur.execute("""
                     SELECT 
                         pl.*,
-                        p.address, p.parcel, p.zip_code, p.owner
+                        p.address, p.parcel, p.zip AS zip_code, p.owner
                     FROM active_direct_listings pl
                     JOIN properties p ON pl.property_id = p.id
                     ORDER BY pl.created_at DESC
@@ -3328,7 +3328,7 @@ def marketplace_get_listing_details(listing_id):
                 cur.execute("""
                     SELECT 
                         pl.*,
-                        p.address, p.parcel, p.zip_code, p.owner, p.current_total_due
+                        p.address, p.parcel, p.zip AS zip_code, p.owner, p.current_total_due
                     FROM property_listings pl
                     JOIN properties p ON pl.property_id = p.id
                     WHERE pl.id = %s
@@ -4096,9 +4096,9 @@ def management_login():
                     return jsonify({"ok": False, "error": "Invalid credentials"}), 401
                 token = secrets.token_hex(32)
                 cur.execute("""
-                    INSERT INTO sessions (token, user_email, expires_at, created_at)
-                    VALUES (%s,%s,NOW()+INTERVAL '8 hours',NOW())
-                """, (token, email))
+                    INSERT INTO management_sessions (token, management_user_id, expires_at)
+                    VALUES (%s,%s,NOW()+INTERVAL '8 hours')
+                """, (token, m['id']))
                 conn.commit()
         log_activity(email, 'management', 'login', details=f"ip={request.remote_addr}")
         resp = jsonify({"ok": True, "redirect": "/management"})
@@ -5143,23 +5143,22 @@ def delete_job_file(job_id, file_id):
             with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
                 # Verify ownership
                 cur.execute("""
-                    SELECT f.filename, f.file_url
+                    SELECT f.file_url
                     FROM service_request_files f
                     JOIN service_requests sr ON sr.id = f.service_request_id
                     WHERE f.id = %s AND f.service_request_id = %s
                     AND sr.claimed_by_va_email = %s
                 """, (file_id, job_id, va_email))
-                
+
                 file_record = cur.fetchone()
-                
+
                 if not file_record:
                     return jsonify({"ok": False, "error": "File not found"}), 404
-                
-                # Delete file from disk
-                import os
-                file_path = os.path.join("/mnt/user-data/outputs/uploads", file_record['filename'])
-                if os.path.exists(file_path):
-                    os.remove(file_path)
+
+                # Delete file from disk (file_url is "/static/uploads/<name>", relative to BASE_DIR)
+                file_path = BASE_DIR / file_record['file_url'].lstrip('/')
+                if file_path.exists():
+                    file_path.unlink()
                 
                 # Delete from database
                 cur.execute("DELETE FROM service_request_files WHERE id = %s", (file_id,))

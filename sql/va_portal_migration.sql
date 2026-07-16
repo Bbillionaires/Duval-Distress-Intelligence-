@@ -124,14 +124,22 @@ CREATE INDEX IF NOT EXISTS idx_va_users_email ON va_users(email);
 CREATE INDEX IF NOT EXISTS idx_va_users_active ON va_users(active);
 
 -- Sample VA user (password: va123456)
--- Generate your own hash with: import bcrypt; bcrypt.hashpw(b'va123456', bcrypt.gensalt()).decode()
-INSERT INTO va_users (email, name, password_hash, phone) 
+-- api_va_login() checks this with werkzeug's check_password_hash(), which
+-- does NOT understand bcrypt's $2b$ format -- the original seed hash here
+-- was bcrypt, so this account could never actually log in. Regenerate with:
+-- from werkzeug.security import generate_password_hash; generate_password_hash('va123456')
+INSERT INTO va_users (email, name, password_hash, phone)
 VALUES (
-    'va@example.com', 
-    'Sample VA', 
-    '$2b$12$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMQJqhN8/LewY5ew2hBLLPknje', 
+    'va@example.com',
+    'Sample VA',
+    'scrypt:32768:8:1$fC4mZ7zaS3D8uKcc$0316c39c38225db2368df6cc3dc3b8dd7ac3233d72f10afb76db9d18df0e851cad3c68877e3adf71037e898bccb5cbd93d5a6e162e47bc9ccfe6548bc77fac57',
     '555-0100'
 ) ON CONFLICT (email) DO NOTHING;
+
+-- Fix the hash on this row if it was already seeded with the old broken
+-- bcrypt hash (ON CONFLICT DO NOTHING above won't touch an existing row).
+UPDATE va_users SET password_hash = 'scrypt:32768:8:1$fC4mZ7zaS3D8uKcc$0316c39c38225db2368df6cc3dc3b8dd7ac3233d72f10afb76db9d18df0e851cad3c68877e3adf71037e898bccb5cbd93d5a6e162e47bc9ccfe6548bc77fac57'
+WHERE email = 'va@example.com' AND password_hash = '$2b$12$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMQJqhN8/LewY5ew2hBLLPknje';
 
 -- Grant necessary permissions (adjust based on your setup)
 -- ALTER TABLE va_users OWNER TO your_db_user;
